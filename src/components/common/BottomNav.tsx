@@ -1,44 +1,46 @@
 "use client";
 
+import { Home, Search, PlusSquare, Film } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  HomeOutlined,
-  HomeFilled,
-  SearchOutlined,
-  HeartOutlined,
-  HeartFilled,
-  UserOutlined,
-} from "@ant-design/icons";
-
-const tabs = [
-  { key: "feed", href: "/feed", icon: HomeOutlined, activeIcon: HomeFilled, label: "홈" },
-  { key: "search", href: "/search", icon: SearchOutlined, activeIcon: SearchOutlined, label: "검색" },
-  { key: "wishlist", href: "/wishlist", icon: HeartOutlined, activeIcon: HeartFilled, label: "찜" },
-  { key: "mypage", href: "/mypage", icon: UserOutlined, activeIcon: UserOutlined, label: "마이" },
-];
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const isActive = (path: string) => pathname === path;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto flex h-[49px] max-w-[390px] items-center border-t border-border bg-surface">
-      {tabs.map((tab) => {
-        const isActive = pathname.startsWith(`/${tab.key}`);
-        const Icon = isActive ? tab.activeIcon : tab.icon;
-        return (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 no-underline"
-          >
-            <Icon className={`text-xl ${isActive ? "text-text" : "text-text-secondary"}`} />
-            <span className={`text-[10px] ${isActive ? "font-semibold text-text" : "text-text-secondary"}`}>
-              {tab.label}
-            </span>
-          </Link>
-        );
-      })}
+    <nav 
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-white border-t z-50 flex items-center h-[49px]" 
+      style={{ borderColor: "#DBDBDB" }}
+    >
+      <Link
+        href="/feed"
+        className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity"
+      >
+        <Home
+          className="w-[23px] h-[23px] text-text"
+          strokeWidth={isActive("/feed") ? 2.5 : 1.8}
+        />
+      </Link>
+      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
+        <Search className="w-[23px] h-[23px] text-text" strokeWidth={1.8} />
+      </button>
+      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
+        <PlusSquare className="w-[23px] h-[23px] text-text" strokeWidth={1.8} />
+      </button>
+      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
+        <Film className="w-[23px] h-[23px] text-text" strokeWidth={1.8} />
+      </button>
+      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
+        <div 
+          className="w-6 h-6 rounded-full instagram-gradient" 
+          style={{ padding: "1.5px" }}
+        >
+          <div className="w-full h-full rounded-full bg-white p-[1px]">
+             <div className="w-full h-full rounded-full bg-gray-200" />
+          </div>
+        </div>
+      </button>
     </nav>
   );
 }

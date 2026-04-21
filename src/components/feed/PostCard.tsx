@@ -15,7 +15,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
   const { requireAuth } = useRequireAuth();
 
   return (
-    <article className="bg-surface mb-1 border-b border-border-light">
+    <article className="bg-white mb-0.5 border-b border-border-light pb-2">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <div className="instagram-gradient rounded-full p-[1.5px]">
@@ -37,7 +37,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
             {celebrity.name}
           </p>
           <p className="text-[11px] text-text-secondary leading-tight">
-            {celebrity.handle}
+            {post.id.includes("milano") ? "밀라노, 이탈리아" : "파리, 프랑스"}
           </p>
         </div>
         <button className="hover:opacity-60 transition-opacity flex-shrink-0">
@@ -56,9 +56,9 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
       {/* Actions & Likes */}
       <InstagramBar likes={post.likes} onLike={() => {}} />
 
-      {/* Caption */}
-      <div className="px-3 pb-2">
-        <p className="text-sm leading-relaxed text-text">
+      {/* Caption & Comments */}
+      <div className="px-3">
+        <p className="text-[13.5px] leading-[1.5] text-text">
           <span className="font-bold mr-1.5">{celebrity.name}</span>
           {post.caption}
         </p>
@@ -71,24 +71,20 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
           </button>
         )}
         <p className="text-[10px] mt-1 uppercase tracking-wide text-text-muted">
-          {new Date(post.createdAt).toLocaleDateString("ko-KR", {
-            month: "long",
-            day: "numeric",
-          })}
+          12시간 전
         </p>
       </div>
 
-      {/* Quick Comment Input */}
-      <div className="px-3 pb-3 flex items-center gap-2.5 border-t border-border-light pt-2">
+      {/* Comment Input (Figma Match) */}
+      <div className="px-3 mt-3 flex items-center gap-2.5 border-t border-[#efefef] pt-3">
         <div
-          className="w-7 h-7 rounded-full flex-shrink-0 bg-bg border border-border-light flex items-center justify-center overflow-hidden"
-        >
-          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200" />
-        </div>
+          className="w-7 h-7 rounded-full flex-shrink-0"
+          style={{ background: "#E8E2D8" }}
+        />
         <input
           type="text"
           placeholder="댓글 달기..."
-          className="flex-1 text-[13px] outline-none bg-transparent text-text placeholder:text-text-muted"
+          className="flex-1 text-[13px] outline-none bg-transparent text-text-muted"
           onClick={() => requireAuth()}
         />
       </div>

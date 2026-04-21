@@ -5,6 +5,7 @@ import { Spin } from "antd";
 import TopBar from "@/components/common/TopBar";
 import StoryStrip from "@/components/feed/StoryStrip";
 import PostCard from "@/components/feed/PostCard";
+import BottomNav from "@/components/common/BottomNav";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { usePosts } from "@/hooks/usePosts";
 
@@ -31,21 +32,25 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-bg">
-      <TopBar />
-      <div className="max-w-[390px] mx-auto bg-surface min-h-dvh shadow-sm">
+    <div className="min-h-dvh bg-bg pb-[50px]">
+      {/* Container for mobile centering */}
+      <div className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-sm relative">
+        <TopBar />
         <StoryStrip
           celebrities={celebrities}
           activeCelebId={activeCelebId}
           onSelect={setActiveCelebId}
         />
-        <div className="flex flex-col">
+        <main className="flex flex-col">
           {filteredPosts.map((post) => (
             <PostCard key={post.id} post={post} celebrity={celeb!} />
           ))}
-        </div>
-        {/* Padding for bottom navigation if exists */}
-        <div className="h-16" />
+        </main>
+        
+        {/* Placeholder for content below fold */}
+        <div className="h-4 bg-bg" />
+        
+        <BottomNav />
       </div>
     </div>
   );
