@@ -18,7 +18,7 @@ export default function LoginPromptSheet() {
       styles={{
         wrapper: { height: "auto" },
         body: { padding: "32px 24px 40px", textAlign: "center" },
-        content: { borderRadius: "24px 24px 0 0" }
+        section: { borderRadius: "24px 24px 0 0" }
       }}
       className="login-prompt-drawer"
     >
