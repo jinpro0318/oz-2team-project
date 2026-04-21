@@ -17,6 +17,12 @@
   --color-admin-accent: #3699FF;
   --color-admin-bg: #F5F6FA;
   --font-sans: 'Instrument Sans', 'Noto Sans KR', system-ui, sans-serif;
+  
+  /* Additional variables from Figma design */
+  --color-blue: #0095F6;
+  --color-red: #ED4956;
+  --color-green: #00C851;
+  --color-orange: #FF6B35;
 }
 
 @layer base {
@@ -52,6 +58,21 @@
     }
   }
 
+  .animate-pulse-dot {
+    animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: .7;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+  }
+
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -60,3 +81,4 @@
     display: none;
   }
 }
+

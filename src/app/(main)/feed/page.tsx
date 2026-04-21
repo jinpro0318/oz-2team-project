@@ -24,20 +24,28 @@ export default function FeedPage() {
 
   if (celebLoading || postsLoading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center bg-bg">
         <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="min-h-dvh bg-bg">
       <TopBar />
-      <StoryStrip celebrities={celebrities} activeCelebId={activeCelebId} onSelect={setActiveCelebId} />
-      <div className="border-t border-border">
-        {filteredPosts.map((post) => (
-          <PostCard key={post.id} post={post} celebrity={celeb!} />
-        ))}
+      <div className="max-w-[390px] mx-auto bg-surface min-h-dvh shadow-sm">
+        <StoryStrip
+          celebrities={celebrities}
+          activeCelebId={activeCelebId}
+          onSelect={setActiveCelebId}
+        />
+        <div className="flex flex-col">
+          {filteredPosts.map((post) => (
+            <PostCard key={post.id} post={post} celebrity={celeb!} />
+          ))}
+        </div>
+        {/* Padding for bottom navigation if exists */}
+        <div className="h-16" />
       </div>
     </div>
   );
