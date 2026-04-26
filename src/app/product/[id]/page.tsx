@@ -12,7 +12,7 @@ import {
 } from "@ant-design/icons";
 import { useProduct } from "@/hooks/useProducts";
 import { useCelebrity } from "@/hooks/useCelebrities";
-import { useCart } from "@/hooks/useCart";
+import { useCartStore } from "@/stores/cartStore";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useRequireAuth } from "@/hooks/useAuth";
 
@@ -28,7 +28,7 @@ export default function ProductDetailPage() {
   const { data: product, isLoading: productLoading } = useProduct(id);
   const { data: celebrity } = useCelebrity(product?.celebrityId ?? "");
 
-  const { addToCart } = useCart();
+  const addItem = useCartStore((s) => s.addItem);
   const { requireAuth } = useRequireAuth();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const wishlisted = product ? isWishlisted(product.id) : false;
@@ -59,7 +59,8 @@ export default function ProductDetailPage() {
       message.warning("사이즈를 선택해주세요");
       return;
     }
-    addToCart(product, activeColor, selectedSize);
+    addItem(product, activeColor, selectedSize);
+    message.success("장바구니에 담았습니다");
   };
 
   const handleBuyNow = () => {
@@ -68,20 +69,28 @@ export default function ProductDetailPage() {
       return;
     }
     requireAuth(() => {
-      addToCart(product, activeColor, selectedSize);
+      addItem(product, activeColor, selectedSize);
       router.push("/cart");
     });
   };
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-surface">
-      <div className="relative aspect-square w-full flex-shrink-0">
-        <div
-          className="flex h-full w-full items-center justify-center"
-          style={{ background: celebrity?.gradient || "#eee" }}
-        >
-          <p className="text-sm text-white/40">{product.name}</p>
-        </div>
+      <div className="relative aspect-square w-full flex-shrink-0 bg-gray-100">
+        {product.imageUrls?.[0] ? (
+          <img
+            src={product.imageUrls[0]}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{ background: celebrity?.gradient || "#eee" }}
+          >
+            <p className="text-sm text-white/40">{product.name}</p>
+          </div>
+        )}
         <button
           className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm"
           onClick={() => router.back()}

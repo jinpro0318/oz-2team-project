@@ -1,15 +1,80 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { Button, Result } from "antd";
-import { CheckCircleFilled } from "@ant-design/icons";
-import { Suspense } from "react";
+import { Button, Spin, App } from "antd";
+import { CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
+import { Suspense, useEffect, useState } from "react";
+import { useCartStore } from "@/stores/cartStore";
 
 function OrderCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const orderNumber = searchParams.get("orderNumber") ?? "ORD-XXXX";
-  const amount = searchParams.get("amount") ?? "0";
+  const { message } = App.useApp();
+  const clearCart = useCartStore((s) => s.clearCart);
+
+  const [isConfirming, setIsConfirming] = useState(true);
+  const [isError, setIsError] = useState(false);
+
+  const paymentKey = searchParams.get("paymentKey");
+  const orderId = searchParams.get("orderId");
+  const amount = searchParams.get("amount");
+  const orderNumber = searchParams.get("orderNumber") || orderId || "ORD-XXXX";
+
+  useEffect(() => {
+    async function confirmPayment() {
+      if (!paymentKey || !orderId || !amount) {
+        setIsConfirming(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/payment/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentKey, orderId, amount }),
+        });
+
+        if (response.ok) {
+          clearCart();
+          setIsConfirming(false);
+        } else {
+          setIsError(true);
+          setIsConfirming(false);
+        }
+      } catch (error) {
+        console.error(error);
+        setIsError(true);
+        setIsConfirming(false);
+      }
+    }
+
+    confirmPayment();
+  }, [paymentKey, orderId, amount, clearCart]);
+
+  if (isConfirming) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface">
+        <Spin size="large" tip="결제 확인 중..." />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface px-6">
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
+          <CloseCircleFilled className="text-3xl text-error" />
+        </div>
+        <h1 className="mb-2 text-xl font-bold">결제 실패</h1>
+        <p className="mb-8 text-center text-sm text-text-secondary">
+          결제 처리 중 오류가 발생했습니다.<br />고객센터로 문의해주세요.
+        </p>
+        <Button block size="large" type="primary" onClick={() => router.push("/checkout")}>
+          다시 시도하기
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface px-6">
@@ -37,6 +102,7 @@ function OrderCompleteContent() {
           size="large"
           className="font-bold"
           onClick={() => router.push("/orders")}
+          style={{ background: "#262626", border: "none" }}
         >
           주문 내역 보기
         </Button>

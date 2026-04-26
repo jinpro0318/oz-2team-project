@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button, InputNumber, Empty, Spin } from "antd";
+import { Button, InputNumber, Empty } from "antd";
 import { DeleteOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useCart } from "@/hooks/useCart";
+import { useCartStore } from "@/stores/cartStore";
 import { useRequireAuth } from "@/hooks/useAuth";
 
 function formatPrice(n: number) {
@@ -13,8 +13,9 @@ function formatPrice(n: number) {
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, updateQuantity, totalAmount, isLoading } = useCart();
+  const { items, removeItem, updateQuantity, getTotalAmount } = useCartStore();
   const { requireAuth } = useRequireAuth();
+  const totalAmount = getTotalAmount();
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
@@ -23,17 +24,6 @@ export default function CartPage() {
       router.push("/checkout");
     });
   };
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
-        <BackTopBar title="장바구니" />
-        <div className="flex flex-1 items-center justify-center">
-          <Spin size="large" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
@@ -51,7 +41,17 @@ export default function CartPage() {
                 key={item.id}
                 className="flex gap-3 border-b border-border-light bg-surface px-3 py-3.5"
               >
-                <div className="h-[94px] w-[78px] shrink-0 rounded bg-gradient-to-br from-gray-200 to-gray-300" />
+                <div className="h-[94px] w-[78px] shrink-0 overflow-hidden rounded bg-gray-100">
+                  {item.product.imageUrls?.[0] ? (
+                    <img
+                      src={item.product.imageUrls[0]}
+                      alt={item.product.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300" />
+                  )}
+                </div>
                 <div className="flex flex-1 flex-col">
                   <div className="flex items-start justify-between">
                     <div>

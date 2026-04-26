@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Radio, App, Spin } from "antd";
+import { Button, Input, Radio, App } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useCart } from "@/hooks/useCart";
+import { useCartStore } from "@/stores/cartStore";
 import { useCreateOrder } from "@/hooks/useOrders";
 import { useAuthStore } from "@/stores/authStore";
+import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
+
+const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "test_ck_D5akZmejJb9YMxMB7G8Vj7Y4314A";
 
 function formatPrice(n: number) {
   return n.toLocaleString("ko-KR");
@@ -15,33 +18,42 @@ function formatPrice(n: number) {
 export default function CheckoutPage() {
   const router = useRouter();
   const { message } = App.useApp();
-  const { items, totalAmount, clearCart, isLoading } = useCart();
+  const { items, getTotalAmount, clearCart } = useCartStore();
   const user = useAuthStore((s) => s.user);
   const createOrderMutation = useCreateOrder();
 
-  const [recipient, setRecipient] = useState("");
-  const [phone, setPhone] = useState("");
+  const [recipient, setRecipient] = useState(user?.nickname || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("standard");
   const [paymentMethod, setPaymentMethod] = useState("card");
 
+  const totalAmount = getTotalAmount();
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   const handleOpenPostcode = () => {
-    if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).daum) {
-      new (window as unknown as Record<string, any>).daum.Postcode({
-        oncomplete: (data: { zonecode: string; address: string }) => {
+    if (typeof window !== "undefined" && (window as any).daum) {
+      new (window as any).daum.Postcode({
+        oncomplete: (data: any) => {
           setZipCode(data.zonecode);
           setAddress(data.address);
         },
       }).open();
     } else {
-      setZipCode("06134");
-      setAddress("서울특별시 강남구 테헤란로 123");
-      message.info("주소 검색 서비스 데모 모드");
+      message.error("주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -50,9 +62,13 @@ export default function CheckoutPage() {
       message.warning("배송 정보를 모두 입력해주세요");
       return;
     }
-    if (!user) return;
+    if (!user) {
+      message.error("로그인이 필요합니다");
+      return;
+    }
 
     try {
+      // 1. Create order in our database
       const order = await createOrderMutation.mutateAsync({
         userId: user.id,
         items: items.map((item) => ({
@@ -64,37 +80,54 @@ export default function CheckoutPage() {
           price: item.product.price * item.quantity,
         })),
         shippingAddress: {
-          id: "checkout",
+          id: `addr_${Date.now()}`,
           label: "배송지",
           recipient,
           phone,
           zipCode,
           address,
           addressDetail,
-          isDefault: true,
+          isDefault: false,
         },
         paymentMethod,
-        totalAmount: totalAmount,
+        totalAmount,
         shippingFee,
       });
 
-      clearCart();
-      router.push(`/order-complete?orderNumber=${order.orderNumber}&amount=${finalTotal}`);
-    } catch {
-      message.error("주문 처리 중 오류가 발생했습니다");
+      // 2. Initialize TossPayments
+      const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
+      
+      // 3. Request payment
+      const payment = tossPayments.payment({
+        customerKey: user.id,
+      });
+
+      const redirectUrl = `${window.location.origin}/order-complete`;
+
+      await payment.requestPayment({
+        method: "CARD",
+        amount: {
+          currency: "KRW",
+          value: finalTotal,
+        },
+        orderId: order.orderNumber,
+        orderName: items.length > 1 ? `${items[0].product.name} 외 ${items.length - 1}건` : items[0].product.name,
+        successUrl: redirectUrl,
+        failUrl: redirectUrl,
+        customerEmail: user.email,
+        customerName: recipient,
+      });
+
+      // Clear cart will happen on order-complete page or success
+    } catch (error: any) {
+      if (error.code === "USER_CANCEL") {
+        message.info("결제가 취소되었습니다");
+      } else {
+        console.error(error);
+        message.error("주문 처리 중 오류가 발생했습니다");
+      }
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
-        <BackTopBar title="주문/결제" />
-        <div className="flex flex-1 items-center justify-center">
-          <Spin size="large" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
@@ -168,7 +201,13 @@ export default function CheckoutPage() {
           <h3 className="mb-3 text-[15px] font-bold">주문 상품</h3>
           {items.map((item) => (
             <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0">
-              <div className="h-14 w-12 shrink-0 rounded bg-gradient-to-br from-gray-200 to-gray-300" />
+              <div className="h-14 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
+                {item.product.imageUrls?.[0] ? (
+                  <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full bg-gradient-to-br from-gray-200 to-gray-300" />
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs font-bold">{item.product.name}</p>
                 <p className="text-[11px] text-text-secondary">
@@ -180,7 +219,7 @@ export default function CheckoutPage() {
           ))}
         </section>
 
-        <section className="bg-surface px-3 py-4">
+        <section className="bg-surface px-3 py-4 pb-8">
           <h3 className="mb-3 text-[15px] font-bold">결제 수단</h3>
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-[#0064FF]/5 px-3 py-2">
             <span className="text-sm font-bold text-[#0064FF]">toss</span>
@@ -192,8 +231,6 @@ export default function CheckoutPage() {
             className="space-y-2"
           >
             <Radio value="card" className="block text-sm">신용/체크카드</Radio>
-            <Radio value="kakao" className="block text-sm">카카오페이</Radio>
-            <Radio value="naver" className="block text-sm">네이버페이</Radio>
           </Radio.Group>
         </section>
       </div>
@@ -207,9 +244,10 @@ export default function CheckoutPage() {
           type="primary"
           block
           size="large"
-          className="font-bold"
+          className="font-bold h-12"
           loading={createOrderMutation.isPending}
           onClick={handlePayment}
+          style={{ background: "#262626", border: "none" }}
         >
           ₩{formatPrice(finalTotal)} 결제하기
         </Button>
