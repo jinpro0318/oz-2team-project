@@ -2,18 +2,26 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useRouter } from "next/navigation";
 
 interface HotspotDotProps {
   x: number;
   y: number;
   product: {
+    id: string;
     name: string;
     price: string;
   };
 }
 
 export default function HotspotDot({ x, y, product }: HotspotDotProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleNavigate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/product/${product.id}`);
+  };
 
   return (
     <div
@@ -40,8 +48,9 @@ export default function HotspotDot({ x, y, product }: HotspotDotProps) {
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="absolute top-9 left-1/2 -translate-x-1/2 bg-white rounded-md px-2 py-1 whitespace-nowrap z-20 pointer-events-none"
+            className="absolute top-9 left-1/2 -translate-x-1/2 bg-white rounded-md px-2 py-1 whitespace-nowrap z-20 cursor-pointer"
             style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+            onClick={handleNavigate}
           >
             <p className="text-[11px] font-bold text-text">
               {product.name}

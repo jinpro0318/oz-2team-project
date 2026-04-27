@@ -4,11 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, MessageCircle, ShoppingCart } from "lucide-react";
 import { Badge } from "antd";
-import { useCart } from "@/hooks/useCart";
+import { useCartStore } from "@/stores/cartStore";
+import { useState, useEffect } from "react";
 
 export default function TopBar() {
   const router = useRouter();
-  const { totalCount } = useCart();
+  const [mounted, setMounted] = useState(false);
+  const totalCount = useCartStore((s) => s.getTotalCount());
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border-light bg-surface px-3">
@@ -31,7 +37,7 @@ export default function TopBar() {
           className="hover:opacity-60 transition-opacity"
           onClick={() => router.push("/cart")}
         >
-          <Badge count={totalCount} size="small" offset={[-2, 2]} className="text-text">
+          <Badge count={mounted ? totalCount : 0} size="small" offset={[-2, 2]} className="text-text">
             <ShoppingCart className="w-[22px] h-[22px] text-text" strokeWidth={1.8} />
           </Badge>
         </button>

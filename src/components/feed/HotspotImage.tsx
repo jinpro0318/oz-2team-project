@@ -66,6 +66,7 @@ export default function HotspotImage({
             x={hs.left}
             y={hs.top}
             product={{
+              id: hs.productId,
               name: hs.label,
               price: hs.price,
             }}

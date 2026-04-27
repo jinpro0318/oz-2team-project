@@ -11,7 +11,8 @@ import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "test_ck_D5akZmejJb9YMxMB7G8Vj7Y4314A";
 
-function formatPrice(n: number) {
+function formatPrice(n: number, mounted: boolean) {
+  if (!mounted) return n.toString();
   return n.toLocaleString("ko-KR");
 }
 
@@ -22,8 +23,13 @@ export default function CheckoutPage() {
   const user = useAuthStore((s) => s.user);
   const createOrderMutation = useCreateOrder();
 
+  const [mounted, setMounted] = useState(false);
   const [recipient, setRecipient] = useState(user?.nickname || "");
   const [phone, setPhone] = useState(user?.phone || "");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
@@ -191,7 +197,7 @@ export default function CheckoutPage() {
             <Radio value="standard" className="block">
               <span className="text-sm">일반배송 (2~3일)</span>
               <span className="ml-2 text-xs text-text-secondary">
-                {shippingFee === 0 ? "무료" : `₩${formatPrice(shippingFee)}`}
+                {mounted && (shippingFee === 0 ? "무료" : `₩${formatPrice(shippingFee, mounted)}`)}
               </span>
             </Radio>
           </Radio.Group>
@@ -214,7 +220,7 @@ export default function CheckoutPage() {
                   {item.color} / {item.size} · {item.quantity}개
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-bold">₩{formatPrice(item.product.price * item.quantity)}</p>
+              <p className="shrink-0 text-sm font-bold">₩{formatPrice(item.product.price * item.quantity, mounted)}</p>
             </div>
           ))}
         </section>
@@ -238,7 +244,7 @@ export default function CheckoutPage() {
       <div className="sticky bottom-0 border-t border-border bg-surface px-3 py-3">
         <div className="mb-2 flex justify-between text-base font-bold">
           <span>총 결제 금액</span>
-          <span>₩{formatPrice(finalTotal)}</span>
+          <span>{mounted ? `₩${formatPrice(finalTotal, mounted)}` : "-"}</span>
         </div>
         <Button
           type="primary"
@@ -249,7 +255,7 @@ export default function CheckoutPage() {
           onClick={handlePayment}
           style={{ background: "#262626", border: "none" }}
         >
-          ₩{formatPrice(finalTotal)} 결제하기
+          {mounted ? `₩${formatPrice(finalTotal, mounted)} 결제하기` : "결제하기"}
         </Button>
       </div>
     </div>

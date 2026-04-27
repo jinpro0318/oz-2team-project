@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { MoreHorizontal } from "lucide-react";
 import HotspotImage from "./HotspotImage";
 import { InstagramBar } from "./InstagramBar";
@@ -13,6 +14,11 @@ interface PostCardProps {
 
 export default function PostCard({ post, celebrity }: PostCardProps) {
   const { requireAuth } = useRequireAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <article className="bg-white mb-0.5 border-b border-border-light pb-2">
@@ -67,7 +73,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
             className="text-[13px] mt-1 text-text-secondary hover:text-text transition-colors"
             onClick={() => requireAuth()}
           >
-            댓글 {post.comments.toLocaleString()}개 모두 보기
+            댓글 {mounted ? post.comments.toLocaleString() : post.comments}개 모두 보기
           </button>
         )}
         <p className="text-[10px] mt-1 uppercase tracking-wide text-text-muted">

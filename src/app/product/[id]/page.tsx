@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, App, Spin } from "antd";
 import {
@@ -15,8 +15,10 @@ import { useCelebrity } from "@/hooks/useCelebrities";
 import { useCartStore } from "@/stores/cartStore";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useRequireAuth } from "@/hooks/useAuth";
+import TopBar from "@/components/common/TopBar";
 
-function formatPrice(n: number) {
+function formatPrice(n: number, mounted: boolean) {
+  if (!mounted) return n.toString();
   return n.toLocaleString("ko-KR");
 }
 
@@ -28,15 +30,21 @@ export default function ProductDetailPage() {
   const { data: product, isLoading: productLoading } = useProduct(id);
   const { data: celebrity } = useCelebrity(product?.celebrityId ?? "");
 
+  const [mounted, setMounted] = useState(false);
   const addItem = useCartStore((s) => s.addItem);
   const { requireAuth } = useRequireAuth();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const wishlisted = product ? isWishlisted(product.id) : false;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const wishlisted = product && mounted ? isWishlisted(product.id) : false;
 
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
 
-  if (productLoading) {
+  if (productLoading || !mounted) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Spin size="large" />
@@ -76,6 +84,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-surface">
+      <TopBar />
       <div className="relative aspect-square w-full flex-shrink-0 bg-gray-100">
         {product.imageUrls?.[0] ? (
           <img
@@ -127,18 +136,18 @@ export default function ProductDetailPage() {
         </p>
         <h1 className="mb-2 text-lg font-bold leading-tight">{product.name}</h1>
         <div className="flex items-baseline gap-2">
-          <span className="text-xl font-bold">₩{formatPrice(product.price)}</span>
+          <span className="text-xl font-bold">₩{formatPrice(product.price, mounted)}</span>
           {product.originalPrice > product.price && (
             <>
               <span className="text-sm text-text-muted line-through">
-                ₩{formatPrice(product.originalPrice)}
+                ₩{formatPrice(product.originalPrice, mounted)}
               </span>
               <span className="text-[13px] font-bold text-error">{product.discount}%</span>
             </>
           )}
         </div>
         <p className="mt-2 text-xs text-text-secondary">
-          누적 판매 <strong className="text-text">{formatPrice(product.salesCount)}</strong>개
+          누적 판매 <strong className="text-text">{formatPrice(product.salesCount, mounted)}</strong>개
         </p>
       </div>
 

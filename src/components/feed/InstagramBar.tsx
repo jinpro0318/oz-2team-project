@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart, MessageCircle, Send, Bookmark } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface InstagramBarProps {
   likes: number;
@@ -11,6 +11,11 @@ interface InstagramBarProps {
 export function InstagramBar({ likes, onLike }: InstagramBarProps) {
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -48,7 +53,7 @@ export function InstagramBar({ likes, onLike }: InstagramBarProps) {
         </button>
       </div>
       <div className="text-[13px] font-bold text-text">
-        좋아요 {(isLiked ? likes + 1 : likes).toLocaleString()}개
+        좋아요 {mounted ? (isLiked ? likes + 1 : likes).toLocaleString() : (isLiked ? likes + 1 : likes)}개
       </div>
     </div>
   );
