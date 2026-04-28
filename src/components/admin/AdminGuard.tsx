@@ -18,7 +18,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#F5F6FA]">
-        <Spin size="large" tip="인증 확인 중..." />
+        <Spin size="large" description="인증 확인 중..." />
       </div>
     );
   }
@@ -26,7 +26,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   if (!user) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#F5F6FA]">
-        <Spin size="large" tip="로그인 페이지로 이동 중..." />
+        <Spin size="large" description="로그인 페이지로 이동 중..." />
       </div>
     );
   }

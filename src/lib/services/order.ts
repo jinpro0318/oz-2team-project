@@ -22,10 +22,10 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
   const timeline: OrderTimeline[] = [
     {
-      status: "payment_complete",
-      label: "결제 완료",
+      status: "payment_pending",
+      label: "결제 대기",
       date: now,
-      description: "결제가 정상 처리되었습니다",
+      description: "결제 진행 중입니다",
     },
   ];
 
@@ -37,7 +37,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     paymentMethod: input.paymentMethod,
     totalAmount: input.totalAmount,
     shippingFee: input.shippingFee,
-    status: "payment_complete" as OrderStatus,
+    status: "payment_pending" as OrderStatus,
     updatedAt: now,
     timeline,
   };
@@ -47,18 +47,25 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 }
 
 export async function getOrders(userId: string): Promise<Order[]> {
-  return getDocuments<Order>("orders", [
+  const docs = await getDocuments<Order>("orders", [
     where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
   ]);
+  // Sort in memory to avoid needing a composite index for (userId + createdAt)
+  return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getAllOrders(): Promise<Order[]> {
-  return getDocuments<Order>("orders", [orderBy("createdAt", "desc")]);
+  const docs = await getDocuments<Order>("orders");
+  return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getOrder(id: string): Promise<Order | null> {
   return getDocument<Order>("orders", id);
+}
+
+export async function getOrderByNumber(orderNumber: string): Promise<Order | null> {
+  const docs = await getDocuments<Order>("orders", [where("orderNumber", "==", orderNumber)]);
+  return docs[0] || null;
 }
 
 export async function updateOrderStatus(

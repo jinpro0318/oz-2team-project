@@ -24,16 +24,16 @@
 
 ## 기술 스택
 
-| 분류 | 기술 |
-|---|---|
-| **프레임워크** | Next.js 16 (App Router) + TypeScript |
-| **스타일링** | Tailwind CSS v4 + Ant Design 6 |
-| **서버 상태** | TanStack Query v5 (캐싱, 패칭, 뮤테이션) |
-| **클라이언트 상태** | Zustand (순수 UI 상태만 — 로그인 프롬프트 등) |
-| **BaaS** | Firebase (Authentication + Firestore + Storage) |
-| **결제** | TossPayments SDK (테스트 모드) |
-| **주소 검색** | react-daum-postcode |
-| **배포** | Vercel |
+| 분류                | 기술                                            |
+| ------------------- | ----------------------------------------------- |
+| **프레임워크**      | Next.js 16 (App Router) + TypeScript            |
+| **스타일링**        | Tailwind CSS v4 + Ant Design 6                  |
+| **서버 상태**       | TanStack Query v5 (캐싱, 패칭, 뮤테이션)        |
+| **클라이언트 상태** | Zustand (순수 UI 상태만 — 로그인 프롬프트 등)   |
+| **BaaS**            | Firebase (Authentication + Firestore + Storage) |
+| **결제**            | TossPayments SDK (테스트 모드)                  |
+| **주소 검색**       | react-daum-postcode                             |
+| **배포**            | Vercel                                          |
 
 ---
 
@@ -110,21 +110,21 @@ npm install
 
 시드 스크립트가 자동으로 생성하는 컬렉션:
 
-| 컬렉션 | 설명 |
-|---|---|
-| `celebrities/{celebId}` | 셀럽 프로필 |
-| `products/{productId}` | 상품 정보 |
-| `posts/{postId}` | 피드 포스트 (핫스팟 포함) |
-| `users/{userId}` | 사용자 프로필 |
+| 컬렉션                  | 설명                      |
+| ----------------------- | ------------------------- |
+| `celebrities/{celebId}` | 셀럽 프로필               |
+| `products/{productId}`  | 상품 정보                 |
+| `posts/{postId}`        | 피드 포스트 (핫스팟 포함) |
+| `users/{userId}`        | 사용자 프로필             |
 
 앱 사용 중 자동 생성되는 컬렉션:
 
-| 컬렉션 | 설명 |
-|---|---|
-| `users/{userId}/cart/{itemId}` | 장바구니 (서브컬렉션) |
-| `users/{userId}/wishlist/{productId}` | 찜 목록 (서브컬렉션) |
-| `orders/{orderId}` | 주문 |
-| `exchanges/{exchangeId}` | 교환/반품 |
+| 컬렉션                                | 설명                  |
+| ------------------------------------- | --------------------- |
+| `users/{userId}/cart/{itemId}`        | 장바구니 (서브컬렉션) |
+| `users/{userId}/wishlist/{productId}` | 찜 목록 (서브컬렉션)  |
+| `orders/{orderId}`                    | 주문                  |
+| `exchanges/{exchangeId}`              | 교환/반품             |
 
 ---
 
@@ -148,7 +148,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
 
 # TossPayments (선택 — 결제 테스트 시 필요)
-TOSS_PAYMENTS_CLIENT_KEY=test_ck_your_client_key
+NEXT_PUBLIC_TOSS_CLIENT_KEY=test_ck_your_client_key
 TOSS_PAYMENTS_SECRET_KEY=test_sk_your_secret_key
 ```
 
@@ -216,13 +216,13 @@ npm run dev
 
 ### 사용 가능한 스크립트
 
-| 명령어 | 설명 |
-|---|---|
-| `npm run dev` | 개발 서버 실행 (http://localhost:3000) |
-| `npm run build` | 프로덕션 빌드 |
-| `npm run start` | 프로덕션 서버 실행 (빌드 후) |
-| `npm run lint` | ESLint 검사 |
-| `npm run seed` | Firebase에 시드 데이터 생성 |
+| 명령어          | 설명                                   |
+| --------------- | -------------------------------------- |
+| `npm run dev`   | 개발 서버 실행 (http://localhost:3000) |
+| `npm run build` | 프로덕션 빌드                          |
+| `npm run start` | 프로덕션 서버 실행 (빌드 후)           |
+| `npm run lint`  | ESLint 검사                            |
+| `npm run seed`  | Firebase에 시드 데이터 생성            |
 
 ---
 
@@ -289,35 +289,35 @@ oz02-code/
 
 ### 모바일 (390px 기준)
 
-| 경로 | 화면 | 설명 |
-|---|---|---|
-| `/feed` | 메인 피드 | 셀럽별 인스타 스타일 피드 + 핫스팟 |
-| `/login` | 로그인 | 이메일/비밀번호 |
-| `/register` | 회원가입 | 2단계 폼 (이메일 → 닉네임) |
-| `/search` | 검색 | 셀럽/상품 통합 검색 |
-| `/product/[id]` | 상품 상세 | 색상/사이즈 선택, 장바구니, 찜, 바로 구매 |
-| `/cart` | 장바구니 | 수량 조절, 삭제, 결제 진행 |
-| `/checkout` | 주문/결제 | 배송지 입력 (다음 우편번호) + 결제 수단 선택 |
-| `/order-complete` | 결제 완료 | 주문 확인 |
-| `/orders` | 주문 내역 | 상태별 필터 (전체/배송중/배송완료/취소교환) |
-| `/orders/[id]` | 주문 상세 | 배송 추적 + 타임라인 |
-| `/exchange/[orderId]` | 교환/반품 | 사유 선택 → Firestore에 저장 |
-| `/wishlist` | 찜 목록 | 그리드 레이아웃, 장바구니 담기 |
-| `/mypage` | 마이페이지 | 프로필, 주문 내역, 고객센터 메뉴 |
-| `/mypage/profile` | 프로필 편집 | 닉네임/연락처 수정 + 계정 탈퇴 |
-| `/mypage/password` | 비밀번호 변경 | 현재 비밀번호 확인 + 강도 표시 |
-| `/mypage/support` | 고객센터 | 전화 연결 + FAQ 아코디언 |
+| 경로                  | 화면          | 설명                                         |
+| --------------------- | ------------- | -------------------------------------------- |
+| `/feed`               | 메인 피드     | 셀럽별 인스타 스타일 피드 + 핫스팟           |
+| `/login`              | 로그인        | 이메일/비밀번호                              |
+| `/register`           | 회원가입      | 2단계 폼 (이메일 → 닉네임)                   |
+| `/search`             | 검색          | 셀럽/상품 통합 검색                          |
+| `/product/[id]`       | 상품 상세     | 색상/사이즈 선택, 장바구니, 찜, 바로 구매    |
+| `/cart`               | 장바구니      | 수량 조절, 삭제, 결제 진행                   |
+| `/checkout`           | 주문/결제     | 배송지 입력 (다음 우편번호) + 결제 수단 선택 |
+| `/order-complete`     | 결제 완료     | 주문 확인                                    |
+| `/orders`             | 주문 내역     | 상태별 필터 (전체/배송중/배송완료/취소교환)  |
+| `/orders/[id]`        | 주문 상세     | 배송 추적 + 타임라인                         |
+| `/exchange/[orderId]` | 교환/반품     | 사유 선택 → Firestore에 저장                 |
+| `/wishlist`           | 찜 목록       | 그리드 레이아웃, 장바구니 담기               |
+| `/mypage`             | 마이페이지    | 프로필, 주문 내역, 고객센터 메뉴             |
+| `/mypage/profile`     | 프로필 편집   | 닉네임/연락처 수정 + 계정 탈퇴               |
+| `/mypage/password`    | 비밀번호 변경 | 현재 비밀번호 확인 + 강도 표시               |
+| `/mypage/support`     | 고객센터      | 전화 연결 + FAQ 아코디언                     |
 
 ### 어드민 (데스크톱 1280px+, 관리자 권한 필요)
 
-| 경로 | 화면 | 설명 |
-|---|---|---|
-| `/admin` | 대시보드 | KPI 카드, 셀럽별 매출, 최근 주문 |
-| `/admin/products` | 상품 관리 | 상품 테이블, 검색/필터 |
-| `/admin/orders` | 주문 관리 | 주문 테이블, 상태 변경 (출고/완료) |
-| `/admin/celebrities` | 셀럽 관리 | 셀럽 카드, 판매액/커미션 |
-| `/admin/analytics` | 매출 분석 | KPI, 요일별 매출 차트, 셀럽별 비중 |
-| `/admin/settlements` | 정산 관리 | 셀럽별 미지급 커미션 현황 |
+| 경로                 | 화면      | 설명                               |
+| -------------------- | --------- | ---------------------------------- |
+| `/admin`             | 대시보드  | KPI 카드, 셀럽별 매출, 최근 주문   |
+| `/admin/products`    | 상품 관리 | 상품 테이블, 검색/필터             |
+| `/admin/orders`      | 주문 관리 | 주문 테이블, 상태 변경 (출고/완료) |
+| `/admin/celebrities` | 셀럽 관리 | 셀럽 카드, 판매액/커미션           |
+| `/admin/analytics`   | 매출 분석 | KPI, 요일별 매출 차트, 셀럽별 비중 |
+| `/admin/settlements` | 정산 관리 | 셀럽별 미지급 커미션 현황          |
 
 > 어드민 페이지는 `AdminGuard` 컴포넌트가 보호합니다.  
 > 비로그인 시 → `/login?redirect=/admin`으로 리디렉트  
@@ -362,11 +362,11 @@ Firebase Auth (로그인/회원가입)
 
 ### 관리자 계정 (시드 스크립트로 생성)
 
-| 항목 | 값 |
-|---|---|
-| 이메일 | `admin@code.com` |
-| 비밀번호 | `admin123!` |
-| 역할 | `admin` |
+| 항목          | 값                          |
+| ------------- | --------------------------- |
+| 이메일        | `admin@code.com`            |
+| 비밀번호      | `admin123!`                 |
+| 역할          | `admin`                     |
 | 관리자 페이지 | http://localhost:3000/admin |
 
 ### 일반 사용자

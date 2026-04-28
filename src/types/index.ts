@@ -96,7 +96,9 @@ export type OrderStatus =
   | "delivered"
   | "cancelled"
   | "exchange_requested"
-  | "return_requested";
+  | "return_requested"
+  | "purchase_confirmed"
+  | "payment_pending";
 
 export interface OrderItem {
   productId: string;

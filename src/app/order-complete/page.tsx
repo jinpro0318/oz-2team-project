@@ -5,6 +5,7 @@ import { Button, Spin, App } from "antd";
 import { CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { Suspense, useEffect, useState } from "react";
 import { useCartStore } from "@/stores/cartStore";
+import { getOrderByNumber, updateOrderStatus } from "@/lib/services/order";
 
 function OrderCompleteContent() {
   const searchParams = useSearchParams();
@@ -28,6 +29,17 @@ function OrderCompleteContent() {
       }
 
       try {
+        // 1. Check if the order is already completed to prevent double-confirmation errors
+        if (orderNumber) {
+          const orderDoc = await getOrderByNumber(orderNumber);
+          if (orderDoc && orderDoc.status === "payment_complete") {
+            clearCart();
+            setIsConfirming(false);
+            return;
+          }
+        }
+
+        // 2. Call the API to confirm payment
         const response = await fetch("/api/payment/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -35,9 +47,30 @@ function OrderCompleteContent() {
         });
 
         if (response.ok) {
+          // Update order status in Firestore
+          if (orderNumber) {
+            const orderDoc = await getOrderByNumber(orderNumber);
+            if (orderDoc) {
+              await updateOrderStatus(orderDoc.id, "payment_complete", {
+                status: "payment_complete",
+                label: "결제 완료",
+                date: new Date().toISOString(),
+                description: "결제가 정상적으로 완료되었습니다",
+              });
+            }
+          }
           clearCart();
           setIsConfirming(false);
         } else {
+          // Check if it's already processed even if the response is not OK
+          if (orderNumber) {
+            const orderDoc = await getOrderByNumber(orderNumber);
+            if (orderDoc && orderDoc.status === "payment_complete") {
+              clearCart();
+              setIsConfirming(false);
+              return;
+            }
+          }
           setIsError(true);
           setIsConfirming(false);
         }
@@ -54,7 +87,7 @@ function OrderCompleteContent() {
   if (isConfirming) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface">
-        <Spin size="large" tip="결제 확인 중..." />
+        <Spin size="large" description="결제 확인 중..." />
       </div>
     );
   }

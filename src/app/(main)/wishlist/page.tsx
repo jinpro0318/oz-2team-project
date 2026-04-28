@@ -2,6 +2,7 @@
 
 import { Empty, Button, Spin } from "antd";
 import { DeleteOutlined, ShoppingCartOutlined } from "@ant-design/icons";
+import Link from "next/link";
 import TopBar from "@/components/common/TopBar";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useCart } from "@/hooks/useCart";
@@ -42,12 +43,20 @@ export default function WishlistPage() {
         <div className="grid grid-cols-2 gap-2 px-3 pb-4">
           {items.map((item) => (
             <div key={item.id} className="overflow-hidden rounded-lg border border-border bg-surface">
-              <div className="aspect-[3/4] w-full bg-gradient-to-br from-gray-200 to-gray-300" />
+              <Link href={`/product/${item.productId}`}>
+                <div className="aspect-[3/4] w-full overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300">
+                  {item.product.imageUrls?.[0] && (
+                    <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+                  )}
+                </div>
+              </Link>
               <div className="p-2.5">
-                <p className="text-[10px] font-semibold uppercase text-text-muted">
-                  {item.product.brand}
-                </p>
-                <p className="mt-0.5 truncate text-xs font-bold">{item.product.name}</p>
+                <Link href={`/product/${item.productId}`}>
+                  <p className="text-[10px] font-semibold uppercase text-text-muted">
+                    {item.product.brand}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs font-bold text-text">{item.product.name}</p>
+                </Link>
                 <p className="mt-1 text-sm font-bold">₩{formatPrice(item.product.price)}</p>
                 <div className="mt-2 flex gap-1">
                   <Button

@@ -2,37 +2,45 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Checkbox, App, Steps } from "antd";
-import { LeftOutlined } from "@ant-design/icons";
+import { Button, Input, App } from "antd";
+import { LeftOutlined, CheckOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { registerUser } from "@/lib/auth";
 import { useAuthStore } from "@/stores/authStore";
+import PasswordInputGroup from "@/components/auth/PasswordInputGroup";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { message } = App.useApp();
   const setUser = useAuthStore((s) => s.setUser);
 
-  const [step, setStep] = useState(0);
   const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [agreeAll, setAgreeAll] = useState(false);
+  const [isPasswordValid, setIsPasswordValid] = useState(false);
+  
+  // Terms
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeMarketing, setAgreeMarketing] = useState(false);
+
   const [loading, setLoading] = useState(false);
 
-  const canGoNext = nickname && email;
-  const canRegister = password && password === passwordConfirm && agreeAll;
+  const agreeAll = agreeTerms && agreePrivacy && agreeMarketing;
+  const agreeRequired = agreeTerms && agreePrivacy;
+
+  const handleAgreeAll = () => {
+    const nextState = !agreeAll;
+    setAgreeTerms(nextState);
+    setAgreePrivacy(nextState);
+    setAgreeMarketing(nextState);
+  };
+
+  const canRegister = nickname && email && isPasswordValid && agreeRequired;
 
   const handleRegister = async () => {
-    if (password !== passwordConfirm) {
-      message.warning("비밀번호가 일치하지 않습니다");
-      return;
-    }
-    if (password.length < 6) {
-      message.warning("비밀번호는 6자 이상이어야 합니다");
-      return;
-    }
+    if (!canRegister) return;
     setLoading(true);
     try {
       const user = await registerUser(email, password, nickname);
@@ -53,150 +61,132 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
-      <header className="flex h-12 items-center px-4">
-        <LeftOutlined
-          className="cursor-pointer text-lg text-text"
-          onClick={() => (step === 0 ? router.back() : setStep(0))}
-        />
-        <h2 className="ml-4 text-[17px] font-bold tracking-tight">회원가입</h2>
-      </header>
-
-      <div className="px-10 pt-8 pb-10">
-        <div className="flex items-center justify-between gap-3">
-          {[0, 1].map((s) => (
-            <div key={s} className="flex flex-1 flex-col gap-2">
-              <div
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  step >= s ? "bg-primary shadow-sm" : "bg-border-light"
-                }`}
-              />
-              <span
-                className={`text-[11px] font-bold transition-colors ${
-                  step >= s ? "text-primary" : "text-text-muted"
-                }`}
-              >
-                {s === 0 ? "기본 정보" : "비밀번호 설정"}
-              </span>
-            </div>
-          ))}
-        </div>
+      {/* 뒤로가기 */}
+      <div 
+        className="px-4 pt-3.5 flex items-center gap-1.5 cursor-pointer"
+        onClick={() => router.back()}
+      >
+        <LeftOutlined className="text-[20px] text-text" />
+        <span className="text-[13px] text-text-secondary">돌아가기</span>
       </div>
 
-      {step === 0 ? (
-        <div className="flex flex-1 flex-col gap-5 px-10">
-          <div>
-            <label className="mb-2 block text-[13px] font-bold text-text">닉네임</label>
-            <Input
-              placeholder="홍길동"
-              variant="filled"
-              size="large"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="h-12 rounded-xl bg-bg border-transparent hover:bg-bg focus:bg-white transition-all"
-            />
+      {/* 헤더 */}
+      <div className="px-4 pt-5 pb-2.5 flex flex-col items-start">
+        <div className="text-[22px] font-bold tracking-tight">회원가입</div>
+        <div className="text-[13px] text-text-muted mt-1">C.O.D.E.에 오신 걸 환영해요</div>
+      </div>
+
+      {/* 진행바 */}
+      <div className="px-10 pb-1 flex gap-[3px]">
+        <div className="flex-1 h-0.5 bg-primary rounded-full" />
+        <div className="flex-1 h-0.5 bg-border rounded-full" />
+      </div>
+      <div className="px-10 pb-3.5 text-[11px] text-text-muted">
+        1단계 / 2단계 — 기본 정보
+      </div>
+
+      <div className="flex flex-col gap-5 px-10">
+        {/* 이름 */}
+        <div>
+          <div className="text-[11px] font-bold text-text-secondary mb-1.5">
+            이름<span className="text-error ml-0.5">*</span>
           </div>
-          <div>
-            <label className="mb-2 block text-[13px] font-bold text-text">이메일</label>
+          <Input
+            placeholder="이름 입력"
+            size="large"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            className="h-11 rounded-md bg-bg border-border text-[13px] hover:border-black focus:border-black"
+          />
+        </div>
+
+        {/* 이메일 */}
+        <div>
+          <div className="text-[11px] font-bold text-text-secondary mb-1.5">
+            이메일<span className="text-error ml-0.5">*</span>
+          </div>
+          <div className="flex gap-1.5">
             <Input
               placeholder="example@email.com"
-              variant="filled"
               size="large"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-12 rounded-xl bg-bg border-transparent hover:bg-bg focus:bg-white transition-all"
+              className="flex-1 h-11 rounded-md bg-bg border-border text-[13px] hover:border-black focus:border-black"
             />
-          </div>
-          <div className="mt-auto pb-12">
-            <Button
-              type="primary"
-              block
-              size="large"
-              disabled={!canGoNext}
-              onClick={() => setStep(1)}
-              className="h-13 rounded-xl text-sm font-bold shadow-lg disabled:opacity-50"
+            <Button 
+              className="h-11 px-[11px] bg-text border-none rounded-md text-[12px] font-bold text-white font-sans shrink-0 hover:!bg-black hover:!text-white"
+              onClick={() => message.info("중복 확인 로직은 구현 예정입니다.")}
             >
-              다음 단계로
+              중복 확인
             </Button>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 flex-col gap-5 px-10">
-          <div>
-            <label className="mb-2 block text-[13px] font-bold text-text">비밀번호</label>
-            <Input.Password
-              placeholder="6자 이상 입력"
-              variant="filled"
-              size="large"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-12 rounded-xl bg-bg border-transparent hover:bg-bg focus:bg-white transition-all"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-[13px] font-bold text-text">비밀번호 확인</label>
-            <Input.Password
-              placeholder="비밀번호를 다시 입력하세요"
-              variant="filled"
-              size="large"
-              value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
-              className={`h-12 rounded-xl bg-bg border-transparent hover:bg-bg focus:bg-white transition-all ${
-                passwordConfirm && password !== passwordConfirm ? "ring-1 ring-error/50" : ""
-              }`}
-            />
-            {passwordConfirm && password !== passwordConfirm && (
-              <p className="mt-2 text-xs font-medium text-error flex items-center gap-1">
-                <span className="block h-1 w-1 rounded-full bg-error" />
-                비밀번호가 일치하지 않습니다
-              </p>
-            )}
-          </div>
-          <div className="mt-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <Checkbox
-                checked={agreeAll}
-                onChange={(e) => setAgreeAll(e.target.checked)}
-                className="scale-110"
-              />
-              <span className="text-[14px] font-bold">모든 약관에 동의합니다</span>
-            </div>
-            <div className="space-y-2 pl-8">
-              {[
-                "서비스 이용약관 동의 (필수)",
-                "개인정보 수집 및 이용 동의 (필수)",
-                "마케팅 정보 수신 동의 (선택)",
-              ].map((text, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs text-text-secondary">
-                  <span>{text}</span>
-                  <button className="text-[10px] underline decoration-text-muted underline-offset-2">보기</button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="mt-auto pb-12">
-            <Button
-              type="primary"
-              block
-              size="large"
-              disabled={!canRegister}
-              loading={loading}
-              onClick={handleRegister}
-              className="h-13 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
-            >
-              회원가입 완료
-            </Button>
-          </div>
-        </div>
-      )}
 
-      {step === 0 && (
-        <div className="mt-auto px-10 pb-12 text-center text-[13px] text-text-secondary">
-          이미 계정이 있으신가요?{" "}
-          <Link href="/login" className="ml-1 font-bold text-primary underline-offset-4 hover:underline">
-            로그인
-          </Link>
+        {/* 비밀번호 그룹 (모듈화) */}
+        <PasswordInputGroup
+          newPw={password}
+          confirmPw={passwordConfirm}
+          onNewPwChange={setPassword}
+          onConfirmPwChange={setPasswordConfirm}
+          onValidationChange={setIsPasswordValid}
+        />
+
+        {/* 약관 동의 */}
+        <div className="border border-border rounded-md overflow-hidden mt-1">
+          <div 
+            className="px-3 py-2.5 bg-bg border-b border-border flex items-center gap-2.5 font-bold text-[14px] cursor-pointer"
+            onClick={handleAgreeAll}
+          >
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${agreeAll ? 'bg-primary border-primary' : 'bg-white border-border'}`}>
+              {agreeAll && <CheckOutlined className="text-white text-[10px]" />}
+            </div>
+            전체 동의
+          </div>
+          
+          <div className="px-3 py-2.5 border-b border-border-light flex items-center gap-2.5 text-[13px] text-text-secondary cursor-pointer" onClick={() => setAgreeTerms(!agreeTerms)}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${agreeTerms ? 'bg-primary border-primary' : 'bg-white border-border'}`}>
+              {agreeTerms && <CheckOutlined className="text-white text-[10px]" />}
+            </div>
+            [필수] 이용약관 동의
+            <span className="text-[11px] text-text-muted ml-auto underline cursor-pointer" onClick={(e) => { e.stopPropagation(); message.info("약관 보기"); }}>보기</span>
+          </div>
+
+          <div className="px-3 py-2.5 border-b border-border-light flex items-center gap-2.5 text-[13px] text-text-secondary cursor-pointer" onClick={() => setAgreePrivacy(!agreePrivacy)}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${agreePrivacy ? 'bg-primary border-primary' : 'bg-white border-border'}`}>
+              {agreePrivacy && <CheckOutlined className="text-white text-[10px]" />}
+            </div>
+            [필수] 개인정보 수집·이용 동의
+            <span className="text-[11px] text-text-muted ml-auto underline cursor-pointer" onClick={(e) => { e.stopPropagation(); message.info("약관 보기"); }}>보기</span>
+          </div>
+
+          <div className="px-3 py-2.5 flex items-center gap-2.5 text-[13px] text-text-secondary cursor-pointer" onClick={() => setAgreeMarketing(!agreeMarketing)}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${agreeMarketing ? 'bg-primary border-primary' : 'bg-white border-border'}`}>
+              {agreeMarketing && <CheckOutlined className="text-white text-[10px]" />}
+            </div>
+            [선택] 마케팅 정보 수신
+            <span className="text-[11px] text-text-muted ml-auto underline cursor-pointer" onClick={(e) => { e.stopPropagation(); message.info("약관 보기"); }}>보기</span>
+          </div>
         </div>
-      )}
+
+        <Button
+          type="primary"
+          block
+          size="large"
+          disabled={!canRegister}
+          loading={loading}
+          onClick={handleRegister}
+          className="mt-1 mb-4 h-11 bg-text border-none rounded-md text-[14px] font-bold text-white hover:!bg-black disabled:opacity-50"
+        >
+          회원가입 완료
+        </Button>
+      </div>
+
+      <div className="pb-4 text-center text-[13px] text-text-secondary mt-4">
+        이미 계정이 있으신가요?
+        <Link href="/login" className="ml-1 font-bold text-primary cursor-pointer hover:underline">
+          로그인
+        </Link>
+      </div>
     </div>
   );
 }

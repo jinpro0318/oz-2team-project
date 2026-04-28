@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, MessageCircle, ShoppingCart } from "lucide-react";
+import { Star, MessageCircle, ShoppingCart } from "lucide-react";
 import { Badge } from "antd";
 import { useCartStore } from "@/stores/cartStore";
 import { useState, useEffect } from "react";
+import { useRequireAuth } from "@/hooks/useAuth";
 
 export default function TopBar() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const totalCount = useCartStore((s) => s.getTotalCount());
+  const { requireAuth } = useRequireAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -27,9 +29,9 @@ export default function TopBar() {
       <div className="flex items-center gap-4">
         <button 
           className="hover:opacity-60 transition-opacity relative"
-          onClick={() => router.push("/wishlist")}
+          onClick={() => requireAuth(() => router.push("/wishlist"))}
         >
-          <Heart className="w-[22px] h-[22px] text-text" strokeWidth={1.8} />
+          <Star className="w-[22px] h-[22px] text-text" strokeWidth={1.8} />
           <span className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-red border-[1.5px] border-surface" />
         </button>
         

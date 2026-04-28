@@ -12,6 +12,7 @@ const statusTabs = [
   { key: "preparing", label: "준비중" },
   { key: "shipping", label: "배송중" },
   { key: "delivered", label: "배송완료" },
+  { key: "purchase_confirmed", label: "구매확정" },
 ];
 
 const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
@@ -22,6 +23,8 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   cancelled: { label: "주문취소", color: "red" },
   exchange_requested: { label: "교환요청", color: "purple" },
   return_requested: { label: "반품요청", color: "purple" },
+  purchase_confirmed: { label: "구매확정", color: "black" },
+  payment_pending: { label: "결제대기", color: "gray" },
 };
 
 export default function AdminOrders() {

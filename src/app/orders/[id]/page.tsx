@@ -7,10 +7,8 @@ import BackTopBar from "@/components/common/BackTopBar";
 import { useOrder } from "@/hooks/useOrders";
 
 const statusStepMap: Record<string, number> = {
-  payment_complete: 0,
-  preparing: 1,
-  shipping: 2,
   delivered: 3,
+  purchase_confirmed: 4,
 };
 
 function formatPrice(n: number) {
@@ -68,6 +66,7 @@ export default function OrderDetailPage() {
             { title: "준비중" },
             { title: "배송중" },
             { title: "배송완료" },
+            { title: "구매확정" },
           ]}
         />
       </div>
@@ -140,6 +139,16 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">
+        {(order.status === "payment_complete" || order.status === "preparing") && (
+          <Button block danger onClick={() => router.push(`/orders/${order.id}/cancel`)}>
+            주문 취소 신청
+          </Button>
+        )}
+        {order.status === "delivered" && (
+          <Button block type="primary" style={{ background: "#262626" }} onClick={() => router.push(`/orders/${order.id}/confirm`)}>
+            구매 결정하기
+          </Button>
+        )}
         {order.status === "delivered" && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청

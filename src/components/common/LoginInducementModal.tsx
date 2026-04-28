@@ -1,36 +1,49 @@
 "use client";
 
-import { Drawer, Button } from "antd";
+import { Modal, Button } from "antd";
 import { UserOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
 
-export default function LoginPromptSheet() {
-  const { showLoginPrompt, setShowLoginPrompt } = useAuthStore();
+interface LoginInducementModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function LoginInducementModal({ open, onClose }: LoginInducementModalProps) {
   const router = useRouter();
 
   const handleSignUp = () => {
-    setShowLoginPrompt(false);
-    router.push("/register");
+    onClose();
+    router.push("/signup");
   };
 
   const handleLogin = () => {
-    setShowLoginPrompt(false);
+    onClose();
     router.push("/login");
   };
 
   return (
-    <Drawer
-      open={showLoginPrompt}
-      onClose={() => setShowLoginPrompt(false)}
-      placement="bottom"
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={null}
       closable={false}
+      centered={false}
+      width={390}
+      className="login-inducement-modal"
       styles={{
-        wrapper: { height: "auto" },
-        body: { padding: 0 },
-        section: { borderRadius: "20px 20px 0 0" }
+        mask: { backgroundColor: "rgba(0, 0, 0, 0.45)" },
+        content: {
+          padding: 0,
+          borderRadius: "20px 20px 0 0",
+          position: "fixed",
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          margin: 0,
+        },
       }}
-      className="login-prompt-drawer"
+      transitionName="ant-slide-down"
     >
       <div className="flex flex-col items-center px-6 pb-8 pt-4">
         {/* Drag handle */}
@@ -40,13 +53,13 @@ export default function LoginPromptSheet() {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-500">
             <UserOutlined style={{ fontSize: 24 }} />
           </div>
-          <div className="flex-1 text-left">
+          <div className="flex-1">
             <h2 className="text-lg font-bold text-text">로그인이 필요해요</h2>
             <p className="text-sm text-text-secondary">찜 기능은 로그인 후 사용할 수 있어요</p>
           </div>
         </div>
 
-        <div className="mt-6 w-full rounded-lg bg-bg p-4 text-sm text-text-secondary leading-relaxed text-left">
+        <div className="mt-6 w-full rounded-lg bg-bg p-4 text-sm text-text-secondary leading-relaxed">
           🛍️ 회원가입하면 찜, 주문내역, 배송 추적까지 모든 기능을 무료로 이용할 수 있어요.
         </div>
 
@@ -71,12 +84,12 @@ export default function LoginPromptSheet() {
           </Button>
           <button
             className="mt-2 text-sm text-text-muted underline decoration-text-muted underline-offset-4 hover:text-text"
-            onClick={() => setShowLoginPrompt(false)}
+            onClick={onClose}
           >
             지금은 괜찮아요
           </button>
         </div>
       </div>
-    </Drawer>
+    </Modal>
   );
 }

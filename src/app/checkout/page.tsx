@@ -9,7 +9,7 @@ import { useCreateOrder } from "@/hooks/useOrders";
 import { useAuthStore } from "@/stores/authStore";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 
-const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || "test_ck_D5akZmejJb9YMxMB7G8Vj7Y4314A";
+const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
 function formatPrice(n: number, mounted: boolean) {
   if (!mounted) return n.toString();

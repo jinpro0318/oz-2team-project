@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button, Drawer } from "antd";
 import {
   ShoppingOutlined,
-  HeartOutlined,
+  StarOutlined,
   PhoneOutlined,
   EditOutlined,
   LogoutOutlined,
@@ -33,7 +33,7 @@ export default function MyPage() {
 
   const menuItems = [
     { icon: <ShoppingOutlined />, label: "주문 내역", href: "/orders" },
-    { icon: <HeartOutlined />, label: "찜 목록", href: "/wishlist" },
+    { icon: <StarOutlined />, label: "찜 목록", href: "/wishlist" },
     { icon: <PhoneOutlined />, label: "고객센터", href: "/mypage/support" },
   ];
 

@@ -5,11 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, App, Spin } from "antd";
 import {
   LeftOutlined,
-  HeartOutlined,
-  HeartFilled,
   PhoneOutlined,
   TruckOutlined,
 } from "@ant-design/icons";
+import { Star } from "lucide-react";
 import { useProduct } from "@/hooks/useProducts";
 import { useCelebrity } from "@/hooks/useCelebrities";
 import { useCartStore } from "@/stores/cartStore";
@@ -111,9 +110,9 @@ export default function ProductDetailPage() {
           onClick={() => requireAuth(() => toggleWishlist(product))}
         >
           {wishlisted ? (
-            <HeartFilled className="text-sm text-error" />
+            <Star className="w-[20px] h-[20px] text-black fill-[#FFD700]" strokeWidth={2} />
           ) : (
-            <HeartOutlined className="text-sm" />
+            <Star className="w-[20px] h-[20px] text-text" strokeWidth={1.5} />
           )}
         </button>
       </div>

@@ -15,14 +15,31 @@ import {
   setDoc,
   serverTimestamp,
   writeBatch,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
+
+function convertTimestamps(data: any): any {
+  if (!data || typeof data !== "object") return data;
+  
+  const result = { ...data };
+  for (const key in result) {
+    if (result[key] instanceof Timestamp) {
+      result[key] = result[key].toDate().toISOString();
+    } else if (Array.isArray(result[key])) {
+      result[key] = result[key].map(convertTimestamps);
+    } else if (typeof result[key] === "object") {
+      result[key] = convertTimestamps(result[key]);
+    }
+  }
+  return result;
+}
 
 export async function getDocument<T>(collectionName: string, id: string): Promise<T | null> {
   const docRef = doc(db, collectionName, id);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as T;
+  return { id: docSnap.id, ...convertTimestamps(docSnap.data()) } as T;
 }
 
 export async function getDocuments<T>(
@@ -31,7 +48,7 @@ export async function getDocuments<T>(
 ): Promise<T[]> {
   const q = query(collection(db, collectionName), ...constraints);
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+  return snapshot.docs.map((d) => ({ id: d.id, ...convertTimestamps(d.data()) }) as T);
 }
 
 export async function createDocument(
