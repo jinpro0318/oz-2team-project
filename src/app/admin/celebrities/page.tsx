@@ -284,7 +284,13 @@ function HotspotDrawer({
       const values = await newPostForm.validateFields();
       if (!celeb) return;
 
-      // [효진] 신규 포스트 Firestore 저장 로직 호출
+      console.log("[효진] 신규 착장 데이터 전송:", {
+        celebrityId: celeb.id,
+        imageUrl: values.imageUrl,
+        caption: values.caption,
+      });
+
+      // [효진] 신규 착장 Firestore 저장 로직 호출
       await createPost.mutateAsync({
         celebrityId: celeb.id,
         imageUrl: values.imageUrl,
@@ -295,11 +301,12 @@ function HotspotDrawer({
         comments: 0,
       });
 
-      message.success("신규 포스트가 등록되었습니다.");
+      message.success("신규 착장이 성공적으로 등록되었습니다.");
       setCreateModalOpen(false);
       newPostForm.resetFields();
-    } catch (err) {
-      message.error("포스트 등록에 실패했습니다.");
+    } catch (err: any) {
+      console.error("[효진] 착장 등록 실패 에러 상세:", err);
+      message.error(`등록에 실패했습니다: ${err.message || "데이터 형식을 확인해주세요."}`);
     }
   };
 

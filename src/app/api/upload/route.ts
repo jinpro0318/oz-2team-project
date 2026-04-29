@@ -21,16 +21,26 @@ export async function POST(request: Request) {
     const fileName = `${Date.now()}_${file.name}`;
     const storageRef = ref(storage, `${folder}/${fileName}`);
     
-    // 서버 환경에서는 CORS 제한 없이 Firebase에 직접 전송 가능
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const snapshot = await uploadBytes(storageRef, buffer);
+    // [효진] Buffer 대신 Uint8Array 사용 (Vercel/Node 환경 호환성 제고)
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    const snapshot = await uploadBytes(storageRef, uint8Array);
     const downloadURL = await getDownloadURL(snapshot.ref);
 
     console.log("[효진] 서버 사이드 업로드 성공:", downloadURL);
 
     return NextResponse.json({ url: downloadURL });
   } catch (error: any) {
-    console.error("[효진] 서버 사이드 업로드 에러:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[효진] 서버 사이드 업로드 상세 에러:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    return NextResponse.json({ 
+      error: error.message, 
+      code: error.code,
+      details: "Firebase Storage 규칙 또는 환경 변수를 확인해주세요." 
+    }, { status: 500 });
   }
 }
