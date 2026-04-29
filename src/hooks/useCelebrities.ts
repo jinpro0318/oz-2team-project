@@ -19,7 +19,7 @@ export function useCelebrities() {
   return useQuery({
     queryKey: ["celebrities"],
     queryFn: getCelebrities,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // [효진] 실시간 반영을 위해 캐시 유지 시간 제거
   });
 }
 
