@@ -36,7 +36,18 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   purchase_confirmed: { label: "구매확정", color: "geekblue" },
 };
 
-export default function AdminOrders() {
+import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
+
+export default function AdminOrdersPage() {
+  return (
+    <App>
+      <AdminOrders />
+    </App>
+  );
+}
+
+function AdminOrders() {
+  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
   const [activeTab, setActiveTab] = useState("all");
   const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
   const { data: orders = [], isLoading } = useAllOrders();
@@ -54,50 +65,63 @@ export default function AdminOrders() {
   }, {});
 
   const handleShip = async (order: Order) => {
-    // [효진] 배송 시작 처리: 상태 변경 + 타임라인 자동 추가
-    await updateStatus.mutateAsync({
-      id: order.id,
-      status: "shipping",
-      timelineEntry: {
+    try {
+      // [효진] 배송 시작 처리: 상태 변경 + 타임라인 자동 추가
+      await updateStatus.mutateAsync({
+        id: order.id,
         status: "shipping",
-        label: "배송 시작",
-        date: new Date().toISOString(),
-        description: "상품이 배송 시작되었습니다",
-      },
-    });
-    message.success("배송 처리 완료");
-    if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "shipping" });
+        timelineEntry: {
+          status: "shipping",
+          label: "배송 시작",
+          date: new Date().toISOString(),
+          description: "상품이 배송 시작되었습니다",
+        },
+      });
+      message.success("배송 처리 완료");
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "shipping" });
+    } catch (err: any) {
+      console.error("[효진] 출고 에러:", err);
+      message.error("출고 처리에 실패했습니다.");
+    }
   };
 
   const handleDeliver = async (order: Order) => {
-    await updateStatus.mutateAsync({
-      id: order.id,
-      status: "delivered",
-      timelineEntry: {
+    try {
+      await updateStatus.mutateAsync({
+        id: order.id,
         status: "delivered",
-        label: "배송 완료",
-        date: new Date().toISOString(),
-        description: "상품이 배송 완료되었습니다",
-      },
-    });
-    message.success("배송완료 처리");
-    if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "delivered" });
+        timelineEntry: {
+          status: "delivered",
+          label: "배송 완료",
+          date: new Date().toISOString(),
+          description: "상품이 배송 완료되었습니다",
+        },
+      });
+      message.success("배송완료 처리");
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "delivered" });
+    } catch (err: any) {
+      message.error("상태 변경 실패");
+    }
   };
 
   const handleCancel = async (order: Order) => {
-    // [효진] 주문 취소 처리
-    await updateStatus.mutateAsync({
-      id: order.id,
-      status: "cancelled",
-      timelineEntry: {
+    try {
+      // [효진] 주문 취소 처리
+      await updateStatus.mutateAsync({
+        id: order.id,
         status: "cancelled",
-        label: "주문 취소",
-        date: new Date().toISOString(),
-        description: "주문이 취소 처리되었습니다",
-      },
-    });
-    message.success("주문이 취소되었습니다");
-    setDrawerOrder(null);
+        timelineEntry: {
+          status: "cancelled",
+          label: "주문 취소",
+          date: new Date().toISOString(),
+          description: "주문이 취소 처리되었습니다",
+        },
+      });
+      message.success("주문이 취소되었습니다");
+      setDrawerOrder(null);
+    } catch (err: any) {
+      message.error("취소 실패: " + err.message);
+    }
   };
 
   const columns = [

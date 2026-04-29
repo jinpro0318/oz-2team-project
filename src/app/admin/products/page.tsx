@@ -45,7 +45,16 @@ const defaultFormValues: ProductFormData = {
   category: "",
 };
 
-export default function AdminProducts() {
+export default function AdminProductsPage() {
+  return (
+    <App>
+      <AdminProducts />
+    </App>
+  );
+}
+
+function AdminProducts() {
+  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const createProduct = useCreateProduct(); // [효진] 상품 등록 mutation
@@ -104,31 +113,42 @@ export default function AdminProducts() {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      console.log("[효진] 상품 데이터 저장 시도:", values);
+      
       if (editTarget) {
         // [효진] 상품 수정 처리 (mutation 호출)
         await updateProduct.mutateAsync({ id: editTarget.id, data: values });
-        message.success("상품이 수정되었습니다");
+        message.success("상품이 성공적으로 수정되었습니다");
       } else {
         // [효진] 신규 상품 등록 처리 (mutation 호출)
         await createProduct.mutateAsync(values);
-        message.success("상품이 등록되었습니다");
+        message.success("상품이 성공적으로 등록되었습니다");
       }
       setModalOpen(false);
-    } catch {
-      // validation errors
+    } catch (err: any) {
+      console.error("[효진] 상품 저장 실패:", err);
+      message.error("상품 저장 중 오류가 발생했습니다.");
     }
   };
 
   const handleDelete = async (id: string) => {
-    // [효진] 상품 삭제 처리
-    await deleteProduct.mutateAsync(id);
-    message.success("상품이 삭제되었습니다");
+    try {
+      // [효진] 상품 삭제 처리
+      await deleteProduct.mutateAsync(id);
+      message.success("상품이 삭제되었습니다");
+    } catch (err) {
+      message.error("삭제 실패: " + (err as any).message);
+    }
   };
 
   const handleToggle = async (id: string, isVisible: boolean) => {
-    // [효진] 노출 상태 반전 토글 처리 (Switch 클릭 시)
-    await toggleVisibility.mutateAsync({ id, isVisible: !isVisible });
-    message.success(isVisible ? "상품을 숨겼습니다" : "상품을 노출했습니다");
+    try {
+      // [효진] 노출 상태 반전 토글 처리 (Switch 클릭 시)
+      await toggleVisibility.mutateAsync({ id, isVisible: !isVisible });
+      message.success(isVisible ? "상품을 숨겼습니다" : "상품을 노출했습니다");
+    } catch (err) {
+      message.error("상태 변경 실패");
+    }
   };
 
   const columns = [

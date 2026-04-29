@@ -9,7 +9,18 @@ import { useSettlements, useProcessSettlement, useCreateSettlement } from "@/hoo
 import type { Settlement } from "@/types";
 import dayjs from "dayjs";
 
-export default function AdminSettlements() {
+import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
+
+export default function AdminSettlementsPage() {
+  return (
+    <App>
+      <AdminSettlements />
+    </App>
+  );
+}
+
+function AdminSettlements() {
+  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
   const [processing, setProcessing] = useState<string | null>(null);
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
@@ -78,6 +89,9 @@ export default function AdminSettlements() {
         });
       }
       message.success(`${row.celebName} 정산 처리 완료`);
+    } catch (err: any) {
+      console.error("[효진] 정산 에러:", err);
+      message.error("정산 처리에 실패했습니다.");
     } finally {
       setProcessing(null);
     }

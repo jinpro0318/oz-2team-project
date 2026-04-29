@@ -61,7 +61,17 @@ function DonutChart({ data }: { data: { name: string; percent: number; color: st
   );
 }
 
-export default function AdminAnalytics() {
+import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
+
+export default function AdminAnalyticsPage() {
+  return (
+    <App>
+      <AdminAnalytics />
+    </App>
+  );
+}
+
+function AdminAnalytics() {
   const [period, setPeriod] = useState("weekly");
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
