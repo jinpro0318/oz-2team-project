@@ -1,69 +1,151 @@
 "use client";
 
-import { Card, Table, Tag, Button, Spin } from "antd";
-import { DollarOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Card, Table, Tag, Button, Spin, message, Popconfirm } from "antd";
+import { DollarOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
-
-interface SettlementRow {
-  key: string;
-  celebName: string;
-  totalSales: number;
-  commissionRate: number;
-  unpaidCommission: number;
-  status: "unpaid" | "paid";
-}
+import { useSettlements, useProcessSettlement, useCreateSettlement } from "@/hooks/useSettlements";
+import type { Settlement } from "@/types";
+import dayjs from "dayjs";
 
 export default function AdminSettlements() {
+  const [processing, setProcessing] = useState<string | null>(null);
+
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
+  const { data: settlements = [], isLoading: settlementLoading } = useSettlements();
+  const processSettlement = useProcessSettlement();
+  const createSettlement = useCreateSettlement();
 
-  const isLoading = celebLoading || prodLoading;
+  const isLoading = celebLoading || prodLoading || settlementLoading;
 
-  const settlementData: SettlementRow[] = celebrities.map((celeb) => {
+  // 셀럽별 미지급 커미션 계산 (정산 완료 건 제외)
+  const currentPeriod = dayjs().format("YYYY-MM");
+
+  const settlementRows = celebrities.map((celeb) => {
     const celebProducts = products.filter((p) => p.celebrityId === celeb.id);
     const totalSales = celebProducts.reduce(
-      (sum, p) => sum + p.price * Math.floor(p.salesCount * 0.1),
+      (sum, p) => sum + p.price * p.salesCount,
       0
     );
-    const unpaidCommission = Math.floor(totalSales * (celeb.commissionRate / 100));
+    const commissionAmount = Math.floor(totalSales * (celeb.commissionRate / 100));
+
+    // 이번 달 정산 내역 조회
+    const existingSettlement = settlements.find(
+      (s) => s.celebrityId === celeb.id && s.period === currentPeriod
+    );
 
     return {
       key: celeb.id,
+      celebId: celeb.id,
       celebName: celeb.name,
+      gradient: celeb.gradient,
       totalSales,
       commissionRate: celeb.commissionRate,
-      unpaidCommission,
-      status: "unpaid" as const,
+      commissionAmount,
+      settlementId: existingSettlement?.id ?? null,
+      status: existingSettlement?.status ?? ("unpaid" as const),
+      paidAt: existingSettlement?.paidAt,
     };
   });
 
-  const totalUnpaid = settlementData.reduce((sum, r) => sum + r.unpaidCommission, 0);
-  const totalSales = settlementData.reduce((sum, r) => sum + r.totalSales, 0);
+  const totalUnpaid = settlementRows
+    .filter((r) => r.status === "unpaid")
+    .reduce((sum, r) => sum + r.commissionAmount, 0);
+  const totalPaid = settlementRows
+    .filter((r) => r.status === "paid")
+    .reduce((sum, r) => sum + r.commissionAmount, 0);
+  const totalSalesAll = settlementRows.reduce((sum, r) => sum + r.totalSales, 0);
+
+  const handleProcess = async (row: typeof settlementRows[0]) => {
+    setProcessing(row.celebId);
+    try {
+      if (row.settlementId) {
+        // [효진] 기존 정산 레코드가 있으면 상태만 업데이트
+        await processSettlement.mutateAsync(row.settlementId);
+      } else {
+        // [효진] 정산 레코드가 없으면 새로 생성하며 즉시 "paid" 처리
+        await createSettlement.mutateAsync({
+          celebrityId: row.celebId,
+          celebName: row.celebName,
+          period: currentPeriod,
+          totalSales: row.totalSales,
+          commissionRate: row.commissionRate,
+          commissionAmount: row.commissionAmount,
+          status: "paid",
+          paidAt: new Date().toISOString(),
+        });
+      }
+      message.success(`${row.celebName} 정산 처리 완료`);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleBulkProcess = async () => {
+    const unpaidRows = settlementRows.filter((r) => r.status === "unpaid");
+    for (const row of unpaidRows) {
+      await handleProcess(row);
+    }
+    message.success("일괄 정산 처리 완료");
+  };
 
   const columns = [
-    { title: "셀럽", dataIndex: "celebName", key: "celeb", width: 100 },
+    {
+      title: "셀럽",
+      key: "celeb",
+      width: 120,
+      render: (_: unknown, r: typeof settlementRows[0]) => (
+        <div className="flex items-center gap-2">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+            style={{ background: r.gradient }}
+          >
+            {r.celebName[0]}
+          </div>
+          <span className="text-xs font-semibold text-[#181C32]">{r.celebName}</span>
+        </div>
+      ),
+    },
+    {
+      title: "기간",
+      key: "period",
+      width: 100,
+      render: () => (
+        <span className="text-xs text-[#7E8299]">{currentPeriod}</span>
+      ),
+    },
     {
       title: "판매액",
       dataIndex: "totalSales",
       key: "sales",
       width: 150,
-      render: (v: number) => `₩${v.toLocaleString("ko-KR")}`,
+      render: (v: number) => (
+        <span className="text-xs">₩{v.toLocaleString("ko-KR")}</span>
+      ),
     },
     {
       title: "커미션율",
       dataIndex: "commissionRate",
       key: "rate",
-      width: 100,
-      render: (v: number) => `${v}%`,
+      width: 90,
+      render: (v: number) => (
+        <span className="text-xs font-semibold text-[#3699FF]">{v}%</span>
+      ),
     },
     {
-      title: "미지급 커미션",
-      dataIndex: "unpaidCommission",
-      key: "unpaid",
+      title: "커미션",
+      dataIndex: "commissionAmount",
+      key: "commission",
       width: 150,
-      render: (v: number) => (
-        <span className="font-bold text-[#ED4956]">₩{v.toLocaleString("ko-KR")}</span>
+      render: (v: number, r: typeof settlementRows[0]) => (
+        <span
+          className="text-xs font-bold"
+          style={{ color: r.status === "paid" ? "#00C851" : "#ED4956" }}
+        >
+          ₩{v.toLocaleString("ko-KR")}
+        </span>
       ),
     },
     {
@@ -71,17 +153,43 @@ export default function AdminSettlements() {
       dataIndex: "status",
       key: "status",
       width: 100,
-      render: (v: string) =>
-        v === "paid" ? <Tag color="green">정산완료</Tag> : <Tag color="orange">미정산</Tag>,
+      render: (v: string, r: typeof settlementRows[0]) => (
+        <div>
+          {v === "paid" ? (
+            <Tag color="green" icon={<CheckCircleOutlined />}>정산완료</Tag>
+          ) : (
+            <Tag color="orange">미정산</Tag>
+          )}
+          {v === "paid" && r.paidAt && (
+            <p className="mt-0.5 text-[9px] text-[#A8A8A8]">
+              {dayjs(r.paidAt).format("MM/DD HH:mm")}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
-      title: "관리",
+      title: "처리",
       key: "actions",
-      width: 120,
-      render: (_: unknown, r: SettlementRow) => (
-        <Button size="small" type="primary" disabled={r.status === "paid"}>
-          정산 처리
-        </Button>
+      width: 110,
+      render: (_: unknown, r: typeof settlementRows[0]) => (
+        <Popconfirm
+          title={`${r.celebName}에게 ₩${r.commissionAmount.toLocaleString("ko-KR")} 정산하시겠습니까?`}
+          onConfirm={() => handleProcess(r)}
+          okText="정산 처리"
+          cancelText="취소"
+          disabled={r.status === "paid"}
+        >
+          <Button
+            size="small"
+            type="primary"
+            disabled={r.status === "paid"}
+            loading={processing === r.celebId}
+            icon={<DollarOutlined />}
+          >
+            정산 처리
+          </Button>
+        </Popconfirm>
       ),
     },
   ];
@@ -97,30 +205,59 @@ export default function AdminSettlements() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[#181C32]">정산 관리</h1>
-        <Button type="primary" icon={<DollarOutlined />}>
-          일괄 정산 처리
-        </Button>
+        <div>
+          <h1 className="text-xl font-bold text-[#181C32]">정산 관리</h1>
+          <p className="mt-0.5 text-xs text-[#7E8299]">셀럽 커미션 정산 — {currentPeriod}</p>
+        </div>
+        <Popconfirm
+          title={`미정산 ${settlementRows.filter((r) => r.status === "unpaid").length}건을 일괄 정산 처리하시겠습니까?`}
+          onConfirm={handleBulkProcess}
+          okText="일괄 정산"
+          cancelText="취소"
+          disabled={settlementRows.every((r) => r.status === "paid")}
+        >
+          <Button
+            type="primary"
+            icon={<DollarOutlined />}
+            disabled={settlementRows.every((r) => r.status === "paid")}
+          >
+            일괄 정산 처리
+          </Button>
+        </Popconfirm>
       </div>
 
+      {/* 요약 카드 */}
       <div className="mb-6 grid grid-cols-3 gap-4">
-        <Card size="small" className="border-[#E4E6EF]">
+        <div className="rounded-xl border border-[#E4E6EF] bg-white p-4 shadow-sm">
           <p className="text-xs text-[#7E8299]">총 판매액</p>
-          <p className="mt-1 text-xl font-bold text-[#181C32]">₩{totalSales.toLocaleString("ko-KR")}</p>
-        </Card>
-        <Card size="small" className="border-[#E4E6EF]">
+          <p className="mt-1 text-xl font-bold text-[#181C32]">
+            ₩{totalSalesAll.toLocaleString("ko-KR")}
+          </p>
+          <p className="mt-1 text-[11px] text-[#7E8299]">셀럽 {celebrities.length}명 합산</p>
+        </div>
+        <div className="rounded-xl border border-[#FFA800]/30 bg-[#FFFBF0] p-4 shadow-sm">
           <p className="text-xs text-[#7E8299]">미지급 총액</p>
-          <p className="mt-1 text-xl font-bold text-[#ED4956]">₩{totalUnpaid.toLocaleString("ko-KR")}</p>
-        </Card>
-        <Card size="small" className="border-[#E4E6EF]">
-          <p className="text-xs text-[#7E8299]">셀럽 수</p>
-          <p className="mt-1 text-xl font-bold text-[#181C32]">{celebrities.length}명</p>
-        </Card>
+          <p className="mt-1 text-xl font-bold text-[#FFA800]">
+            ₩{totalUnpaid.toLocaleString("ko-KR")}
+          </p>
+          <p className="mt-1 text-[11px] text-[#7E8299]">
+            {settlementRows.filter((r) => r.status === "unpaid").length}건 미정산
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#00C851]/30 bg-[#EAFAF1] p-4 shadow-sm">
+          <p className="text-xs text-[#7E8299]">정산 완료액</p>
+          <p className="mt-1 text-xl font-bold text-[#00C851]">
+            ₩{totalPaid.toLocaleString("ko-KR")}
+          </p>
+          <p className="mt-1 text-[11px] text-[#7E8299]">
+            {settlementRows.filter((r) => r.status === "paid").length}건 완료
+          </p>
+        </div>
       </div>
 
       <Card size="small" className="border-[#E4E6EF]">
         <Table
-          dataSource={settlementData}
+          dataSource={settlementRows}
           columns={columns}
           size="small"
           pagination={false}

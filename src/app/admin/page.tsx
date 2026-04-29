@@ -4,14 +4,27 @@ import { Card, Table, Tag, Button, Spin } from "antd";
 import {
   DollarOutlined,
   ShoppingCartOutlined,
-  UserAddOutlined,
-  HeartOutlined,
+  AppstoreOutlined,
+  TeamOutlined,
   DownloadOutlined,
+  ArrowUpOutlined,
 } from "@ant-design/icons";
-import { useAllOrders } from "@/hooks/useOrders";
+import { useAllOrders } from "@/hooks/useOrders"; // [효진] 전체 주문 조회 (어드민 전용)
 import { useCelebrities } from "@/hooks/useCelebrities";
-import { useAllProducts } from "@/hooks/useProducts";
+import { useAllProducts } from "@/hooks/useProducts"; // [효진] 신규: 전체 상품 조회
 import type { Order } from "@/types";
+
+const statusConfig: Record<string, { label: string; color: string }> = {
+  payment_complete: { label: "결제완료", color: "blue" },
+  payment_pending: { label: "결제대기", color: "default" },
+  preparing: { label: "준비중", color: "orange" },
+  shipping: { label: "배송중", color: "green" },
+  delivered: { label: "배송완료", color: "default" },
+  cancelled: { label: "주문취소", color: "red" },
+  exchange_requested: { label: "교환요청", color: "purple" },
+  return_requested: { label: "반품요청", color: "purple" },
+  purchase_confirmed: { label: "구매확정", color: "cyan" },
+};
 
 export default function AdminDashboard() {
   const { data: orders = [], isLoading: ordersLoading } = useAllOrders();
@@ -21,21 +34,70 @@ export default function AdminDashboard() {
   const isLoading = ordersLoading || celebLoading || prodLoading;
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const todayOrders = orders.filter((o) => {
+    const d = new Date(o.createdAt);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  });
 
-  const celebSales = celebrities.map((celeb) => {
-    const celebProducts = products.filter((p) => p.celebrityId === celeb.id);
-    const sales = celebProducts.reduce((sum, p) => sum + p.price * p.salesCount, 0);
-    const commission = Math.floor(sales * (celeb.commissionRate / 100));
-    return { name: celeb.name, sales, commission };
-  }).sort((a, b) => b.sales - a.sales);
+  const celebSales = celebrities
+    .map((celeb) => {
+      const celebProducts = products.filter((p) => p.celebrityId === celeb.id);
+      const sales = celebProducts.reduce((sum, p) => sum + p.price * p.salesCount, 0);
+      const commission = Math.floor(sales * (celeb.commissionRate / 100));
+      return { name: celeb.name, sales, commission, gradient: celeb.gradient };
+    })
+    .sort((a, b) => b.sales - a.sales);
 
   const totalCelebSales = celebSales.reduce((sum, c) => sum + c.sales, 0);
 
+  // 요일별 매출
+  const dayMap: Record<number, string> = { 0: "일", 1: "월", 2: "화", 3: "수", 4: "목", 5: "금", 6: "토" };
+  const dailyTotals: Record<string, number> = {};
+  orders.forEach((o) => {
+    const day = dayMap[new Date(o.createdAt).getDay()] ?? "?";
+    dailyTotals[day] = (dailyTotals[day] ?? 0) + o.totalAmount;
+  });
+  const dailyData = ["월", "화", "수", "목", "금", "토", "일"].map((day) => ({
+    day,
+    amount: dailyTotals[day] ?? 0,
+  }));
+  const maxAmount = Math.max(...dailyData.map((d) => d.amount), 1);
+
+  // [효진] KPI 카드 데이터 구성 (총매출, 오늘 주문, 등록 상품, 셀럽 수)
   const kpiCards = [
-    { title: "총 매출", value: `₩${totalRevenue.toLocaleString("ko-KR")}`, icon: <DollarOutlined />, color: "#3699FF" },
-    { title: "주문 수", value: `${orders.length}`, icon: <ShoppingCartOutlined />, color: "#00C851" },
-    { title: "상품 수", value: `${products.length}`, icon: <UserAddOutlined />, color: "#FF6B35" },
-    { title: "셀럽 수", value: `${celebrities.length}`, icon: <HeartOutlined />, color: "#ED4956" },
+    {
+      title: "총 매출",
+      value: `₩${totalRevenue.toLocaleString("ko-KR")}`,
+      icon: <DollarOutlined />,
+      color: "#3699FF",
+      bg: "#EEF6FF",
+      sub: `주문 ${orders.length}건`,
+    },
+    {
+      title: "오늘 주문",
+      value: `${todayOrders.length}건`,
+      icon: <ShoppingCartOutlined />,
+      color: "#00C851",
+      bg: "#EAFAF1",
+      sub: `₩${todayOrders.reduce((s, o) => s + o.totalAmount, 0).toLocaleString("ko-KR")}`,
+    },
+    {
+      title: "등록 상품",
+      value: `${products.length}개`,
+      icon: <AppstoreOutlined />,
+      color: "#FF6B35",
+      bg: "#FFF3EE",
+      sub: `노출 ${products.filter((p) => p.isVisible).length}개`, // [효진] 노출 중인 상품 수 표시
+    },
+    {
+      title: "셀럽 수",
+      value: `${celebrities.length}명`,
+      icon: <TeamOutlined />,
+      color: "#ED4956",
+      bg: "#FEF0F1",
+      sub: `활성 ${celebrities.filter((c) => c.isActive).length}명`, // [효진] 활성 상태 셀럽 수 표시
+    },
   ];
 
   if (isLoading) {
@@ -48,95 +110,126 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      {/* 페이지 헤더 */}
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-[#181C32]">대시보드</h1>
-        <Button icon={<DownloadOutlined />}>리포트 다운로드</Button>
+        <div>
+          <h1 className="text-xl font-bold text-[#181C32]">대시보드</h1>
+          <p className="mt-0.5 text-xs text-[#7E8299]">C.O.D.E. 운영 현황을 확인하세요</p>
+        </div>
+        <Button icon={<DownloadOutlined />} size="small">
+          리포트 다운로드
+        </Button>
       </div>
 
+      {/* [효진] 4개 KPI 카드 렌더링 */}
       <div className="mb-6 grid grid-cols-4 gap-4">
         {kpiCards.map((kpi) => (
-          <Card key={kpi.title} size="small" className="border-[#E4E6EF]">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-[#7E8299]">{kpi.title}</p>
-                <p className="mt-1 text-xl font-bold text-[#181C32]">{kpi.value}</p>
-              </div>
+          <div
+            key={kpi.title}
+            className="rounded-xl border border-[#E4E6EF] bg-white p-4 shadow-sm"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-medium text-[#7E8299]">{kpi.title}</p>
               <div
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-lg text-white"
-                style={{ background: kpi.color }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-base"
+                style={{ background: kpi.bg, color: kpi.color }}
               >
                 {kpi.icon}
               </div>
             </div>
-          </Card>
+            <p className="text-xl font-bold text-[#181C32]">{kpi.value}</p>
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-[#7E8299]">
+              <ArrowUpOutlined className="text-[#00C851]" />
+              {kpi.sub}
+            </p>
+          </div>
         ))}
       </div>
 
+      {/* 차트 & 테이블 */}
       <div className="grid grid-cols-3 gap-4">
-        <Card title="셀럽별 매출" size="small" className="col-span-1 border-[#E4E6EF]">
-          <div className="space-y-3">
+        {/* [효진] 셀럽별 매출 비중 프로그레스 바 차트 */}
+        <Card title="셀럽별 매출" size="small" className="border-[#E4E6EF]">
+          <div className="space-y-4">
             {celebSales.map((cs) => {
-              const percent = totalCelebSales > 0 ? Math.round((cs.sales / totalCelebSales) * 100) : 0;
+              const percent =
+                totalCelebSales > 0 ? Math.round((cs.sales / totalCelebSales) * 100) : 0;
               return (
                 <div key={cs.name}>
-                  <div className="mb-1 flex justify-between text-xs">
+                  <div className="mb-1.5 flex justify-between text-xs">
                     <span className="font-semibold text-[#181C32]">{cs.name}</span>
                     <span className="text-[#7E8299]">₩{cs.sales.toLocaleString("ko-KR")}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[#E4E6EF]">
+                  <div className="h-2 overflow-hidden rounded-full bg-[#E4E6EF]">
                     <div
-                      className="h-full rounded-full bg-[#3699FF]"
-                      style={{ width: `${percent}%` }}
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${percent}%`, background: cs.gradient || "#3699FF" }}
                     />
                   </div>
-                  <p className="mt-1 text-[10px] text-[#7E8299]">
-                    미지급 커미션: ₩{cs.commission.toLocaleString("ko-KR")}
-                  </p>
+                  <div className="mt-1 flex justify-between text-[10px] text-[#A8A8A8]">
+                    <span>점유율 {percent}%</span>
+                    <span>미지급 커미션 ₩{cs.commission.toLocaleString("ko-KR")}</span>
+                  </div>
                 </div>
               );
             })}
+            {celebSales.length === 0 && (
+              <p className="text-center text-xs text-[#A8A8A8]">데이터 없음</p>
+            )}
           </div>
         </Card>
 
-        <Card title="최근 주문" size="small" className="col-span-2 border-[#E4E6EF]">
-          <Table
-            dataSource={orders.slice(0, 5)}
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={[
-              { title: "주문번호", dataIndex: "orderNumber", key: "orderNumber", width: 160 },
-              {
-                title: "상품",
-                key: "product",
-                render: (_: unknown, r: Order) => r.items.map((i) => i.product.name).join(", "),
-              },
-              {
-                title: "금액",
-                dataIndex: "totalAmount",
-                key: "amount",
-                width: 120,
-                render: (v: number) => `₩${v.toLocaleString("ko-KR")}`,
-              },
-              {
-                title: "상태",
-                dataIndex: "status",
-                key: "status",
-                width: 100,
-                render: (v: string) => {
-                  const map: Record<string, { label: string; color: string }> = {
-                    payment_complete: { label: "결제완료", color: "blue" },
-                    preparing: { label: "준비중", color: "orange" },
-                    shipping: { label: "배송중", color: "green" },
-                    delivered: { label: "배송완료", color: "default" },
-                    cancelled: { label: "주문취소", color: "red" },
-                  };
-                  const c = map[v] ?? { label: v, color: "default" };
-                  return <Tag color={c.color}>{c.label}</Tag>;
-                },
-              },
-            ]}
-          />
+        {/* [효진] 요일별 매출 막대 차트 (CSS/SVG 커스텀) */}
+        <Card title="요일별 매출" size="small" className="border-[#E4E6EF]">
+          <div className="flex h-44 items-end gap-1.5">
+            {dailyData.map((d) => (
+              <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
+                {d.amount > 0 && (
+                  <span className="text-[9px] text-[#7E8299]">
+                    {(d.amount / 10000).toFixed(0)}만
+                  </span>
+                )}
+                <div
+                  className="w-full rounded-t-md bg-gradient-to-t from-[#3699FF] to-[#00D4FF] transition-all duration-700"
+                  style={{ height: `${Math.max((d.amount / maxAmount) * 120, d.amount > 0 ? 4 : 0)}px` }}
+                />
+                <span className="text-[11px] font-semibold text-[#7E8299]">{d.day}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* [효진] 최근 주문 5건 요약 리스트 */}
+        <Card title="최근 주문" size="small" className="border-[#E4E6EF]">
+          <div className="space-y-2">
+            {orders.slice(0, 5).map((order: Order) => {
+              const cfg = statusConfig[order.status] ?? { label: order.status, color: "default" };
+              return (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between rounded-lg bg-[#F5F6FA] px-3 py-2"
+                >
+                  <div>
+                    <p className="text-xs font-semibold text-[#181C32]">{order.orderNumber}</p>
+                    <p className="text-[10px] text-[#7E8299]">
+                      {order.items.map((i) => i.product.name).join(", ")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <Tag color={cfg.color} className="mb-0.5 text-[10px]">
+                      {cfg.label}
+                    </Tag>
+                    <p className="text-[10px] text-[#7E8299]">
+                      ₩{order.totalAmount.toLocaleString("ko-KR")}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            {orders.length === 0 && (
+              <p className="text-center text-xs text-[#A8A8A8]">주문 없음</p>
+            )}
+          </div>
         </Card>
       </div>
     </div>

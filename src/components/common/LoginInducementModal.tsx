@@ -22,6 +22,12 @@ export default function LoginInducementModal({ open, onClose }: LoginInducementM
     router.push("/login");
   };
 
+  // [효진] 버그 수정 | 2026-04-29
+  // 원인: Ant Design 6.x에서 Modal styles의 'content' 키가 제거됨
+  //       → 'body' 키를 사용해야 하며, 위치 관련 스타일은 'style' prop으로 분리해야 함
+  // 수정:
+  //   - styles.content → styles.body (padding, borderRadius 적용)
+  //   - position/bottom/left/transform/margin → style prop으로 이동 (바텀시트 효과)
   return (
     <Modal
       open={open}
@@ -33,15 +39,19 @@ export default function LoginInducementModal({ open, onClose }: LoginInducementM
       className="login-inducement-modal"
       styles={{
         mask: { backgroundColor: "rgba(0, 0, 0, 0.45)" },
-        content: {
+        body: {
           padding: 0,
           borderRadius: "20px 20px 0 0",
-          position: "fixed",
-          bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
-          margin: 0,
         },
+      }}
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
+        margin: 0,
+        padding: 0,
+        borderRadius: "20px 20px 0 0",
       }}
       transitionName="ant-slide-down"
     >

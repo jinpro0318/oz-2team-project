@@ -109,8 +109,11 @@ export default function OrdersPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
+                        {/* [효진] 버그 수정 | 2026-04-29
+                            원인: Product 타입에 'celebrity' 필드 없음 (존재하는 필드: 'brand', 'celebrityId')
+                            수정: item.product.celebrity → item.product.brand */}
                         <p className="text-[11px] font-semibold text-text-muted mb-0.5">
-                          {item.product.brand} · {item.product.celebrity || "추천"}
+                          {item.product.brand}
                         </p>
                         <p className="truncate text-[14px] font-bold text-text mb-0.5">{item.product.name}</p>
                         <p className="text-[12px] text-text-secondary">

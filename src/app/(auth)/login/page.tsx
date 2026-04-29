@@ -29,7 +29,15 @@ function LoginForm() {
       if (user) {
         setUser(user);
         message.success("로그인되었습니다");
-        router.push(redirectTo || "/feed");
+        
+        // [효진] 버그 수정 | 2026-04-29
+        // 원인: 관리자 계정으로 로그인해도 일반 사용자 페이지(/feed)로만 리다이렉트됨
+        // 수정: user.role이 'admin'이면 /admin으로, 아니면 기존redirectTo 또는 /feed로 이동
+        if (user.role === "admin") {
+          router.push("/admin");
+        } else {
+          router.push(redirectTo || "/feed");
+        }
       }
     } catch {
       message.error("이메일 또는 비밀번호를 확인해주세요");

@@ -91,13 +91,17 @@ export default function ExchangePage() {
       const newStatus: any = type === "exchange" ? "exchange_requested" : "return_requested";
       const statusLabel = type === "exchange" ? "교환 요청" : "반품 요청";
 
+      // [효진] 버그 수정 | 2026-04-29
+      // 원인: OrderTimeline 타입(src/types/index.ts)에 'timestamp' 필드가 없음
+      //       올바른 필드명은 'date'
+      // 수정: timestamp → date
       await updateStatusMutation.mutateAsync({
         id: order.id,
         status: newStatus,
         timelineEntry: {
           status: newStatus,
           label: `${statusLabel} 접수됨`,
-          timestamp: new Date().toISOString()
+          date: new Date().toISOString() // [수정] timestamp → date (OrderTimeline 타입 일치)
         }
       });
 
