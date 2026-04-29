@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Select, Spin } from "antd";
+import { Card, Select, Spin, App } from "antd"; // [효진] App 컴포넌트 추가
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
 import { useAllOrders } from "@/hooks/useOrders";
@@ -60,8 +60,6 @@ function DonutChart({ data }: { data: { name: string; percent: number; color: st
     </div>
   );
 }
-
-import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
 
 export default function AdminAnalyticsPage() {
   return (
@@ -143,14 +141,6 @@ function AdminAnalytics() {
       bg: "#FEF0F1",
     },
   ];
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <Spin size="large" />
-      </div>
-    );
-  }
 
   return (
     <div>

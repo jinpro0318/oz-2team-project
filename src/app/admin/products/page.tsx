@@ -15,7 +15,7 @@ import {
   InputNumber,
   Switch,
   Popconfirm,
-  message,
+  App, // [효진] App 추가
 } from "antd";
 import {
   PlusOutlined,
@@ -23,10 +23,16 @@ import {
   EditOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
-import { useAllProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useToggleProductVisibility } from "@/hooks/useProducts";
+import { 
+  useAllProducts, 
+  useCreateProduct, 
+  useUpdateProduct, 
+  useDeleteProduct, 
+  useToggleProductVisibility 
+} from "@/hooks/useProducts";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import type { Product, ProductFormData } from "@/types";
-import ImageUpload from "@/components/admin/ImageUpload"; // [효진] 이미지 업로드 컴포넌트 추가
+import ImageUpload from "@/components/admin/ImageUpload";
 
 const defaultFormValues: ProductFormData = {
   brand: "",
@@ -45,6 +51,10 @@ const defaultFormValues: ProductFormData = {
   category: "",
 };
 
+/**
+ * [효진] 상품 관리 페이지 래퍼
+ * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
+ */
 export default function AdminProductsPage() {
   return (
     <App>
@@ -54,13 +64,13 @@ export default function AdminProductsPage() {
 }
 
 function AdminProducts() {
-  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
+  const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
-  const createProduct = useCreateProduct(); // [효진] 상품 등록 mutation
-  const updateProduct = useUpdateProduct(); // [효진] 상품 수정 mutation
-  const deleteProduct = useDeleteProduct(); // [효진] 상품 삭제 mutation
-  const toggleVisibility = useToggleProductVisibility(); // [효진] 노출 토글 mutation
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
+  const toggleVisibility = useToggleProductVisibility();
 
   const [search, setSearch] = useState("");
   const [filterCeleb, setFilterCeleb] = useState<string | null>(null);
@@ -116,11 +126,9 @@ function AdminProducts() {
       console.log("[효진] 상품 데이터 저장 시도:", values);
       
       if (editTarget) {
-        // [효진] 상품 수정 처리 (mutation 호출)
         await updateProduct.mutateAsync({ id: editTarget.id, data: values });
         message.success("상품이 성공적으로 수정되었습니다");
       } else {
-        // [효진] 신규 상품 등록 처리 (mutation 호출)
         await createProduct.mutateAsync(values);
         message.success("상품이 성공적으로 등록되었습니다");
       }
@@ -133,7 +141,6 @@ function AdminProducts() {
 
   const handleDelete = async (id: string) => {
     try {
-      // [효진] 상품 삭제 처리
       await deleteProduct.mutateAsync(id);
       message.success("상품이 삭제되었습니다");
     } catch (err) {
@@ -143,7 +150,6 @@ function AdminProducts() {
 
   const handleToggle = async (id: string, isVisible: boolean) => {
     try {
-      // [효진] 노출 상태 반전 토글 처리 (Switch 클릭 시)
       await toggleVisibility.mutateAsync({ id, isVisible: !isVisible });
       message.success(isVisible ? "상품을 숨겼습니다" : "상품을 노출했습니다");
     } catch (err) {

@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Table, Tag, Button, Spin, message, Popconfirm } from "antd";
+import { Card, Table, Tag, Button, Spin, Popconfirm, App } from "antd"; // [효진] App 추가
 import { DollarOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
 import { useSettlements, useProcessSettlement, useCreateSettlement } from "@/hooks/useSettlements";
-import type { Settlement } from "@/types";
+import type { Celebrity, Product, Settlement } from "@/types";
 import dayjs from "dayjs";
 
-import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
-
+/**
+ * [효진] 정산 관리 페이지 래퍼
+ * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
+ */
 export default function AdminSettlementsPage() {
   return (
     <App>
@@ -20,7 +22,7 @@ export default function AdminSettlementsPage() {
 }
 
 function AdminSettlements() {
-  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
+  const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
   const [processing, setProcessing] = useState<string | null>(null);
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
@@ -73,10 +75,8 @@ function AdminSettlements() {
     setProcessing(row.celebId);
     try {
       if (row.settlementId) {
-        // [효진] 기존 정산 레코드가 있으면 상태만 업데이트
         await processSettlement.mutateAsync(row.settlementId);
       } else {
-        // [효진] 정산 레코드가 없으면 새로 생성하며 즉시 "paid" 처리
         await createSettlement.mutateAsync({
           celebrityId: row.celebId,
           celebName: row.celebName,

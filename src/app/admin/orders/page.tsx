@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Table, Tag, Button, Space, Spin, Drawer, Popconfirm, message, Timeline } from "antd";
+import { Card, Table, Tag, Button, Space, Spin, Drawer, Popconfirm, Timeline, App } from "antd"; // [효진] App 추가
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -36,8 +36,10 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   purchase_confirmed: { label: "구매확정", color: "geekblue" },
 };
 
-import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
-
+/**
+ * [효진] 주문 관리 페이지 래퍼
+ * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
+ */
 export default function AdminOrdersPage() {
   return (
     <App>
@@ -47,7 +49,7 @@ export default function AdminOrdersPage() {
 }
 
 function AdminOrders() {
-  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
+  const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
   const [activeTab, setActiveTab] = useState("all");
   const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
   const { data: orders = [], isLoading } = useAllOrders();
@@ -224,14 +226,6 @@ function AdminOrders() {
       ),
     },
   ];
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <Spin size="large" />
-      </div>
-    );
-  }
 
   return (
     <div>
