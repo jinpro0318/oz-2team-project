@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const fileName = `${Date.now()}_${file.name}`;
     const storageRef = ref(storage, `${folder}/${fileName}`);
     
-    // [효진] Buffer 대신 Uint8Array 사용 (Vercel/Node 환경 호환성 제고)
+    // [효진] Uint8Array를 사용하여 Vercel 서버 환경 호환성 확보
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
@@ -35,7 +35,6 @@ export async function POST(request: Request) {
     console.error("[효진] 서버 사이드 업로드 상세 에러:", {
       message: error.message,
       code: error.code,
-      stack: error.stack
     });
     return NextResponse.json({ 
       error: error.message, 
