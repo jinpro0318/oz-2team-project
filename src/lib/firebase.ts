@@ -18,7 +18,9 @@ export const auth = getAuth(app);
 
 // [효진] 앱 로드 시 브라우저 세션 지속성 설정 (브라우저 종료 시 로그아웃)
 // 이는 어드민 계정의 보안을 강화하고 로그인 상태 꼬임 문제를 방지합니다.
-setPersistence(auth, browserSessionPersistence);
+if (typeof window !== "undefined") {
+  setPersistence(auth, browserSessionPersistence);
+}
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);

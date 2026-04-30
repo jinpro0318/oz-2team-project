@@ -10,7 +10,8 @@ import {
 import {
   getPostsByCelebrity,
   updatePostHotspots,
-  createPost, // [효진] 추가
+  createPost,
+  deletePost, // [효진] 추가
 } from "@/lib/services/post";
 import type { CelebrityFormData, Hotspot, Post } from "@/types"; // [효진] 추가
 

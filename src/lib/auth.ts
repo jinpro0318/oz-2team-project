@@ -36,7 +36,9 @@ export async function registerUser(
 
 export async function loginUser(email: string, password: string): Promise<User | null> {
   // [효진] 매번 로그인을 새로 하도록 세션 저장 방식으로 명시적 변경
-  await setPersistence(auth, browserSessionPersistence);
+  if (typeof window !== "undefined") {
+    await setPersistence(auth, browserSessionPersistence);
+  }
   const credential = await signInWithEmailAndPassword(auth, email, password);
   return getDocument<User>("users", credential.user.uid);
 }
