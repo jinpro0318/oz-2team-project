@@ -86,3 +86,17 @@ export function useCreatePost() {
     },
   });
 }
+
+// [효진] 포스트 삭제 mutation (K4 셀럽 관리용)
+export function useDeletePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (postId: string) => deletePost(postId),
+    onSuccess: () => {
+      // [효진] 삭제 즉시 'posts' 키를 포함한 모든 데이터를 최신화하여 화면에서 바로 사라지게 함
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      // 특정 셀럽의 포스트 목록도 명시적으로 무효화
+      queryClient.invalidateQueries({ queryKey: ["posts", "celebrity"] });
+    },
+  });
+}

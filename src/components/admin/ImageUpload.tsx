@@ -1,30 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, message as staticMessage, App } from "antd"; // [효진] App 추가
+import { Upload, App } from "antd"; // [효진] App 추가
 import { LoadingOutlined, PlusOutlined } from "@ant-design/icons";
 import { uploadImage } from "@/lib/services/upload";
 import type { UploadChangeParam, UploadFile, UploadProps } from "antd/es/upload";
 
 interface ImageUploadProps {
-  value?: string;
-  onChange?: (url: string) => void;
+  value?: string | string[]; // [효진] 단일 URL 또는 URL 배열 지원
+  onChange?: (val: any) => void;
   folder?: string;
+  multiple?: boolean; // [효진] 다중 업로드 모드 추가
+  maxCount?: number;
 }
 
 /**
- * [효진] 관리자용 공통 이미지 업로드 컴포넌트
+ * [효진] 관리자용 공통 이미지 업로드 컴포넌트 (다중 업로드 지원)
  * Ant Design Upload를 사용하여 Firebase Storage에 이미지를 업로드하고 URL을 반환함
  */
-export default function ImageUpload({ value, onChange, folder = "general" }: ImageUploadProps) {
-  const { message } = App.useApp(); // [효진] 컨텍스트 기반 메시지 사용
+export default function ImageUpload({ 
+  value, 
+  onChange, 
+  folder = "general", 
+  multiple = false,
+  maxCount = 5
+}: ImageUploadProps) {
+  const { message } = App.useApp(); 
   const [loading, setLoading] = useState(false);
 
-  const handleChange: UploadProps["onChange"] = async (info: UploadChangeParam<UploadFile>) => {
-    if (info.file.status === "uploading") {
-      setLoading(true);
-      return;
+  // value(URL)를 Ant Design Upload가 이해하는 fileList 형식으로 변환
+  const getFileList = () => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map((url, i) => ({
+        uid: `-${i}`,
+        name: `image-${i}`,
+        status: "done" as const,
+        url,
+      }));
     }
+    return [{
+      uid: "-1",
+      name: "image",
+      status: "done" as const,
+      url: value,
+    }];
   };
 
   const customRequest = async (options: any) => {
@@ -32,26 +52,37 @@ export default function ImageUpload({ value, onChange, folder = "general" }: Ima
     
     try {
       setLoading(true);
-      console.log("[효진] 업로드 프로세스 시작...");
-      
       onProgress({ percent: 30 });
       const url = await uploadImage(file as File, folder);
-      
-      console.log("[효진] 업로드 완료/폴백 수신:", url);
       onProgress({ percent: 100 });
       
       onSuccess(url, file);
       
       if (onChange) {
-        onChange(url);
+        if (multiple) {
+          const currentList = Array.isArray(value) ? value : (value ? [value] : []);
+          onChange([...currentList, url]);
+        } else {
+          onChange(url);
+        }
       }
-      message.success("이미지 처리가 완료되었습니다.");
+      message.success("업로드 완료");
     } catch (error: any) {
-      console.error("[효진] 업로드 예외 발생:", error);
       onError(error);
-      message.error("이미지 처리에 실패했습니다.");
+      message.error("업로드 실패");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemove = (file: UploadFile) => {
+    if (!onChange) return;
+    const urlToRemove = file.url || (file.response as string);
+    
+    if (multiple && Array.isArray(value)) {
+      onChange(value.filter(u => u !== urlToRemove));
+    } else {
+      onChange("");
     }
   };
 
@@ -64,19 +95,14 @@ export default function ImageUpload({ value, onChange, folder = "general" }: Ima
 
   return (
     <Upload
-      name="avatar"
       listType="picture-card"
-      className="avatar-uploader"
-      showUploadList={false}
+      fileList={getFileList()}
       customRequest={customRequest}
-      onChange={handleChange}
+      onRemove={handleRemove}
       accept="image/*"
+      maxCount={multiple ? maxCount : 1}
     >
-      {value ? (
-        <img src={value} alt="uploaded" style={{ width: "100%", borderRadius: "8px" }} />
-      ) : (
-        uploadButton
-      )}
+      {getFileList().length >= (multiple ? maxCount : 1) ? null : uploadButton}
     </Upload>
   );
 }

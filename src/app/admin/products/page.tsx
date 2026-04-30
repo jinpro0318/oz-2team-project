@@ -385,11 +385,9 @@ function AdminProducts() {
 
           <Form.Item 
             name="imageUrls" 
-            label="상품 이미지"
-            getValueProps={(value) => ({ value: value?.[0] })}
-            getValueFromEvent={(url) => [url]}
+            label="상품 이미지 (최대 8장)"
           >
-            <ImageUpload folder="products" />
+            <ImageUpload folder="products" multiple maxCount={8} />
           </Form.Item>
 
           <Form.Item name="description" label="상품 설명">

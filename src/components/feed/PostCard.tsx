@@ -40,7 +40,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-bold leading-tight text-text">
-            {celebrity.name}
+            C.O.D.E {/* [효진] 작성자명을 쇼핑몰 이름으로 변경 */}
           </p>
           <p className="text-[11px] text-text-secondary leading-tight">
             {post.id.includes("milano") ? "밀라노, 이탈리아" : "파리, 프랑스"}
@@ -65,7 +65,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
       {/* Caption & Comments */}
       <div className="px-3">
         <p className="text-[13.5px] leading-[1.5] text-text">
-          <span className="font-bold mr-1.5">{celebrity.name}</span>
+          <span className="font-bold mr-1.5">C.O.D.E</span> {/* [효진] 캡션 작성자명 변경 */}
           {post.caption}
         </p>
         {post.comments > 0 && (

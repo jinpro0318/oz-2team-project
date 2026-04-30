@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserSessionPersistence } from "firebase/auth"; // [효진] 인증 지속성 관련 임포트 추가
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -15,6 +15,11 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const auth = getAuth(app);
+
+// [효진] 앱 로드 시 브라우저 세션 지속성 설정 (브라우저 종료 시 로그아웃)
+// 이는 어드민 계정의 보안을 강화하고 로그인 상태 꼬임 문제를 방지합니다.
+setPersistence(auth, browserSessionPersistence);
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export default app;
