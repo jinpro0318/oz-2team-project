@@ -17,7 +17,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 
 // [효진] 앱 로드 시 브라우저 세션 지속성 설정 (브라우저 종료 시 로그아웃)
-// 이는 어드민 계정의 보안을 강화하고 로그인 상태 꼬임 문제를 방지합니다.
+// SSR 환경에서는 window 객체가 없으므로, 빌드 에러 및 서버 사이드 에러 방지를 위해 체크 로직을 추가했습니다.
 if (typeof window !== "undefined") {
   setPersistence(auth, browserSessionPersistence);
 }

@@ -65,7 +65,8 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
       {/* Caption & Comments */}
       <div className="px-3">
         <p className="text-[13.5px] leading-[1.5] text-text">
-          <span className="font-bold mr-1.5">C.O.D.E</span> {/* [효진] 캡션 작성자명 변경 */}
+          {/* [효진] 캡션 부분은 쇼핑몰 공식 계정 느낌을 주기 위해 작성자를 'C.O.D.E'로 고정했습니다. */}
+          <span className="font-bold mr-1.5">C.O.D.E</span>
           {post.caption}
         </p>
         {post.comments > 0 && (

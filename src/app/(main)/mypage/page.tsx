@@ -43,7 +43,8 @@ export default function MyPage() {
     { icon: <PhoneOutlined />, label: "고객센터", href: "/mypage/support" },
   ];
 
-  // [효진] 관리자 권한인 경우 메뉴에 관리자 페이지 추가
+  // [효진] 관리자 계정으로 로그인한 경우, 마이페이지 메뉴 하단에 '관리자 페이지' 이동 링크를 추가했습니다.
+  // 일반 사용자와 구분하기 위해 디자인적으로 배경색(bg-blue-50)을 살짝 다르게 처리했습니다.
   const finalMenuItems = [...menuItems];
   if (mounted && user?.role === "admin") {
     finalMenuItems.push({

@@ -29,7 +29,8 @@ export default function TopBar() {
         C.O.D.E.
       </Link>
       <div className="flex items-center gap-4">
-        {/* [효진] 관리자 계정일 때만 어드민 페이지 바로가기 아이콘 표시 */}
+        {/* [효진] 관리자 권한이 있는 계정으로 로그인 시, 상단 바에서 바로 어드민 페이지로 이동할 수 있는 아이콘을 추가했습니다. 
+            SSR 환경에서의 하이드레이션 오류를 방지하기 위해 mounted 상태를 체크합니다. */}
         {mounted && user?.role === "admin" && (
           <Tooltip title="관리자 페이지" placement="bottom">
             <button
