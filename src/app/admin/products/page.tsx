@@ -127,13 +127,13 @@ function AdminProducts() {
       sizes: product.sizes || [],
       specs: Object.entries(product.specs || {}).map(([key, value]) => ({ key, value })),
       imageUrls: product.imageUrls,
-    });
+    } as any); // [효진] specs의 Record -> Array 변환을 위한 타입 우회
     setModalOpen(true);
   };
 
   const handleSubmit = async () => {
     try {
-      const values = await form.validateFields();
+      const values = await form.validateFields() as any; // [효진] 폼 데이터 -> API 데이터 변환을 위해 any 처리
       
       // [효진] specs 배열({key, value}[])을 Record<string, string>으로 변환
       const formattedSpecs: Record<string, string> = {};
