@@ -9,8 +9,9 @@ import {
   EditOutlined,
   LogoutOutlined,
   RightOutlined,
+  SettingOutlined, // [효진] 관리자 아이콘용
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TopBar from "@/components/common/TopBar";
 import { useAuthStore } from "@/stores/authStore";
 import { logoutUser } from "@/lib/auth";
@@ -19,6 +20,11 @@ export default function MyPage() {
   const router = useRouter();
   const { user, setUser } = useAuthStore();
   const [showLogout, setShowLogout] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -36,6 +42,16 @@ export default function MyPage() {
     { icon: <StarOutlined />, label: "찜 목록", href: "/wishlist" },
     { icon: <PhoneOutlined />, label: "고객센터", href: "/mypage/support" },
   ];
+
+  // [효진] 관리자 권한인 경우 메뉴에 관리자 페이지 추가
+  const finalMenuItems = [...menuItems];
+  if (mounted && user?.role === "admin") {
+    finalMenuItems.push({
+      icon: <SettingOutlined className="text-blue-500" />,
+      label: "관리자 페이지",
+      href: "/admin",
+    });
+  }
 
   return (
     <div className="flex flex-col">
@@ -70,10 +86,10 @@ export default function MyPage() {
 
       {/* Menu */}
       <div className="mt-2 bg-surface">
-        {menuItems.map((item) => (
+        {finalMenuItems.map((item) => (
           <button
             key={item.label}
-            className="flex w-full items-center gap-3 border-b border-border-light px-4 py-3.5 text-left bg-transparent"
+            className={`flex w-full items-center gap-3 border-b border-border-light px-4 py-3.5 text-left bg-transparent ${item.href === "/admin" ? "bg-blue-50/50" : ""}`}
             onClick={() => router.push(item.href)}
           >
             <span className="text-lg text-text-secondary">{item.icon}</span>

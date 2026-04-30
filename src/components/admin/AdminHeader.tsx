@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "antd";
-import { BellOutlined, LogoutOutlined } from "@ant-design/icons";
+import { BellOutlined, LogoutOutlined, ShopOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/authStore";
 import { logoutUser } from "@/lib/auth";
 import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 미처리 주문 수 계산용으로 추가
@@ -15,6 +15,7 @@ const pageLabels: Record<string, string> = {
   "/admin/celebrities": "셀럽 관리",
   "/admin/analytics": "매출 분석",
   "/admin/settlements": "정산 관리",
+  "/admin/exchanges": "교환/반품 관리",
 };
 
 export default function AdminHeader() {
@@ -56,6 +57,16 @@ export default function AdminHeader() {
             <BellOutlined className="text-lg" />
           </button>
         </Badge>
+
+        {/* [효진] 쇼핑몰 사이트로 바로가기 버튼 추가 */}
+        <button
+          className="flex items-center gap-1.5 text-xs text-[#7E8299] transition-colors hover:text-[#3699FF]"
+          onClick={() => router.push("/feed")}
+          title="쇼핑몰 메인으로 이동"
+        >
+          <ShopOutlined />
+          <span>쇼핑몰 가기</span>
+        </button>
 
         <div className="h-5 w-px bg-[#E4E6EF]" />
 

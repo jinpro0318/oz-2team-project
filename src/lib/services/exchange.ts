@@ -28,3 +28,7 @@ export async function createExchange(input: CreateExchangeInput): Promise<Exchan
 export async function getExchangesByOrder(orderId: string): Promise<Exchange[]> {
   return getDocuments<Exchange>("exchanges", [where("orderId", "==", orderId)]);
 }
+
+export async function getAllExchanges(): Promise<Exchange[]> {
+  return getDocuments<Exchange>("exchanges");
+}

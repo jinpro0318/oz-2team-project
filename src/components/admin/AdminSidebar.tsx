@@ -62,6 +62,15 @@ const menuItems = [
       </svg>
     ),
   },
+  {
+    key: "/admin/exchanges",
+    label: "교환/반품 관리",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[17px] w-[17px] shrink-0">
+        <path d="M16 3h5v5 M4 20L21 3 M21 16v5h-5 M15 15l6 6 M4 4l5 5" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminSidebar() {

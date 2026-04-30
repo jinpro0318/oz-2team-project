@@ -40,7 +40,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-bold leading-tight text-text">
-            C.O.D.E {/* [효진] 작성자명을 쇼핑몰 이름으로 변경 */}
+            {celebrity.name}
           </p>
           <p className="text-[11px] text-text-secondary leading-tight">
             {post.id.includes("milano") ? "밀라노, 이탈리아" : "파리, 프랑스"}

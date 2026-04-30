@@ -12,6 +12,7 @@ import {
 import {
   createExchange,
   getExchangesByOrder,
+  getAllExchanges, // [효진] 추가
   type CreateExchangeInput,
 } from "@/lib/services/exchange";
 import { useAuthStore } from "@/stores/authStore";
@@ -79,5 +80,13 @@ export function useExchangesByOrder(orderId: string) {
     queryKey: ["exchanges", orderId],
     queryFn: () => getExchangesByOrder(orderId),
     enabled: !!orderId,
+  });
+}
+
+// [효진] 어드민용 전체 교환/반품 조회 훅
+export function useAllExchanges() {
+  return useQuery({
+    queryKey: ["exchanges", "all"],
+    queryFn: getAllExchanges,
   });
 }

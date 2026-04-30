@@ -31,6 +31,7 @@ import {
   useToggleProductVisibility 
 } from "@/hooks/useProducts";
 import { useCelebrities } from "@/hooks/useCelebrities";
+import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 판매량 계산용 추가
 import type { Product, ProductFormData } from "@/types";
 import ImageUpload from "@/components/admin/ImageUpload";
 
@@ -67,10 +68,20 @@ function AdminProducts() {
   const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
+  const { data: orders = [] } = useAllOrders(); // [효진] 전체 주문 데이터 로드
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const toggleVisibility = useToggleProductVisibility();
+
+  // [효진] 실제 판매된 데이터 기반으로 상품별 판매수 계산
+  const salesMap = orders.reduce((acc, order) => {
+    if (order.status === "cancelled") return acc;
+    order.items.forEach((item) => {
+      acc[item.productId] = (acc[item.productId] || 0) + item.quantity;
+    });
+    return acc;
+  }, {} as Record<string, number>);
 
   const [search, setSearch] = useState("");
   const [filterCeleb, setFilterCeleb] = useState<string | null>(null);
@@ -112,9 +123,9 @@ function AdminProducts() {
       isVisible: product.isVisible,
       category: product.category,
       salesCount: product.salesCount,
-      colors: product.colors,
-      sizes: product.sizes,
-      specs: product.specs,
+      colors: product.colors || [],
+      sizes: product.sizes || [],
+      specs: Object.entries(product.specs || {}).map(([key, value]) => ({ key, value })),
       imageUrls: product.imageUrls,
     });
     setModalOpen(true);
@@ -123,13 +134,23 @@ function AdminProducts() {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      console.log("[효진] 상품 데이터 저장 시도:", values);
+      
+      // [효진] specs 배열({key, value}[])을 Record<string, string>으로 변환
+      const formattedSpecs: Record<string, string> = {};
+      if (Array.isArray(values.specs)) {
+        values.specs.forEach((item: any) => {
+          if (item.key) formattedSpecs[item.key] = item.value;
+        });
+      }
+      
+      const submitData = { ...values, specs: formattedSpecs };
+      console.log("[효진] 상품 데이터 저장 시도:", submitData);
       
       if (editTarget) {
-        await updateProduct.mutateAsync({ id: editTarget.id, data: values });
+        await updateProduct.mutateAsync({ id: editTarget.id, data: submitData });
         message.success("상품이 성공적으로 수정되었습니다");
       } else {
-        await createProduct.mutateAsync(values);
+        await createProduct.mutateAsync(submitData);
         message.success("상품이 성공적으로 등록되었습니다");
       }
       setModalOpen(false);
@@ -194,12 +215,13 @@ function AdminProducts() {
     },
     {
       title: "판매수",
-      dataIndex: "salesCount",
       key: "sales",
       width: 70,
-      sorter: (a: Product, b: Product) => a.salesCount - b.salesCount,
-      render: (v: number) => (
-        <span className="text-xs">{v.toLocaleString("ko-KR")}</span>
+      sorter: (a: Product, b: Product) => (salesMap[a.id] || 0) - (salesMap[b.id] || 0),
+      render: (_: unknown, r: Product) => (
+        <span className="text-xs font-bold text-blue-600">
+          {(salesMap[r.id] || 0).toLocaleString("ko-KR")}
+        </span>
       ),
     },
     {
@@ -390,12 +412,81 @@ function AdminProducts() {
             <ImageUpload folder="products" multiple maxCount={8} />
           </Form.Item>
 
+          <div className="grid grid-cols-2 gap-x-4">
+            <Form.Item name="sizes" label="사이즈 선택">
+              <Select mode="tags" placeholder="사이즈 입력 (S, M, L...)" />
+            </Form.Item>
+            <Form.Item name="isVisible" label="노출 상태" valuePropName="checked">
+              <Switch checkedChildren="판매중" unCheckedChildren="숨김" />
+            </Form.Item>
+          </div>
+
+          <div className="mb-4">
+            <p className="mb-2 text-sm font-medium">색상 관리</p>
+            <Form.List name="colors">
+              {(fields, { add, remove }) => (
+                <div className="space-y-2">
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} align="baseline" className="flex">
+                      <Form.Item
+                        {...restField}
+                        name={[name, "name"]}
+                        rules={[{ required: true, message: "이름" }]}
+                      >
+                        <Input placeholder="색상명 (예: 블랙)" size="small" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, "hex"]}
+                        rules={[{ required: true, message: "HEX" }]}
+                      >
+                        <Input placeholder="#000000" size="small" style={{ width: 100 }} />
+                      </Form.Item>
+                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                    </Space>
+                  ))}
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    색상 추가
+                  </Button>
+                </div>
+              )}
+            </Form.List>
+          </div>
+
+          <div className="mb-4">
+            <p className="mb-2 text-sm font-medium">상품 상세 정보 (Specs)</p>
+            <Form.List name="specs">
+              {(fields, { add, remove }) => (
+                <div className="space-y-2">
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} align="baseline" className="flex">
+                      <Form.Item
+                        {...restField}
+                        name={[name, "key"]}
+                        rules={[{ required: true, message: "항목" }]}
+                      >
+                        <Input placeholder="항목 (예: 소재)" size="small" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, "value"]}
+                        rules={[{ required: true, message: "내용" }]}
+                      >
+                        <Input placeholder="내용 (예: 면 100%)" size="small" />
+                      </Form.Item>
+                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                    </Space>
+                  ))}
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    상세 정보 항목 추가
+                  </Button>
+                </div>
+              )}
+            </Form.List>
+          </div>
+
           <Form.Item name="description" label="상품 설명">
             <Input.TextArea rows={3} placeholder="상품 설명을 입력하세요" />
-          </Form.Item>
-
-          <Form.Item name="isVisible" label="노출 상태" valuePropName="checked">
-            <Switch checkedChildren="판매중" unCheckedChildren="숨김" />
           </Form.Item>
         </Form>
       </Modal>

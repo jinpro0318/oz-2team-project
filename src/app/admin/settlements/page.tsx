@@ -5,6 +5,7 @@ import { Card, Table, Tag, Button, Spin, Popconfirm, App } from "antd"; // [효�
 import { DollarOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
+import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 정산액 계산용 추가
 import { useSettlements, useProcessSettlement, useCreateSettlement } from "@/hooks/useSettlements";
 import type { Celebrity, Product, Settlement } from "@/types";
 import dayjs from "dayjs";
@@ -27,21 +28,28 @@ function AdminSettlements() {
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
+  const { data: orders = [], isLoading: orderLoading } = useAllOrders(); // [효진] 실시간 판매 데이터 로드
   const { data: settlements = [], isLoading: settlementLoading } = useSettlements();
   const processSettlement = useProcessSettlement();
   const createSettlement = useCreateSettlement();
 
-  const isLoading = celebLoading || prodLoading || settlementLoading;
+  const isLoading = celebLoading || prodLoading || settlementLoading || orderLoading;
 
   // 셀럽별 미지급 커미션 계산 (정산 완료 건 제외)
   const currentPeriod = dayjs().format("YYYY-MM");
 
   const settlementRows = celebrities.map((celeb) => {
-    const celebProducts = products.filter((p) => p.celebrityId === celeb.id);
-    const totalSales = celebProducts.reduce(
-      (sum, p) => sum + p.price * p.salesCount,
-      0
-    );
+    // [효진] 실제 주문(취소 제외)에서 해당 셀럽의 상품 판매액 합산
+    const totalSales = orders.reduce((sum, order) => {
+      if (order.status === "cancelled") return sum;
+      const celebItems = order.items.filter(item => {
+        const prod = products.find(p => p.id === item.productId);
+        return prod?.celebrityId === celeb.id;
+      });
+      const orderCelebTotal = celebItems.reduce((s, item) => s + (item.price * item.quantity), 0);
+      return sum + orderCelebTotal;
+    }, 0);
+
     const commissionAmount = Math.floor(totalSales * (celeb.commissionRate / 100));
 
     // 이번 달 정산 내역 조회
