@@ -86,7 +86,7 @@ function OrderCompleteContent() {
 
   if (isConfirming) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface">
+      <div className="flex flex-1 flex-col items-center justify-center bg-surface">
         <Spin size="large" description="결제 확인 중..." />
       </div>
     );
@@ -94,7 +94,7 @@ function OrderCompleteContent() {
 
   if (isError) {
     return (
-      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface px-6">
+      <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
           <CloseCircleFilled className="text-3xl text-error" />
         </div>
@@ -110,7 +110,7 @@ function OrderCompleteContent() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col items-center justify-center bg-surface px-6">
+    <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
       <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
         <CheckCircleFilled className="text-3xl text-success" />
       </div>

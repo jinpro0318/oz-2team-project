@@ -7,6 +7,9 @@ import {
   getOrder,
   createOrder,
   updateOrderStatus,
+  subscribeOrder,
+  subscribeOrders,
+  subscribeAllOrders,
   type CreateOrderInput,
 } from "@/lib/services/order";
 import {
@@ -20,25 +23,61 @@ import type { OrderStatus, OrderTimeline } from "@/types";
 
 export function useOrders() {
   const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: ["orders", user?.id],
-    queryFn: () => getOrders(user!.id),
+    queryFn: async () => {
+      // 초기 데이터 로드 및 실시간 구독 설정
+      if (!user) return [];
+      
+      // useEffect 밖에서 구독을 관리하기 위해 queryClient 활용
+      const unsubscribe = subscribeOrders(user.id, (data) => {
+        queryClient.setQueryData(["orders", user.id], data);
+      });
+
+      return getOrders(user.id);
+    },
     enabled: !!user,
+    staleTime: Infinity, // 실시간으로 관리되므로 자동 만료 방지
   });
 }
 
 export function useAllOrders() {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: ["orders", "all"],
-    queryFn: getAllOrders,
+    queryFn: async () => {
+      // 실시간 구독 설정
+      subscribeAllOrders((data) => {
+        queryClient.setQueryData(["orders", "all"], data);
+      });
+
+      return getAllOrders();
+    },
+    staleTime: Infinity, // 실시간으로 관리되므로 자동 만료 방지
   });
 }
 
 export function useOrder(id: string) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: ["orders", "detail", id],
-    queryFn: () => getOrder(id),
+    queryFn: async () => {
+      if (!id) return null;
+
+      // 실시간 구독 설정
+      subscribeOrder(id, (data) => {
+        queryClient.setQueryData(["orders", "detail", id], data);
+        // 상세가 바뀌면 목록 데이터도 최신화를 위해 무효화하거나 업데이트 가능
+      });
+
+      return getOrder(id);
+    },
     enabled: !!id,
+    staleTime: Infinity,
   });
 }
 
@@ -56,8 +95,8 @@ export function useCreateOrder() {
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { id: string; status: OrderStatus; timelineEntry?: OrderTimeline }) =>
-      updateOrderStatus(params.id, params.status, params.timelineEntry),
+    mutationFn: (params: { id: string; status: OrderStatus; timelineEntry?: OrderTimeline; trackingNumber?: string; carrierCode?: string }) =>
+      updateOrderStatus(params.id, params.status, params.timelineEntry, params.trackingNumber, params.carrierCode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     },

@@ -5,6 +5,8 @@ import {
   updateDocument,
   where,
   orderBy,
+  subscribeDocument,
+  subscribeDocuments,
 } from "@/lib/firestore";
 import type { Order, OrderStatus, OrderItem, Address, OrderTimeline } from "@/types";
 
@@ -38,6 +40,8 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     totalAmount: input.totalAmount,
     shippingFee: input.shippingFee,
     status: "payment_pending" as OrderStatus,
+    carrierCode: "",
+    trackingNumber: "",
     updatedAt: now,
     timeline,
   };
@@ -46,21 +50,100 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   return { id, ...orderData, createdAt: now } as Order;
 }
 
+import { deliveryService } from "./delivery";
+
+/**
+ * [원샷] 주문 데이터에 실시간 배송 상태를 미리 입혀서 반환합니다.
+ * 사용자님이 제안하신 "최초 렌더링 시점에 데이터를 넣어버리는" 핵심 로직입니다.
+ */
+async function enrichOrdersWithRealtimeStatus(orders: Order[]): Promise<Order[]> {
+  const enrichedOrders = await Promise.all(
+    orders.map(async (order) => {
+      // [보호 로직] 아래 상태들은 사용자의 액션이나 클레임 절차가 우선이므로 실시간 조회를 하지 않음
+      const isProtectedStatus = [
+        "purchase_confirmed", "cancelled", 
+        "return_requested", "exchange_requested", 
+        "returning", "returned", 
+        "return_completed", "exchange_completed", 
+        "claim_rejected"
+      ].includes(order.status);
+
+      if (isProtectedStatus || !order.carrierCode || !order.trackingNumber) {
+        return order;
+      }
+
+      try {
+        // 실시간 배송 조회 수행
+        const trackResult = await deliveryService.track(order.carrierCode, order.trackingNumber, order.createdAt);
+        if (trackResult && trackResult.status) {
+          // 서버에서 받은 최신 상태를 주문 객체에 즉시 반영
+          return { ...order, status: trackResult.status as OrderStatus };
+        }
+      } catch (e) {
+        console.error(`[Delivery Track Error] Order ${order.id}:`, e);
+      }
+      return order;
+    })
+  );
+  return enrichedOrders;
+}
+
 export async function getOrders(userId: string): Promise<Order[]> {
   const docs = await getDocuments<Order>("orders", [
     where("userId", "==", userId),
   ]);
-  // Sort in memory to avoid needing a composite index for (userId + createdAt)
-  return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  // 1. 메모리 내 정렬 (최신순)
+  const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  // 2. 실시간 배송 상태를 미리 조회하여 합침 (최초 렌더링용)
+  return enrichOrdersWithRealtimeStatus(sorted);
+}
+
+export function subscribeOrders(userId: string, onUpdate: (orders: Order[]) => void) {
+  return subscribeDocuments<Order>(
+    "orders",
+    [where("userId", "==", userId)],
+    async (docs) => {
+      // 1. 메모리 내 정렬 (최신순)
+      const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // 2. 데이터가 바뀌면 실시간 상태를 다시 입혀서 업데이트 (이중 출력 방지)
+      const enriched = await enrichOrdersWithRealtimeStatus(sorted);
+      onUpdate(enriched);
+    }
+  );
+}
+
+export function subscribeOrder(id: string, onUpdate: (order: Order | null) => void) {
+  return subscribeDocument<Order>("orders", id, onUpdate);
 }
 
 export async function getAllOrders(): Promise<Order[]> {
   const docs = await getDocuments<Order>("orders");
-  return docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return enrichOrdersWithRealtimeStatus(sorted);
+}
+
+export function subscribeAllOrders(onUpdate: (orders: Order[]) => void) {
+  return subscribeDocuments<Order>(
+    "orders",
+    [],
+    async (docs) => {
+      const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const enriched = await enrichOrdersWithRealtimeStatus(sorted);
+      onUpdate(enriched);
+    }
+  );
 }
 
 export async function getOrder(id: string): Promise<Order | null> {
-  return getDocument<Order>("orders", id);
+  const order = await getDocument<Order>("orders", id);
+  if (!order) return null;
+  
+  // 단일 주문도 실시간 상태를 미리 입혀서 반환
+  const enriched = await enrichOrdersWithRealtimeStatus([order]);
+  return enriched[0];
 }
 
 export async function getOrderByNumber(orderNumber: string): Promise<Order | null> {
@@ -71,7 +154,9 @@ export async function getOrderByNumber(orderNumber: string): Promise<Order | nul
 export async function updateOrderStatus(
   id: string,
   status: OrderStatus,
-  timelineEntry?: OrderTimeline
+  timelineEntry?: OrderTimeline,
+  trackingNumber?: string,
+  carrierCode?: string // [추가] 택배사 코드 업데이트 지원
 ): Promise<void> {
   const order = await getOrder(id);
   if (!order) return;
@@ -79,5 +164,9 @@ export async function updateOrderStatus(
   const timeline = [...(order.timeline || [])];
   if (timelineEntry) timeline.push(timelineEntry);
 
-  await updateDocument("orders", id, { status, timeline });
+  const updateData: any = { status, timeline, updatedAt: new Date().toISOString() };
+  if (trackingNumber !== undefined) updateData.trackingNumber = trackingNumber;
+  if (carrierCode !== undefined) updateData.carrierCode = carrierCode;
+
+  await updateDocument("orders", id, updateData);
 }

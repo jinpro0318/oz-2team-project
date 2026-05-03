@@ -9,12 +9,14 @@ import {
 import { useRequireAuth } from "./useAuth";
 import { App } from "antd";
 import type { Product, WishlistItem } from "@/types";
+import { useUIStore } from "@/stores/uiStore";
 
 export function useWishlist() {
   const { user, requireAuth } = useRequireAuth();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const userId = user?.id;
+  const setHasNewWishlistItem = useUIStore((s) => s.setHasNewWishlistItem);
 
   const wishlistQuery = useQuery({
     queryKey: ["wishlist", userId],
@@ -28,7 +30,10 @@ export function useWishlist() {
 
   const addMutation = useMutation({
     mutationFn: (product: Product) => addWishlistItem(userId!, product),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      setHasNewWishlistItem(true);
+    },
   });
 
   const removeMutation = useMutation({

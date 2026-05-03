@@ -17,6 +17,7 @@
   --color-admin-accent: #3699FF;
   --color-admin-bg: #F5F6FA;
   --font-sans: 'Instrument Sans', 'Noto Sans KR', system-ui, sans-serif;
+  --font-brush: var(--font-brush);
   
   /* Additional variables from Figma design */
   --color-blue: #0095F6;
@@ -82,3 +83,31 @@
   }
 }
 
+/* Premium Modal Style (Admin Confirmation) */
+.premium-modal .ant-modal-content {
+  border-radius: 16px !important;
+  padding: 24px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+}
+
+.premium-modal .ant-modal-title {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: #111 !important;
+}
+
+.premium-modal .ant-modal-confirm-content {
+  font-size: 14px !important;
+  color: #666 !important;
+  margin-top: 12px !important;
+}
+
+.premium-modal .ant-modal-confirm-btns {
+  margin-top: 24px !important;
+}
+
+.premium-modal .ant-btn {
+  height: 38px !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}

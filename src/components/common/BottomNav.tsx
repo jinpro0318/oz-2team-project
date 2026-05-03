@@ -1,15 +1,27 @@
 "use client";
 
-import { Home, Search, PlusSquare, Film } from "lucide-react";
+import { Home, Search, PlusSquare, Film, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRequireAuth } from "@/hooks/useAuth";
 
+import { useUIStore } from "@/stores/uiStore";
+
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { requireAuth } = useRequireAuth();
+  const { user, requireAuth } = useRequireAuth();
+  const isBottomNavVisible = useUIStore((s) => s.isBottomNavVisible);
   
+  // 관리자, 상품 상세, 구매 확정, 취소 페이지 등에서는 글로벌 하단 내비게이션 바를 숨김
+  if (
+    pathname?.startsWith("/admin") || 
+    pathname?.startsWith("/product") || 
+    pathname?.endsWith("/confirm") || 
+    pathname?.endsWith("/cancel") ||
+    !isBottomNavVisible
+  ) return null;
+
   const isActive = (path: string) => pathname === path;
 
   return (
@@ -45,20 +57,29 @@ export default function BottomNav() {
         onClick={() => requireAuth(() => router.push("/mypage"))}
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity"
       >
-        <div 
-          className={`w-[26px] h-[26px] rounded-full flex items-center justify-center ${
-            isActive("/mypage") ? "border-[1.5px] border-text" : ""
-          }`}
-        >
+        {user ? (
           <div 
-            className="w-[22px] h-[22px] rounded-full instagram-gradient" 
-            style={{ padding: "1.5px" }}
+            className={`w-[26px] h-[26px] rounded-full flex items-center justify-center ${
+              isActive("/mypage") ? "border-[1.5px] border-text" : ""
+            }`}
           >
-            <div className="w-full h-full rounded-full bg-white p-[0.5px]">
-               <div className="w-full h-full rounded-full bg-gray-200" />
+            <div 
+              className="w-[22px] h-[22px] rounded-full instagram-gradient" 
+              style={{ padding: "1.5px" }}
+            >
+              <div className="w-full h-full rounded-full bg-white p-[0.5px]">
+                 <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-200 to-gray-400 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">
+                    {user.nickname?.[0] ?? "U"}
+                 </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <User 
+            className="w-[23px] h-[23px] text-text" 
+            strokeWidth={isActive("/mypage") ? 2.5 : 1.8} 
+          />
+        )}
       </button>
     </nav>
   );

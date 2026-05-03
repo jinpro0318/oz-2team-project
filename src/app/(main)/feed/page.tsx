@@ -32,26 +32,20 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-bg pb-[50px]">
-      {/* Container for mobile centering */}
-      <div className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-sm relative">
-        <TopBar />
-        <StoryStrip
-          celebrities={celebrities}
-          activeCelebId={activeCelebId}
-          onSelect={setActiveCelebId}
-        />
-        <main className="flex flex-col">
-          {filteredPosts.map((post) => (
-            <PostCard key={post.id} post={post} celebrity={celeb!} />
-          ))}
-        </main>
-        
-        {/* Placeholder for content below fold */}
-        <div className="h-4 bg-bg" />
-        
-        <BottomNav />
-      </div>
+    <div className="pb-[60px]">
+      <TopBar />
+      <StoryStrip
+        celebrities={celebrities}
+        activeCelebId={activeCelebId}
+        onSelect={setActiveCelebId}
+      />
+      <main className="flex flex-col">
+        {filteredPosts.map((post) => (
+          <PostCard key={post.id} post={post} celebrity={celeb!} />
+        ))}
+      </main>
+      
+      <div className="h-4 bg-bg" />
     </div>
   );
 }

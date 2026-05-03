@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useCartStore } from "@/stores/cartStore";
 import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/hooks/useAuth";
+import { useUIStore } from "@/stores/uiStore";
 
 export default function TopBar() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function TopBar() {
   const totalCount = useCartStore((s) => s.getTotalCount());
   const { requireAuth } = useRequireAuth();
   const { user } = useAuthStore(); // [효진] 관리자 여부 확인용
+  const hasNewWishlistItem = useUIStore((s) => s.hasNewWishlistItem);
 
   useEffect(() => {
     setMounted(true);
@@ -24,7 +26,8 @@ export default function TopBar() {
     <header className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border-light bg-surface px-3">
       <Link 
         href="/feed" 
-        className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline"
+        className="text-[21px] font-bold tracking-[-1.5px] no-underline hover:opacity-80 transition-opacity duration-300"
+        style={{ color: "#000000" }}
       >
         C.O.D.E.
       </Link>
@@ -47,7 +50,9 @@ export default function TopBar() {
           onClick={() => requireAuth(() => router.push("/wishlist"))}
         >
           <Star className="w-[22px] h-[22px] text-text" strokeWidth={1.8} />
-          <span className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-red border-[1.5px] border-surface" />
+          {mounted && hasNewWishlistItem && (
+            <span className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-red border-[1.5px] border-surface" />
+          )}
         </button>
         
         <button 
@@ -63,6 +68,6 @@ export default function TopBar() {
           <MessageCircle className="w-[22px] h-[22px] text-text" strokeWidth={1.8} />
         </button>
       </div>
-    </header>
+      </header>
   );
 }

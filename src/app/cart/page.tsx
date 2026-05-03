@@ -6,8 +6,8 @@ import { DeleteOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useCartStore } from "@/stores/cartStore";
 import { useRequireAuth } from "@/hooks/useAuth";
-
 import { useState, useEffect } from "react";
+import { useUIStore } from "@/stores/uiStore";
 
 function formatPrice(n: number, mounted: boolean) {
   if (!mounted) return n.toString();
@@ -19,22 +19,19 @@ export default function CartPage() {
   const router = useRouter();
   const { items, removeItem, updateQuantity, getTotalAmount } = useCartStore();
   const { requireAuth } = useRequireAuth();
+  const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
   
   useEffect(() => {
     setMounted(true);
-  }, []);
+    setBottomNavVisible(false);
+    return () => setBottomNavVisible(true);
+  }, [setBottomNavVisible]);
 
   const totalAmount = getTotalAmount();
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
-  if (!mounted) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
-        <BackTopBar title="장바구니" />
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   const handleCheckout = () => {
     requireAuth(() => {
@@ -43,16 +40,16 @@ export default function CartPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
+    <div className="flex flex-col min-h-screen bg-surface">
       <BackTopBar title="장바구니" />
 
-      {items.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Empty description="장바구니가 비어있습니다" />
-        </div>
-      ) : (
-        <>
-          <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="flex h-full items-center justify-center py-20">
+            <Empty description="장바구니가 비어있습니다" />
+          </div>
+        ) : (
+          <div className="flex flex-col">
             {items.map((item) => (
               <div
                 key={item.id}
@@ -81,7 +78,7 @@ export default function CartPage() {
                       </p>
                     </div>
                     <DeleteOutlined
-                      className="cursor-pointer text-text-muted"
+                      className="cursor-pointer text-text-muted hover:text-error transition-colors"
                       onClick={() => removeItem(item.id)}
                     />
                   </div>
@@ -101,35 +98,38 @@ export default function CartPage() {
               </div>
             ))}
           </div>
+        )}
+      </div>
 
-          <div className="border-t border-border bg-surface px-3 py-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-text-secondary">상품 금액</span>
-                <span>₩{formatPrice(totalAmount, mounted)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">배송비</span>
-                <span>{shippingFee === 0 ? "무료" : `₩${formatPrice(shippingFee, mounted)}`}</span>
-              </div>
-              <div className="border-t border-border pt-2">
-                <div className="flex justify-between text-base font-bold">
-                  <span>결제 예정 금액</span>
-                  <span>₩{formatPrice(finalTotal, mounted)}</span>
-                </div>
+      {items.length > 0 && (
+        <div className="border-t border-border bg-surface px-3 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-text-secondary">상품 금액</span>
+              <span>₩{formatPrice(totalAmount, mounted)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-secondary">배송비</span>
+              <span>{shippingFee === 0 ? "무료" : `₩${formatPrice(shippingFee, mounted)}`}</span>
+            </div>
+            <div className="border-t border-border pt-2">
+              <div className="flex justify-between text-base font-bold">
+                <span>결제 예정 금액</span>
+                <span>₩{formatPrice(finalTotal, mounted)}</span>
               </div>
             </div>
-            <Button
-              type="primary"
-              block
-              size="large"
-              className="mt-4 font-bold"
-              onClick={handleCheckout}
-            >
-              결제하기
-            </Button>
           </div>
-        </>
+          <Button
+            type="primary"
+            block
+            size="large"
+            className="mt-4 font-bold bg-text border-none h-12"
+            style={{ backgroundColor: "#262626" }}
+            onClick={handleCheckout}
+          >
+            결제하기
+          </Button>
+        </div>
       )}
     </div>
   );

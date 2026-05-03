@@ -60,7 +60,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface">
+    <div className="flex-1 flex flex-col bg-surface">
       {/* 뒤로가기 */}
       <div 
         className="px-4 pt-3.5 flex items-center gap-1.5 cursor-pointer"
@@ -91,12 +91,12 @@ export default function RegisterPage() {
           <div className="text-[11px] font-bold text-text-secondary mb-1.5">
             이름<span className="text-error ml-0.5">*</span>
           </div>
-          <Input
+          <input
+            type="text"
             placeholder="이름 입력"
-            size="large"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            className="h-11 rounded-md bg-bg border-border text-[13px] hover:border-black focus:border-black"
+            className="w-full h-11 rounded-md bg-bg border border-border px-3 text-[13px] text-text placeholder:text-text-muted outline-none hover:border-black focus:border-black transition-all"
           />
         </div>
 
@@ -106,19 +106,20 @@ export default function RegisterPage() {
             이메일<span className="text-error ml-0.5">*</span>
           </div>
           <div className="flex gap-1.5">
-            <Input
+            <input
+              type="email"
               placeholder="example@email.com"
-              size="large"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 h-11 rounded-md bg-bg border-border text-[13px] hover:border-black focus:border-black"
+              className="flex-1 h-11 rounded-md bg-bg border border-border px-3 text-[13px] text-text placeholder:text-text-muted outline-none hover:border-black focus:border-black transition-all"
             />
-            <Button 
-              className="h-11 px-[11px] bg-text border-none rounded-md text-[12px] font-bold text-white font-sans shrink-0 hover:!bg-black hover:!text-white"
+            <button 
+              type="button"
+              className="h-11 px-[11px] bg-text border-none rounded-md text-[12px] font-bold text-white font-sans shrink-0 hover:bg-black transition-all"
               onClick={() => message.info("중복 확인 로직은 구현 예정입니다.")}
             >
               중복 확인
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -168,17 +169,15 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <Button
-          type="primary"
-          block
-          size="large"
-          disabled={!canRegister}
-          loading={loading}
+        <button
+          type="button"
+          disabled={!canRegister || loading}
           onClick={handleRegister}
-          className="mt-1 mb-4 h-11 bg-text border-none rounded-md text-[14px] font-bold text-white hover:!bg-black disabled:opacity-50"
+          className="mt-1 mb-4 h-11 w-full bg-text border-none rounded-md text-[14px] font-bold text-white hover:bg-black disabled:opacity-50 transition-all flex items-center justify-center"
         >
+          {loading && <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />}
           회원가입 완료
-        </Button>
+        </button>
       </div>
 
       <div className="pb-4 text-center text-[13px] text-text-secondary mt-4">

@@ -7,7 +7,10 @@ import BackTopBar from "@/components/common/BackTopBar";
 import { useCartStore } from "@/stores/cartStore";
 import { useCreateOrder } from "@/hooks/useOrders";
 import { useAuthStore } from "@/stores/authStore";
+import { useDaumPostcode } from "@/hooks/useDaumPostcode";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
+
+import { useUIStore } from "@/stores/uiStore";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
@@ -22,6 +25,7 @@ export default function CheckoutPage() {
   const { items, getTotalAmount, clearCart } = useCartStore();
   const user = useAuthStore((s) => s.user);
   const createOrderMutation = useCreateOrder();
+  const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
 
   const [mounted, setMounted] = useState(false);
   const [recipient, setRecipient] = useState(user?.nickname || "");
@@ -29,7 +33,9 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    setBottomNavVisible(false);
+    return () => setBottomNavVisible(true);
+  }, [setBottomNavVisible]);
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
@@ -40,27 +46,13 @@ export default function CheckoutPage() {
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
+  const { openPostcode } = useDaumPostcode();
 
   const handleOpenPostcode = () => {
-    if (typeof window !== "undefined" && (window as any).daum) {
-      new (window as any).daum.Postcode({
-        oncomplete: (data: any) => {
-          setZipCode(data.zonecode);
-          setAddress(data.address);
-        },
-      }).open();
-    } else {
-      message.error("주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.");
-    }
+    openPostcode(({ zonecode, address }) => {
+      setZipCode(zonecode);
+      setAddress(address);
+    });
   };
 
   const handlePayment = async () => {
@@ -135,11 +127,13 @@ export default function CheckoutPage() {
     }
   };
 
+  if (!mounted) return null;
+
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
+    <div className="flex flex-col min-h-screen bg-surface">
       <BackTopBar title="주문/결제" />
 
-      <div className="flex-1 space-y-2">
+      <div className="flex-1 space-y-2 overflow-y-auto">
         <section className="bg-surface px-3 py-4">
           <h3 className="mb-3 text-[15px] font-bold">배송 정보</h3>
           <div className="space-y-2.5">

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Spin, Empty } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
 import BottomNav from "@/components/common/BottomNav";
 import { useOrders } from "@/hooks/useOrders";
+import { useAuthStore } from "@/stores/authStore";
+import { updateUserLastChecked } from "@/lib/services/user";
 import type { OrderStatus } from "@/types";
 
 const statusConfig: Record<OrderStatus, { label: string; icon: string; className: string }> = {
@@ -16,6 +18,11 @@ const statusConfig: Record<OrderStatus, { label: string; icon: string; className
   cancelled: { label: "주문취소", icon: "✕", className: "text-red-500" },
   exchange_requested: { label: "교환요청", icon: "🔄", className: "text-purple-500" },
   return_requested: { label: "반품요청", icon: "↩️", className: "text-purple-500" },
+  returning: { label: "반송 중", icon: "🚚", className: "text-orange-500" },
+  returned: { label: "반송 완료", icon: "📦", className: "text-green-500" },
+  exchange_completed: { label: "교환완료", icon: "✅", className: "text-blue-500" },
+  return_completed: { label: "반품완료", icon: "💸", className: "text-gray-600" },
+  claim_rejected: { label: "클레임 반려", icon: "🚫", className: "text-red-600" },
   purchase_confirmed: { label: "구매확정", icon: "✨", className: "text-gray-900" },
   payment_pending: { label: "결제대기", icon: "⏳", className: "text-gray-400" },
 };
@@ -34,22 +41,53 @@ function formatPrice(n: number) {
 export default function OrdersPage() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState("all");
+  const { user, setUser } = useAuthStore();
   const { data: orders = [], isLoading } = useOrders();
+
+  // [디자인 요구사항] 진입 시점의 시간을 기억하여 'New' 표시 여부를 결정합니다.
+  const [initialLastChecked] = useState(user?.lastCheckedOrders || "0");
+
+  useEffect(() => {
+    if (!user) return;
+
+    const markAsRead = () => {
+      const now = new Date().toISOString();
+      updateUserLastChecked(user.id, "lastCheckedOrders").catch(console.error);
+      // 로컬 스토어 업데이트 (마이페이지 등으로 돌아갔을 때 반영되도록)
+      setUser({ ...user, lastCheckedOrders: now });
+    };
+
+    // 브라우저 종료/새로고침 대응
+    window.addEventListener("beforeunload", markAsRead);
+
+    return () => {
+      // 페이지 이탈 시(뒤로가기 등) 업데이트 실행
+      markAsRead();
+      window.removeEventListener("beforeunload", markAsRead);
+    };
+  }, [user?.id]);
 
   const filteredOrders = orders.filter((order) => {
     if (order.status === "payment_pending") return false;
     if (activeFilter === "all") return true;
     if (activeFilter === "shipping") return order.status === "shipping" || order.status === "preparing";
     if (activeFilter === "delivered") return order.status === "delivered" || order.status === "purchase_confirmed";
-    if (activeFilter === "cancelled")
-      return ["cancelled", "exchange_requested", "return_requested"].includes(order.status);
+    if (activeFilter === "cancelled") {
+      return [
+        "cancelled", 
+        "exchange_requested", "return_requested", 
+        "returning", "returned", 
+        "exchange_completed", "return_completed", 
+        "claim_rejected"
+      ].includes(order.status);
+    }
     return true;
   });
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg font-sans">
-      <div className="flex-1 pb-[49px]">
-        <BackTopBar title="주문 내역" />
+    <div className="flex flex-col min-h-screen pb-[60px]">
+      <div className="flex-1 pb-4">
+        <BackTopBar title="주문 내역" backUrl="/mypage" />
 
         {/* Filter Tabs (Underline style) */}
         <div className="flex border-b border-border bg-surface">
@@ -77,121 +115,122 @@ export default function OrdersPage() {
             <Empty description="주문 내역이 없습니다" />
           </div>
         ) : (
-          <div className="space-y-2 py-2">
-            {filteredOrders.map((order) => {
-              const sc = statusConfig[order.status];
-              return (
-                <div key={order.id} className="bg-surface border-y border-border-light overflow-hidden">
-                  {/* Order Card Header */}
-                  <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                    <p className="text-[13px] font-medium text-text-secondary">
-                      {new Date(order.createdAt).toLocaleDateString("ko-KR", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                      }).replace(/\. /g, ".")}
-                    </p>
-                    <p className={`text-[13px] font-bold ${sc.className}`}>
-                      {sc.label} {sc.icon}
-                    </p>
-                  </div>
-
-                  {/* Product Rows */}
-                  {order.items.map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => router.push(`/product/${item.productId}`)}
-                    >
-                      <div className="h-20 w-16 shrink-0 rounded bg-gray-100 overflow-hidden border border-border-light">
-                        {item.product.imageUrls?.[0] && (
-                          <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        {/* [효진] 버그 수정 | 2026-04-29
-                            원인: Product 타입에 'celebrity' 필드 없음 (존재하는 필드: 'brand', 'celebrityId')
-                            수정: item.product.celebrity → item.product.brand */}
-                        <p className="text-[11px] font-semibold text-text-muted mb-0.5">
-                          {item.product.brand}
-                        </p>
-                        <p className="truncate text-[14px] font-bold text-text mb-0.5">{item.product.name}</p>
-                        <p className="text-[12px] text-text-secondary">
-                          {item.color} · {item.size} · {item.quantity}개
-                        </p>
-                        <p className="mt-1 text-[14px] font-bold">₩{formatPrice(item.price)}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Shipping Progress Info (Optional visual element from wireframe) */}
-                  {order.status === "shipping" && (
-                    <div className="mx-4 mb-3 rounded-lg bg-bg p-3 border border-border-light flex items-center gap-2">
-                      <span className="text-base">🚚</span>
-                      <p className="text-[12px] text-text-secondary leading-tight">
-                        <strong className="text-text">배송이 시작되었습니다</strong> 도착 예정일은 곧 안내됩니다.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 px-4 pb-4">
-                    {(order.status === "payment_complete" || order.status === "preparing") && (
-                      <Button
-                        size="large"
-                        className="flex-1 h-11 text-[13px] font-bold rounded-lg border-border text-text-secondary"
-                        onClick={() => router.push(`/orders/${order.id}/cancel`)}
-                      >
-                        주문 취소
-                      </Button>
-                    )}
-                    {order.status === "delivered" && (
-                      <Button
-                        size="large"
-                        className="flex-1 h-11 text-[13px] font-bold rounded-lg border-border text-text"
-                        onClick={() => router.push(`/exchange/${order.id}`)}
-                      >
-                        교환/반품
-                      </Button>
-                    )}
-                    {order.status === "delivered" ? (
-                      <Button
-                        type="primary"
-                        size="large"
-                        className="flex-1 h-11 text-[13px] font-bold rounded-lg bg-text border-none hover:!bg-black !text-white"
-                        onClick={() => router.push(`/orders/${order.id}/confirm`)}
-                        style={{ backgroundColor: "#262626", color: "white" }}
-                      >
-                        구매 확정
-                      </Button>
-                    ) : (
-                      <Button
-                        size="large"
-                        className={`flex-1 h-11 text-[13px] font-bold rounded-lg ${
-                          ["shipping", "cancelled", "exchange_requested", "return_requested", "purchase_confirmed"].includes(order.status)
-                            ? "bg-text !text-white border-none hover:!bg-black" 
-                            : "border-border text-text"
-                        }`}
-                        style={["shipping", "cancelled", "exchange_requested", "return_requested", "purchase_confirmed"].includes(order.status) 
-                          ? { backgroundColor: "#262626", color: "white" } 
-                          : {}
-                        }
-                        onClick={() => router.push(`/orders/${order.id}`)}
-                      >
-                        {["shipping", "cancelled", "exchange_requested", "return_requested", "purchase_confirmed"].includes(order.status) 
-                          ? "주문 상세 보기" 
-                          : "주문 상세"
-                        }
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="space-y-2 py-2 bg-bg flex-1">
+            {filteredOrders.map((order) => (
+              <OrderCard key={order.id} order={order} initialLastChecked={initialLastChecked} />
+            ))}
           </div>
         )}
       </div>
-      <BottomNav />
+    </div>
+  );
+}
+
+/**
+ * [원복] 개별 주문 카드 컴포넌트
+ * 복잡한 실시간 조회 로직을 제거하고 DB 상태에만 충실합니다.
+ */
+function OrderCard({ order, initialLastChecked }: { order: any; initialLastChecked: string }) {
+  const router = useRouter();
+  const status: OrderStatus = order.status;
+  const sc = statusConfig[status] || statusConfig.payment_pending;
+
+  return (
+    <div className="bg-surface border-y border-border-light overflow-hidden">
+      {/* Order Card Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-[13px] font-medium text-text-secondary">
+            {new Date(order.createdAt).toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).replace(/\. /g, ".")}
+          </p>
+          {order.createdAt > initialLastChecked && (
+            <span className="inline-flex h-4 items-center justify-center rounded-full bg-[#ED4956] px-1.5 text-[9px] font-bold text-white leading-none">
+              New
+            </span>
+          )}
+        </div>
+        <p className={`text-[13px] font-bold ${sc.className}`}>
+          {sc.label} {sc.icon}
+        </p>
+      </div>
+
+      {/* Product Rows */}
+      {order.items.map((item: any, idx: number) => (
+        <div 
+          key={idx} 
+          className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => router.push(`/product/${item.productId}`)}
+        >
+          <div className="h-20 w-16 shrink-0 rounded bg-gray-100 overflow-hidden border border-border-light">
+            {item.product.imageUrls?.[0] && (
+              <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-text-muted mb-0.5">
+              {item.product.brand}
+            </p>
+            <p className="truncate text-[14px] font-bold text-text mb-0.5">{item.product.name}</p>
+            <p className="text-[12px] text-text-secondary">
+              {item.color} · {item.size} · {item.quantity}개
+            </p>
+            <p className="mt-1 text-[14px] font-bold">₩{formatPrice(item.price)}</p>
+          </div>
+        </div>
+      ))}
+
+      {/* 액션 버튼 */}
+      <div className="flex gap-2 px-4 pb-4">
+        {(status === "payment_complete" || status === "preparing") && (
+          <Button
+            size="large"
+            className="flex-1 h-11 text-[13px] font-bold rounded-lg border-border text-text-secondary"
+            onClick={() => router.push(`/orders/${order.id}/cancel`)}
+          >
+            주문 취소
+          </Button>
+        )}
+        {status === "delivered" && (
+          <Button
+            size="large"
+            className="flex-1 h-11 text-[13px] font-bold rounded-lg border-border text-text"
+            onClick={() => router.push(`/exchange/${order.id}`)}
+          >
+            교환/반품
+          </Button>
+        )}
+        {status === "delivered" ? (
+          <Button
+            type="primary"
+            size="large"
+            className="flex-1 h-11 text-[13px] font-bold rounded-lg bg-text border-none hover:!bg-black !text-white"
+            onClick={() => router.push(`/orders/${order.id}/confirm`)}
+            style={{ backgroundColor: "#262626", color: "white" }}
+          >
+            구매 확정
+          </Button>
+        ) : (
+          <Button
+            size="large"
+            className={`flex-1 h-11 text-[13px] font-bold rounded-lg ${
+              (status !== "payment_complete" && status !== "preparing")
+                ? "bg-text !text-white border-none hover:!bg-black" 
+                : "border-border text-text hover:!text-black hover:!border-black"
+            }`}
+            style={(status !== "payment_complete" && status !== "preparing") 
+              ? { backgroundColor: "#262626", color: "white" } 
+              : {}
+            }
+            onClick={() => router.push(`/orders/${order.id}`)}
+          >
+            주문 상세 보기
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

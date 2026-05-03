@@ -71,6 +71,9 @@ export interface User {
   addresses: Address[];
   createdAt: string;
   role: "user" | "admin";
+  lastCheckedOrders?: string;
+  lastCheckedWishlist?: string;
+  isEmailProtected?: boolean;
 }
 
 export interface CartItem {
@@ -97,6 +100,11 @@ export type OrderStatus =
   | "cancelled"
   | "exchange_requested"
   | "return_requested"
+  | "returning"
+  | "returned"
+  | "exchange_completed"
+  | "return_completed"
+  | "claim_rejected"
   | "purchase_confirmed"
   | "payment_pending";
 
@@ -119,6 +127,8 @@ export interface Order {
   totalAmount: number;
   shippingFee: number;
   status: OrderStatus;
+  carrierCode?: string;    // 택배사 코드
+  trackingNumber?: string; // 운송장 번호
   createdAt: string;
   updatedAt: string;
   timeline: OrderTimeline[];

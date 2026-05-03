@@ -6,6 +6,8 @@ import { Button, App, Spin } from "antd";
 import { CheckCircleFilled, GiftOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useOrder, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { addUserPoints } from "@/lib/services/user";
+import { useAuthStore } from "@/stores/authStore";
 
 function formatPrice(n: number) {
   return n.toLocaleString("ko-KR");
@@ -19,6 +21,8 @@ export default function PurchaseConfirmPage() {
   const updateStatusMutation = useUpdateOrderStatus();
 
   const [isComplete, setIsComplete] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0);
+  const { user } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -44,6 +48,9 @@ export default function PurchaseConfirmPage() {
 
   const handleConfirm = async () => {
     try {
+      const points = Math.floor(order.totalAmount * 0.01);
+      
+      // 1. 주문 상태 업데이트
       await updateStatusMutation.mutateAsync({
         id: order.id,
         status: "purchase_confirmed",
@@ -51,11 +58,19 @@ export default function PurchaseConfirmPage() {
           status: "purchase_confirmed",
           label: "구매 확정",
           date: new Date().toISOString(),
-          description: "구매가 확정되었습니다. 이용해주셔서 감사합니다!",
+          description: `구매가 확정되었습니다. ${formatPrice(points)}포인트가 적립되었습니다.`,
         },
       });
+
+      // 2. 포인트 적립 (로그인 유저인 경우)
+      if (user?.id) {
+        await addUserPoints(user.id, points);
+        setEarnedPoints(points);
+      }
+
       setIsComplete(true);
-    } catch {
+    } catch (err: any) {
+      console.error(err);
       message.error("구매 결정 처리 중 오류가 발생했습니다");
     }
   };
@@ -69,8 +84,11 @@ export default function PurchaseConfirmPage() {
             <CheckCircleFilled className="text-3xl text-success" />
           </div>
           <h1 className="mb-2 text-xl font-bold">구매가 확정되었습니다</h1>
+          <div className="mb-6 rounded-lg bg-primary/5 px-4 py-2 text-primary font-bold text-sm">
+            + {formatPrice(earnedPoints)}P 적립 완료
+          </div>
           <p className="text-center text-sm text-text-secondary">
-            상품 구매를 확정해주셔서 감사합니다.<br />리뷰를 작성하시면 포인트를 적립해드립니다!
+            상품 구매를 확정해주셔서 감사합니다.<br />지금 바로 적립된 포인트를 확인해보세요!
           </p>
 
           <div className="mt-8 flex w-full flex-col gap-3">

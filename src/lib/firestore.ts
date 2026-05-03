@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   writeBatch,
   Timestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -49,6 +50,33 @@ export async function getDocuments<T>(
   const q = query(collection(db, collectionName), ...constraints);
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...convertTimestamps(d.data()) }) as T);
+}
+
+export function subscribeDocument<T>(
+  collectionName: string,
+  id: string,
+  onUpdate: (data: T | null) => void
+) {
+  const docRef = doc(db, collectionName, id);
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      onUpdate({ id: docSnap.id, ...convertTimestamps(docSnap.data()) } as T);
+    } else {
+      onUpdate(null);
+    }
+  });
+}
+
+export function subscribeDocuments<T>(
+  collectionName: string,
+  constraints: QueryConstraint[],
+  onUpdate: (data: T[]) => void
+) {
+  const q = query(collection(db, collectionName), ...constraints);
+  return onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map((d) => ({ id: d.id, ...convertTimestamps(d.data()) }) as T);
+    onUpdate(data);
+  });
 }
 
 export async function createDocument(

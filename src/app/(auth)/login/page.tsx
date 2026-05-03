@@ -47,13 +47,15 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-surface">
+    <div className="flex-1 flex flex-col bg-surface">
       <header className="flex h-12 items-center px-4">
         <LeftOutlined className="cursor-pointer text-lg text-text" onClick={() => router.back()} />
       </header>
 
       <div className="flex flex-col items-center px-10 pt-16 pb-12">
-        <h1 className="text-[48px] font-black tracking-[-3px] text-text leading-none">C.O.D.E.</h1>
+        <Link href="/feed" className="hover:opacity-80 transition-opacity duration-300 no-underline">
+          <h1 className="text-[48px] font-black tracking-[-3px] leading-none" style={{ color: "#000000" }}>C.O.D.E.</h1>
+        </Link>
         <div className="mt-3 flex items-center gap-2">
           <span className="h-[1px] w-4 bg-border" />
           <p className="text-[10px] uppercase tracking-[2px] font-medium text-text-muted">Celebrity Outfit Daily Edition</p>

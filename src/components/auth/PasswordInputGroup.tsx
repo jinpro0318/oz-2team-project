@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { Input, Progress } from "antd";
-import { CheckOutlined } from "@ant-design/icons";
+import { useEffect, useState } from "react";
+import { CheckOutlined, EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 
 export function validatePassword(pw: string, currentPwToAvoid?: string): string {
   if (!pw) return "";
@@ -46,6 +45,9 @@ export default function PasswordInputGroup({
 
   const isValid = !!(newPw && confirmPw && !newPwError && isMatching);
 
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+
   useEffect(() => {
     if (onValidationChange) {
       onValidationChange(isValid);
@@ -60,16 +62,24 @@ export default function PasswordInputGroup({
           <label className="text-[11px] font-bold text-text">비밀번호<span className="text-error ml-0.5">*</span></label>
           {newPw && !newPwError && isMatching && <CheckOutlined style={{ color: "#00C851", fontSize: "12px", fontWeight: "bold" }} />}
         </div>
-        <Input.Password
-          size="large"
-          placeholder="8자 이상 입력"
-          value={newPw}
-          status={(newPw && newPwError) || showMatchError ? "error" : ""}
-          className={`h-11 rounded-md bg-bg border-border hover:border-black focus:border-black transition-all ${
-            isMatching && !newPwError ? "!border-[#00C851] !hover:border-[#00C851] !focus:border-[#00C851]" : ""
-          }`}
-          onChange={(e) => onNewPwChange(e.target.value)}
-        />
+        <div className={`flex items-center h-11 rounded-md bg-bg border transition-all px-3 ${
+            isMatching && !newPwError 
+              ? "border-[#00C851] hover:border-[#00C851] focus-within:border-[#00C851]" 
+              : ((newPw && newPwError) || showMatchError)
+              ? "border-error hover:border-error focus-within:border-error"
+              : "border-border hover:border-black focus-within:border-black"
+          }`}>
+          <input
+            type={showNewPw ? "text" : "password"}
+            placeholder="8자 이상 입력"
+            value={newPw}
+            onChange={(e) => onNewPwChange(e.target.value)}
+            className="flex-1 bg-transparent border-none outline-none text-[13px] text-text placeholder:text-text-muted h-full w-full"
+          />
+          <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="text-text-muted hover:text-text ml-2 flex items-center justify-center">
+            {showNewPw ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+          </button>
+        </div>
         {newPw && (
           <div className="mt-2">
             <div className="flex gap-1">
@@ -109,16 +119,24 @@ export default function PasswordInputGroup({
           <label className="text-[11px] font-bold text-text">비밀번호 확인<span className="text-error ml-0.5">*</span></label>
           {isMatching && !newPwError && <CheckOutlined style={{ color: "#00C851", fontSize: "12px", fontWeight: "bold" }} />}
         </div>
-        <Input.Password
-          size="large"
-          placeholder="비밀번호 재입력"
-          value={confirmPw}
-          status={showMatchError ? "error" : ""}
-          className={`h-11 rounded-md bg-bg border-border hover:border-black focus:border-black transition-all ${
-            isMatching && !newPwError ? "!border-[#00C851] !hover:border-[#00C851] !focus:border-[#00C851]" : ""
-          }`}
-          onChange={(e) => onConfirmPwChange(e.target.value)}
-        />
+        <div className={`flex items-center h-11 rounded-md bg-bg border transition-all px-3 ${
+            isMatching && !newPwError 
+              ? "border-[#00C851] hover:border-[#00C851] focus-within:border-[#00C851]" 
+              : showMatchError
+              ? "border-error hover:border-error focus-within:border-error"
+              : "border-border hover:border-black focus-within:border-black"
+          }`}>
+          <input
+            type={showConfirmPw ? "text" : "password"}
+            placeholder="비밀번호 재입력"
+            value={confirmPw}
+            onChange={(e) => onConfirmPwChange(e.target.value)}
+            className="flex-1 bg-transparent border-none outline-none text-[13px] text-text placeholder:text-text-muted h-full w-full"
+          />
+          <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="text-text-muted hover:text-text ml-2 flex items-center justify-center">
+            {showConfirmPw ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+          </button>
+        </div>
         {newPwError ? (
           <p className="mt-1.5 text-xs text-error">{newPwError}</p>
         ) : showMatchError ? (

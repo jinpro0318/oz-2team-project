@@ -76,7 +76,7 @@ export default function PasswordChangePage() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="flex min-h-dvh flex-col bg-surface">
       <BackTopBar title="비밀번호 변경" />
 
       <section className="bg-surface px-4 py-6">

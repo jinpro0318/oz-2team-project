@@ -82,7 +82,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-surface">
+    <div className="flex flex-col bg-surface min-h-screen">
       <TopBar />
       <div className="relative aspect-square w-full flex-shrink-0 bg-gray-100">
         {product.imageUrls?.[0] ? (
@@ -103,7 +103,9 @@ export default function ProductDetailPage() {
           className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm"
           onClick={() => router.back()}
         >
-          <LeftOutlined className="text-sm" />
+          <span className="text-sm">
+            <LeftOutlined />
+          </span>
         </button>
         <button
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm"
@@ -223,7 +225,7 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 flex gap-2 border-t border-border bg-surface px-3 py-2.5">
+      <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-surface px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
         <Button
           size="large"
           className="flex-1 font-bold"
