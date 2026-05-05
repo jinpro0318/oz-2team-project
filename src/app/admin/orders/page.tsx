@@ -74,11 +74,10 @@ const CARRIERS = [
  */
 export default function AdminOrdersPage() {
   return (
-    <App>
-      <AdminOrders />
-    </App>
+    <AdminOrders />
   );
 }
+
 
 function AdminOrders() {
   const { message, modal } = App.useApp(); // [효진] 컨텍스트 메시지, 모달 사용

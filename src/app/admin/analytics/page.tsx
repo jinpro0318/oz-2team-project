@@ -64,11 +64,10 @@ function DonutChart({ data }: { data: { name: string; percent: number; color: st
 
 export default function AdminAnalyticsPage() {
   return (
-    <App>
-      <AdminAnalytics />
-    </App>
+    <AdminAnalytics />
   );
 }
+
 
 function AdminAnalytics() {
   const [period, setPeriod] = useState("weekly");
