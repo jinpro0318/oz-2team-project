@@ -52,7 +52,9 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   exchange_completed: { label: "교환완료", color: "geekblue" },
   return_completed: { label: "반품완료", color: "gray" },
   purchase_confirmed: { label: "구매확정", color: "green" },
+  claim_rejected: { label: "클레임반려", color: "red" },
 };
+
 
 
 const CARRIERS = [
