@@ -13,11 +13,10 @@ export default function BottomNav() {
   const { user, requireAuth } = useRequireAuth();
   const isBottomNavVisible = useUIStore((s) => s.isBottomNavVisible);
   
-  // 관리자, 상품 상세, 구매 확정, 취소 페이지 등에서는 글로벌 하단 내비게이션 바를 숨김
+  // 관리자/구매확정/취소 흐름에서는 글로벌 하단 내비게이션 바를 숨김
   if (
-    pathname?.startsWith("/admin") || 
-    pathname?.startsWith("/product") || 
-    pathname?.endsWith("/confirm") || 
+    pathname?.startsWith("/admin") ||
+    pathname?.endsWith("/confirm") ||
     pathname?.endsWith("/cancel") ||
     !isBottomNavVisible
   ) return null;

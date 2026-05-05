@@ -89,10 +89,18 @@ function AdminAnalytics() {
   const avgOrderAmount = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
   const totalSalesCount = products.reduce((sum, p) => sum + p.salesCount, 0);
 
-  // [효진] 셀럽별 매출 데이터 집계 및 정렬
+  // [효진] 셀럽별 매출은 실제 주문(취소 제외) 라인 합계 기준으로 산출
+  const productCelebMap = new Map(products.map((p) => [p.id, p.celebrityId] as const));
   const celebSalesData = celebrities.map((celeb, i) => {
-    const celebProds = products.filter((p) => p.celebrityId === celeb.id);
-    const sales = celebProds.reduce((sum, p) => sum + p.price * p.salesCount, 0);
+    const sales = orders.reduce((acc, o) => {
+      if (o.status === "cancelled") return acc;
+      const lineTotal = o.items.reduce((s, item) => {
+        if (productCelebMap.get(item.productId) !== celeb.id) return s;
+        const unit = priceById.get(item.productId) ?? item.product.price;
+        return s + unit * item.quantity;
+      }, 0);
+      return acc + lineTotal;
+    }, 0);
     return { name: celeb.name, sales, color: colors[i % colors.length] };
   });
   const totalCelebSales = celebSalesData.reduce((sum, c) => sum + c.sales, 0);

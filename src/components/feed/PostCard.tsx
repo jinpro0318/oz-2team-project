@@ -12,6 +12,21 @@ interface PostCardProps {
   celebrity: Celebrity;
 }
 
+const CELEB_LOCATIONS: Record<string, string> = {
+  jennie: "파리, 프랑스",
+  iu: "서울, 대한민국",
+  v: "뉴욕, 미국",
+};
+
+function getPostLocation(post: Post, celebrity: Celebrity): string {
+  if (post.id.includes("milano")) return "밀라노, 이탈리아";
+  if (CELEB_LOCATIONS[celebrity.id]) return CELEB_LOCATIONS[celebrity.id];
+  const fallbacks = ["런던, 영국", "도쿄, 일본", "로스앤젤레스, 미국", "베를린, 독일", "리스본, 포르투갈"];
+  let hash = 0;
+  for (let i = 0; i < celebrity.id.length; i++) hash = (hash * 31 + celebrity.id.charCodeAt(i)) >>> 0;
+  return fallbacks[hash % fallbacks.length];
+}
+
 export default function PostCard({ post, celebrity }: PostCardProps) {
   const { requireAuth } = useRequireAuth();
   const [mounted, setMounted] = useState(false);
@@ -43,7 +58,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
             {celebrity.name}
           </p>
           <p className="text-[11px] text-text-secondary leading-tight">
-            {post.id.includes("milano") ? "밀라노, 이탈리아" : "파리, 프랑스"}
+            {getPostLocation(post, celebrity)}
           </p>
         </div>
         <button className="hover:opacity-60 transition-opacity flex-shrink-0">

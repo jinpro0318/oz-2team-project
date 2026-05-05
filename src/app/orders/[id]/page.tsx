@@ -104,7 +104,7 @@ export default function OrderDetailPage() {
   const rejectionReason = order.timeline?.find(t => t.status === "claim_rejected")?.description;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
+    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg pb-[60px]">
       <BackTopBar title="주문 상세" backUrl="/orders" />
 
       <div className="flex items-center justify-between bg-surface px-3 py-3 border-b border-border">

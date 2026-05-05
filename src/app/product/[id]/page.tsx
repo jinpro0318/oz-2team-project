@@ -86,7 +86,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="flex flex-col bg-surface min-h-screen">
+    <div className="flex flex-col bg-surface min-h-screen pb-[80px]">
       <TopBar />
       <div className="relative aspect-square w-full flex-shrink-0 bg-gray-100">
         {mainImageUrl ? (
@@ -243,7 +243,7 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex gap-2 border-t border-border bg-surface px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-[49px] left-1/2 -translate-x-1/2 w-full max-w-[390px] z-40 flex gap-2 border-t border-border bg-surface px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
         <Button
           size="large"
           className="flex-1 font-bold"

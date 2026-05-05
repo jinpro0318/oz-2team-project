@@ -33,8 +33,17 @@ export default function AdminDashboard() {
 
   const isLoading = ordersLoading || celebLoading || prodLoading;
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const todayOrders = orders.filter((o) => {
+  const priceById = new Map(products.map((p) => [p.id, p.price] as const));
+  const productCelebMap = new Map(products.map((p) => [p.id, p.celebrityId] as const));
+  const orderLiveTotal = (o: Order) =>
+    o.items.reduce(
+      (sum, item) => sum + (priceById.get(item.productId) ?? item.product.price) * item.quantity,
+      0
+    );
+
+  const validOrders = orders.filter((o) => o.status !== "cancelled");
+  const totalRevenue = validOrders.reduce((sum, o) => sum + orderLiveTotal(o), 0);
+  const todayOrders = validOrders.filter((o) => {
     const d = new Date(o.createdAt);
     const now = new Date();
     return d.toDateString() === now.toDateString();
@@ -42,8 +51,14 @@ export default function AdminDashboard() {
 
   const celebSales = celebrities
     .map((celeb) => {
-      const celebProducts = products.filter((p) => p.celebrityId === celeb.id);
-      const sales = celebProducts.reduce((sum, p) => sum + p.price * p.salesCount, 0);
+      const sales = validOrders.reduce((acc, o) => {
+        const lineTotal = o.items.reduce((s, item) => {
+          if (productCelebMap.get(item.productId) !== celeb.id) return s;
+          const unit = priceById.get(item.productId) ?? item.product.price;
+          return s + unit * item.quantity;
+        }, 0);
+        return acc + lineTotal;
+      }, 0);
       const commission = Math.floor(sales * (celeb.commissionRate / 100));
       return { name: celeb.name, sales, commission, gradient: celeb.gradient };
     })
@@ -51,12 +66,11 @@ export default function AdminDashboard() {
 
   const totalCelebSales = celebSales.reduce((sum, c) => sum + c.sales, 0);
 
-  // 요일별 매출
   const dayMap: Record<number, string> = { 0: "일", 1: "월", 2: "화", 3: "수", 4: "목", 5: "금", 6: "토" };
   const dailyTotals: Record<string, number> = {};
-  orders.forEach((o) => {
+  validOrders.forEach((o) => {
     const day = dayMap[new Date(o.createdAt).getDay()] ?? "?";
-    dailyTotals[day] = (dailyTotals[day] ?? 0) + o.totalAmount;
+    dailyTotals[day] = (dailyTotals[day] ?? 0) + orderLiveTotal(o);
   });
   const dailyData = ["월", "화", "수", "목", "금", "토", "일"].map((day) => ({
     day,
@@ -80,7 +94,7 @@ export default function AdminDashboard() {
       icon: <ShoppingCartOutlined />,
       color: "#00C851",
       bg: "#EAFAF1",
-      sub: `₩${todayOrders.reduce((s, o) => s + o.totalAmount, 0).toLocaleString("ko-KR")}`,
+      sub: `₩${todayOrders.reduce((s, o) => s + orderLiveTotal(o), 0).toLocaleString("ko-KR")}`,
     },
     {
       title: "등록 상품",
@@ -220,7 +234,7 @@ export default function AdminDashboard() {
                       {cfg.label}
                     </Tag>
                     <p className="text-[10px] text-[#7E8299]">
-                      ₩{order.totalAmount.toLocaleString("ko-KR")}
+                      ₩{orderLiveTotal(order).toLocaleString("ko-KR")}
                     </p>
                   </div>
                 </div>

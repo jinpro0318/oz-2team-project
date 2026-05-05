@@ -19,8 +19,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
   // BottomNav가 표시되는 페이지인지 확인 (BottomNav.tsx와 동일한 로직)
   const showBottomNav = !(
-    pathname?.startsWith("/product") || 
-    pathname?.endsWith("/confirm") || 
+    pathname?.endsWith("/confirm") ||
     pathname?.endsWith("/cancel") ||
     !isBottomNavVisible
   );
