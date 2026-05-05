@@ -123,8 +123,9 @@ const PAID_STATUSES: OrderStatus[] = [
   "payment_complete", "preparing", "shipping", "delivered", 
   "cancelled", "exchange_requested", "return_requested", 
   "returning", "returned", "exchange_completed", 
-  "return_completed", "purchase_confirmed"
+  "return_completed", "purchase_confirmed", "claim_rejected"
 ];
+
 
 
 export async function getAllOrders(): Promise<Order[]> {

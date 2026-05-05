@@ -112,7 +112,9 @@ export type OrderStatus =
   | "exchange_completed"
   | "return_completed"
   | "purchase_confirmed"
-  | "payment_pending";
+  | "payment_pending"
+  | "claim_rejected"; // [효진] 추가
+
 
 
 export interface OrderItem {
