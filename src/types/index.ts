@@ -7,7 +7,9 @@ export interface Celebrity {
   commissionRate: number;
   isActive: boolean;
   gradient: string;
+  order?: number; // [효진] 노출 순서 (낮을수록 앞)
 }
+
 
 
 
@@ -69,6 +71,9 @@ export interface Address {
   addressDetail: string;
   isDefault: boolean;
 }
+
+export type ShippingAddress = Address; // [효진] 하위 호환성을 위해 추가
+
 
 export interface User {
   id: string;
@@ -224,4 +229,6 @@ export interface CelebrityFormData {
   commissionRate: number;
   isActive: boolean;
   gradient: string;
+  order?: number; // [효진] 추가
 }
+

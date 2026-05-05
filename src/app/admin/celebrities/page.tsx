@@ -284,8 +284,10 @@ function CelebrityManageDrawer({
         isActive: celeb.isActive,
         gradient: celeb.gradient,
         avatarUrl: celeb.avatarUrl,
+        order: celeb.order || 0,
       });
     }
+
 
 
   });
@@ -404,14 +406,18 @@ function CelebrityManageDrawer({
                     <Form.Item name="bio" label="소개글">
                       <Input.TextArea rows={3} />
                     </Form.Item>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <Form.Item name="commissionRate" label="커미션율 (%)">
                         <InputNumber className="w-full" min={0} max={100} />
+                      </Form.Item>
+                      <Form.Item name="order" label="노출 순서">
+                        <InputNumber className="w-full" min={0} placeholder="낮을수록 앞" />
                       </Form.Item>
                       <Form.Item name="isActive" label="상태" valuePropName="checked">
                         <Switch checkedChildren="활성" unCheckedChildren="비활성" />
                       </Form.Item>
                     </div>
+
                     <Form.Item name="avatarUrl" label="프로필 이미지">
                       <ImageUpload folder="avatars" />
                     </Form.Item>
@@ -529,7 +535,8 @@ function AdminCelebrities() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {celebrities.map(celeb => (
+        {[...celebrities].sort((a, b) => (a.order || 0) - (b.order || 0)).map(celeb => (
+
           <Card key={celeb.id} size="small" className="hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm overflow-hidden" style={{ background: celeb.gradient }}>
@@ -562,11 +569,17 @@ function AdminCelebrities() {
           <Form.Item name="bio" label="소개글">
             <Input.TextArea rows={3} placeholder="셀럽 소개를 입력하세요" />
           </Form.Item>
-          <Form.Item name="gradient" label="테마 색상" initialValue={GRADIENTS[0]}>
-            <Select>
-              {GRADIENTS.map((g, i) => <Select.Option key={i} value={g}><div className="h-4 w-full rounded" style={{ background: g }} /></Select.Option>)}
-            </Select>
-          </Form.Item>
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="gradient" label="테마 색상" initialValue={GRADIENTS[0]}>
+              <Select>
+                {GRADIENTS.map((g, i) => <Select.Option key={i} value={g}><div className="h-4 w-full rounded" style={{ background: g }} /></Select.Option>)}
+              </Select>
+            </Form.Item>
+            <Form.Item name="order" label="노출 순서" initialValue={0}>
+              <InputNumber className="w-full" min={0} placeholder="낮을수록 앞" />
+            </Form.Item>
+          </div>
+
           <Form.Item name="avatarUrl" label="프로필 이미지">
             <ImageUpload folder="avatars" />
           </Form.Item>

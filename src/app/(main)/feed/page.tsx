@@ -14,14 +14,18 @@ export default function FeedPage() {
   const { data: posts = [], isLoading: postsLoading } = usePosts();
   const [activeCelebId, setActiveCelebId] = useState("");
 
+  // [효진] 셀럽 순서(order)에 따라 정렬
+  const sortedCelebrities = [...celebrities].sort((a, b) => (a.order || 0) - (b.order || 0));
+
   useEffect(() => {
-    if (celebrities.length > 0 && !activeCelebId) {
-      setActiveCelebId(celebrities[0].id);
+    if (sortedCelebrities.length > 0 && !activeCelebId) {
+      setActiveCelebId(sortedCelebrities[0].id);
     }
-  }, [celebrities, activeCelebId]);
+  }, [sortedCelebrities, activeCelebId]);
 
   const filteredPosts = posts.filter((p) => p.celebrityId === activeCelebId);
-  const celeb = celebrities.find((c) => c.id === activeCelebId);
+  const celeb = sortedCelebrities.find((c) => c.id === activeCelebId);
+
 
   if (celebLoading || postsLoading) {
     return (
@@ -35,7 +39,8 @@ export default function FeedPage() {
     <div className="pb-[60px]">
       <TopBar />
       <StoryStrip
-        celebrities={celebrities}
+        celebrities={sortedCelebrities}
+
         activeCelebId={activeCelebId}
         onSelect={setActiveCelebId}
       />
