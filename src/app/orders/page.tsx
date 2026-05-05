@@ -6,8 +6,10 @@ import { Button, Spin, Empty } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
 import BottomNav from "@/components/common/BottomNav";
 import { useOrders } from "@/hooks/useOrders";
+import { useProducts } from "@/hooks/useProducts";
 import { useAuthStore } from "@/stores/authStore";
 import { updateUserLastChecked } from "@/lib/services/user";
+import { buildProductPriceMap } from "@/lib/utils/price";
 import type { OrderStatus } from "@/types";
 
 const statusConfig: Record<OrderStatus, { label: string; icon: string; className: string }> = {
@@ -136,6 +138,8 @@ function OrderCard({ order, initialLastChecked }: { order: any; initialLastCheck
   const router = useRouter();
   const status: OrderStatus = order.status;
   const sc = statusConfig[status] || statusConfig.payment_pending;
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
 
   return (
     <div className="bg-surface border-y border-border-light overflow-hidden">
@@ -180,7 +184,11 @@ function OrderCard({ order, initialLastChecked }: { order: any; initialLastCheck
             <p className="text-[12px] text-text-secondary">
               {item.color} · {item.size} · {item.quantity}개
             </p>
-            <p className="mt-1 text-[14px] font-bold">₩{formatPrice(item.price)}</p>
+            <p className="mt-1 text-[14px] font-bold">
+              ₩{formatPrice(
+                (priceMap.get(item.productId) ?? item.product.price) * item.quantity
+              )}
+            </p>
           </div>
         </div>
       ))}

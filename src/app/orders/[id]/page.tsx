@@ -6,8 +6,10 @@ import { Button, Steps, Tag, Spin, Alert } from "antd";
 import { PhoneOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useOrder } from "@/hooks/useOrders";
+import { useProducts } from "@/hooks/useProducts";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { isFinishedStatus, getActiveClaimType, getCodeLogisticsTrackingNumber } from "@/lib/utils/order";
+import { buildProductPriceMap } from "@/lib/utils/price";
 
 const statusStepMap: Record<string, number> = {
   // 정상 흐름
@@ -31,6 +33,8 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: order, isLoading } = useOrder(id);
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
   const [trackingStatus, setTrackingStatus] = useState<string | null>(null);
 
   if (isLoading) {
@@ -186,17 +190,20 @@ export default function OrderDetailPage() {
 
       <div className="bg-surface px-3 py-4 border-b border-border">
         <h3 className="mb-3 text-[15px] font-bold">주문 상품</h3>
-        {order.items.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0">
-            <div className="h-16 w-14 shrink-0 rounded bg-gradient-to-br from-gray-200 to-gray-300" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold uppercase text-text-muted">{item.product.brand}</p>
-              <p className="truncate text-[13px] font-bold">{item.product.name}</p>
-              <p className="text-[11px] text-text-secondary">{item.color} / {item.size} · {item.quantity}개</p>
+        {order.items.map((item, idx) => {
+          const lineTotal = (priceMap.get(item.productId) ?? item.product.price) * item.quantity;
+          return (
+            <div key={idx} className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0">
+              <div className="h-16 w-14 shrink-0 rounded bg-gradient-to-br from-gray-200 to-gray-300" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold uppercase text-text-muted">{item.product.brand}</p>
+                <p className="truncate text-[13px] font-bold">{item.product.name}</p>
+                <p className="text-[11px] text-text-secondary">{item.color} / {item.size} · {item.quantity}개</p>
+              </div>
+              <p className="shrink-0 text-sm font-bold">₩{formatPrice(lineTotal)}</p>
             </div>
-            <p className="shrink-0 text-sm font-bold">₩{formatPrice(item.price)}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="bg-surface px-3 py-4 border-b border-border">
@@ -210,24 +217,32 @@ export default function OrderDetailPage() {
 
       <div className="bg-surface px-3 py-4 border-b border-border">
         <h3 className="mb-2 text-[15px] font-bold">결제 정보</h3>
-        <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between">
-            <span className="text-text-secondary">결제 수단</span>
-            <span>{order.paymentMethod}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-secondary">상품 금액</span>
-            <span>₩{formatPrice(order.totalAmount)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-secondary">배송비</span>
-            <span>{order.shippingFee === 0 ? "무료" : `₩${formatPrice(order.shippingFee)}`}</span>
-          </div>
-          <div className="flex justify-between border-t border-border pt-1.5 font-bold">
-            <span>총 결제 금액</span>
-            <span>₩{formatPrice(order.totalAmount + order.shippingFee)}</span>
-          </div>
-        </div>
+        {(() => {
+          const liveTotal = order.items.reduce(
+            (sum, item) => sum + (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
+            0
+          );
+          return (
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">결제 수단</span>
+                <span>{order.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">상품 금액</span>
+                <span>₩{formatPrice(liveTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">배송비</span>
+                <span>{order.shippingFee === 0 ? "무료" : `₩${formatPrice(order.shippingFee)}`}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1.5 font-bold">
+                <span>총 결제 금액</span>
+                <span>₩{formatPrice(liveTotal + order.shippingFee)}</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">

@@ -8,6 +8,8 @@ import { useCartStore } from "@/stores/cartStore";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { useUIStore } from "@/stores/uiStore";
+import { useProducts } from "@/hooks/useProducts";
+import { buildProductPriceMap, resolveUnitPrice } from "@/lib/utils/price";
 
 function formatPrice(n: number, mounted: boolean) {
   if (!mounted) return n.toString();
@@ -17,17 +19,25 @@ function formatPrice(n: number, mounted: boolean) {
 export default function CartPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const { items, removeItem, updateQuantity, getTotalAmount } = useCartStore();
+  const { items, removeItem, updateQuantity } = useCartStore();
   const { requireAuth } = useRequireAuth();
   const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
-  
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
+
   useEffect(() => {
     setMounted(true);
     setBottomNavVisible(false);
     return () => setBottomNavVisible(true);
   }, [setBottomNavVisible]);
 
-  const totalAmount = getTotalAmount();
+  const getUnitPrice = (item: (typeof items)[number]) =>
+    resolveUnitPrice(item.productId, item.product.price, priceMap);
+
+  const totalAmount = items.reduce(
+    (sum, item) => sum + getUnitPrice(item) * item.quantity,
+    0
+  );
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
@@ -91,7 +101,7 @@ export default function CartPage() {
                       onChange={(val) => updateQuantity(item.id, val ?? 1)}
                     />
                     <p className="text-sm font-bold">
-                      ₩{formatPrice(item.product.price * item.quantity, mounted)}
+                      ₩{formatPrice(getUnitPrice(item) * item.quantity, mounted)}
                     </p>
                   </div>
                 </div>

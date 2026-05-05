@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import HotspotDot from "./HotspotDot";
 import type { Hotspot } from "@/types";
+import { useProducts } from "@/hooks/useProducts";
+import { buildProductPriceMap, formatKRW } from "@/lib/utils/price";
 
 interface HotspotImageProps {
   imageUrl: string;
@@ -19,6 +21,8 @@ export default function HotspotImage({
   celebName,
 }: HotspotImageProps) {
   const [showGuide, setShowGuide] = useState(hotspots.length > 0);
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
 
   return (
     <div
@@ -61,18 +65,21 @@ export default function HotspotImage({
 
       {/* Hotspots */}
       <div className="relative z-20 w-full h-full">
-        {hotspots.map((hs) => (
-          <HotspotDot
-            key={hs.id}
-            x={hs.left}
-            y={hs.top}
-            product={{
-              id: hs.productId,
-              name: hs.label,
-              price: hs.price,
-            }}
-          />
-        ))}
+        {hotspots.map((hs) => {
+          const livePrice = priceMap.get(hs.productId);
+          return (
+            <HotspotDot
+              key={hs.id}
+              x={hs.left}
+              y={hs.top}
+              product={{
+                id: hs.productId,
+                name: hs.label,
+                price: livePrice != null ? formatKRW(livePrice) : hs.price,
+              }}
+            />
+          );
+        })}
 
         {/* Guide Badge */}
         {showGuide && (

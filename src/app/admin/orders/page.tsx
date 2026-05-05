@@ -14,13 +14,15 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useAllOrders, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useAllProducts } from "@/hooks/useProducts";
 import type { Order, OrderStatus } from "@/types";
-import { 
-  isFinishedStatus, 
-  getActiveClaimType, 
-  isClaimInProgress, 
-  getCodeLogisticsTrackingNumber 
+import {
+  isFinishedStatus,
+  getActiveClaimType,
+  isClaimInProgress,
+  getCodeLogisticsTrackingNumber
 } from "@/lib/utils/order";
+import { buildProductPriceMap } from "@/lib/utils/price";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 
 
@@ -84,6 +86,13 @@ function AdminOrders() {
   const [activeTab, setActiveTab] = useState("all");
   const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
   const { data: orders = [], isLoading } = useAllOrders();
+  const { data: products = [] } = useAllProducts();
+  const priceMap = buildProductPriceMap(products);
+  const computeOrderTotal = (order: Order) =>
+    order.items.reduce(
+      (sum, item) => sum + (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
+      0
+    );
   const updateStatus = useUpdateOrderStatus();
 
   const filteredOrders = orders.filter((o) => {
@@ -527,11 +536,10 @@ function AdminOrders() {
     },
     {
       title: "금액",
-      dataIndex: "totalAmount",
       key: "amount",
       width: 110,
-      render: (v: number) => (
-        <span className="text-xs font-semibold">₩{v.toLocaleString("ko-KR")}</span>
+      render: (_: unknown, r: Order) => (
+        <span className="text-xs font-semibold">₩{computeOrderTotal(r).toLocaleString("ko-KR")}</span>
       ),
     },
     {
@@ -877,21 +885,24 @@ function AdminOrders() {
             <div>
               <p className="mb-2 text-xs font-semibold text-[#181C32]">주문 상품</p>
               <div className="space-y-2">
-                {drawerOrder.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-3 rounded-lg border border-[#E4E6EF] p-3">
-                    <div className="h-14 w-11 shrink-0 rounded-md bg-gradient-to-br from-gray-200 to-gray-300" />
-                    <div className="flex-1">
-                      <p className="text-[10px] font-semibold uppercase text-[#7E8299]">
-                        {item.product.brand}
-                      </p>
-                      <p className="text-xs font-bold text-[#181C32]">{item.product.name}</p>
-                      <p className="text-[10px] text-[#A8A8A8]">
-                        {item.color} / {item.size} / {item.quantity}개
-                      </p>
+                {drawerOrder.items.map((item, idx) => {
+                  const lineTotal = (priceMap.get(item.productId) ?? item.product.price) * item.quantity;
+                  return (
+                    <div key={idx} className="flex items-center gap-3 rounded-lg border border-[#E4E6EF] p-3">
+                      <div className="h-14 w-11 shrink-0 rounded-md bg-gradient-to-br from-gray-200 to-gray-300" />
+                      <div className="flex-1">
+                        <p className="text-[10px] font-semibold uppercase text-[#7E8299]">
+                          {item.product.brand}
+                        </p>
+                        <p className="text-xs font-bold text-[#181C32]">{item.product.name}</p>
+                        <p className="text-[10px] text-[#A8A8A8]">
+                          {item.color} / {item.size} / {item.quantity}개
+                        </p>
+                      </div>
+                      <p className="text-xs font-semibold">₩{lineTotal.toLocaleString("ko-KR")}</p>
                     </div>
-                    <p className="text-xs font-semibold">₩{(item.price * item.quantity).toLocaleString("ko-KR")}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -922,7 +933,7 @@ function AdminOrders() {
                 </div>
                 <div className="flex justify-between border-t border-[#E4E6EF] pt-2 font-bold">
                   <span className="text-[#181C32]">총 결제금액</span>
-                  <span className="text-[#3699FF]">₩{drawerOrder.totalAmount.toLocaleString("ko-KR")}</span>
+                  <span className="text-[#3699FF]">₩{(computeOrderTotal(drawerOrder) + drawerOrder.shippingFee).toLocaleString("ko-KR")}</span>
                 </div>
               </div>
             </div>

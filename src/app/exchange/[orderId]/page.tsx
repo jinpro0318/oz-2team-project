@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Input, App, Spin } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useOrder, useCreateExchange, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useProducts } from "@/hooks/useProducts";
+import { buildProductPriceMap } from "@/lib/utils/price";
 import type { ExchangeType } from "@/types";
 
 const reasonsList = [
@@ -25,6 +27,8 @@ export default function ExchangePage() {
   const router = useRouter();
   const { message } = App.useApp();
   const { data: order, isLoading } = useOrder(orderId);
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
   const createExchangeMutation = useCreateExchange();
   const updateStatusMutation = useUpdateOrderStatus();
 
@@ -217,7 +221,7 @@ export default function ExchangePage() {
                 </p>
                 <p className="text-[14px] font-bold text-text leading-tight mb-1">{item.product.name}</p>
                 <p className="text-[12px] text-text-secondary">
-                  {item.color} · {item.quantity}개 · ₩{formatPrice(item.price)}
+                  {item.color} · {item.quantity}개 · ₩{formatPrice((priceMap.get(item.productId) ?? item.product.price) * item.quantity)}
                 </p>
               </div>
             </div>

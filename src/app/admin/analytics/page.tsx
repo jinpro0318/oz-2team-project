@@ -79,7 +79,13 @@ function AdminAnalytics() {
 
   const isLoading = celebLoading || prodLoading || ordersLoading;
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const priceById = new Map(products.map((p) => [p.id, p.price] as const));
+  const orderLiveTotal = (o: typeof orders[number]) =>
+    o.items.reduce(
+      (sum, item) => sum + (priceById.get(item.productId) ?? item.product.price) * item.quantity,
+      0
+    );
+  const totalRevenue = orders.reduce((sum, o) => sum + orderLiveTotal(o), 0);
   const avgOrderAmount = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
   const totalSalesCount = products.reduce((sum, p) => sum + p.salesCount, 0);
 
@@ -104,7 +110,7 @@ function AdminAnalytics() {
   const dailyTotals: Record<string, number> = {};
   orders.forEach((o) => {
     const day = dayMap[new Date(o.createdAt).getDay()] ?? "?";
-    dailyTotals[day] = (dailyTotals[day] ?? 0) + o.totalAmount;
+    dailyTotals[day] = (dailyTotals[day] ?? 0) + orderLiveTotal(o);
   });
   const dailyData = ["월", "화", "수", "목", "금", "토", "일"].map((day) => ({
     day,

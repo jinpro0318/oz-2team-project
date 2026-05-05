@@ -11,6 +11,8 @@ import { useDaumPostcode } from "@/hooks/useDaumPostcode";
 import { loadTossPayments } from "@tosspayments/tosspayments-sdk";
 
 import { useUIStore } from "@/stores/uiStore";
+import { useProducts } from "@/hooks/useProducts";
+import { buildProductPriceMap, resolveUnitPrice } from "@/lib/utils/price";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
@@ -22,10 +24,14 @@ function formatPrice(n: number, mounted: boolean) {
 export default function CheckoutPage() {
   const router = useRouter();
   const { message } = App.useApp();
-  const { items, getTotalAmount, clearCart } = useCartStore();
+  const { items, clearCart } = useCartStore();
   const user = useAuthStore((s) => s.user);
   const createOrderMutation = useCreateOrder();
   const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
+  const getUnitPrice = (item: (typeof items)[number]) =>
+    resolveUnitPrice(item.productId, item.product.price, priceMap);
 
   const [mounted, setMounted] = useState(false);
   const [recipient, setRecipient] = useState(user?.nickname || "");
@@ -42,7 +48,10 @@ export default function CheckoutPage() {
   const [deliveryMethod, setDeliveryMethod] = useState("standard");
   const [paymentMethod, setPaymentMethod] = useState("card");
 
-  const totalAmount = getTotalAmount();
+  const totalAmount = items.reduce(
+    (sum, item) => sum + getUnitPrice(item) * item.quantity,
+    0
+  );
   const shippingFee = totalAmount >= 50000 ? 0 : 3000;
   const finalTotal = totalAmount + shippingFee;
 
@@ -69,14 +78,21 @@ export default function CheckoutPage() {
       // 1. Create order in our database
       const order = await createOrderMutation.mutateAsync({
         userId: user.id,
-        items: items.map((item) => ({
-          productId: item.productId,
-          product: item.product,
-          color: item.color,
-          size: item.size,
-          quantity: item.quantity,
-          price: item.product.price * item.quantity,
-        })),
+        items: items.map((item) => {
+          const unit = getUnitPrice(item);
+          const livePrice = priceMap.get(item.productId);
+          const product = livePrice != null
+            ? { ...item.product, price: livePrice }
+            : item.product;
+          return {
+            productId: item.productId,
+            product,
+            color: item.color,
+            size: item.size,
+            quantity: item.quantity,
+            price: unit * item.quantity,
+          };
+        }),
         shippingAddress: {
           id: `addr_${Date.now()}`,
           label: "배송지",
@@ -214,7 +230,7 @@ export default function CheckoutPage() {
                   {item.color} / {item.size} · {item.quantity}개
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-bold">₩{formatPrice(item.product.price * item.quantity, mounted)}</p>
+              <p className="shrink-0 text-sm font-bold">₩{formatPrice(getUnitPrice(item) * item.quantity, mounted)}</p>
             </div>
           ))}
         </section>

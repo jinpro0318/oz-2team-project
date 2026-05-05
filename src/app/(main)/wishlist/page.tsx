@@ -7,8 +7,10 @@ import Link from "next/link";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useCart } from "@/hooks/useCart";
+import { useProducts } from "@/hooks/useProducts";
 import { useAuthStore } from "@/stores/authStore";
 import { updateUserLastChecked } from "@/lib/services/user";
+import { buildProductPriceMap } from "@/lib/utils/price";
 
 import { useUIStore } from "@/stores/uiStore";
 
@@ -19,6 +21,8 @@ function formatPrice(n: number) {
 export default function WishlistPage() {
   const { items, toggleWishlist, isLoading } = useWishlist();
   const { addToCart } = useCart();
+  const { data: products = [] } = useProducts();
+  const priceMap = buildProductPriceMap(products);
   const { user, setUser } = useAuthStore();
   const setHasNewWishlistItem = useUIStore((s) => s.setHasNewWishlistItem);
 
@@ -93,7 +97,7 @@ export default function WishlistPage() {
                   </div>
                   <p className="mt-0.5 truncate text-xs font-bold text-text">{item.product.name}</p>
                 </Link>
-                <p className="mt-1 text-sm font-bold">₩{formatPrice(item.product.price)}</p>
+                <p className="mt-1 text-sm font-bold">₩{formatPrice(priceMap.get(item.productId) ?? item.product.price)}</p>
                 <div className="mt-2 flex gap-1">
                   <Button
                     size="small"

@@ -46,7 +46,10 @@ function AdminSettlements() {
         const prod = products.find(p => p.id === item.productId);
         return prod?.celebrityId === celeb.id;
       });
-      const orderCelebTotal = celebItems.reduce((s, item) => s + (item.price * item.quantity), 0);
+      const orderCelebTotal = celebItems.reduce((s, item) => {
+        const livePrice = products.find(p => p.id === item.productId)?.price;
+        return s + (livePrice ?? item.product.price) * item.quantity;
+      }, 0);
       return sum + orderCelebTotal;
     }, 0);
 
