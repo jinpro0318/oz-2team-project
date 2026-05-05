@@ -25,7 +25,9 @@ const statusConfig: Record<OrderStatus, { label: string; icon: string; className
   purchase_confirmed: { label: "구매확정", icon: "✨", className: "text-gray-900" },
 
   payment_pending: { label: "결제대기", icon: "⏳", className: "text-gray-400" },
+  claim_rejected: { label: "클레임 반려", icon: "✕", className: "text-red-500" },
 };
+
 
 const filterTabs = [
   { key: "all", label: "전체" },
