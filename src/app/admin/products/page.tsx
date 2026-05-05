@@ -44,7 +44,7 @@ const defaultFormValues: ProductFormData = {
   colors: [],
   sizes: [],
   description: "",
-  specs: {},
+  specs: "",
   imageUrls: [],
   celebrityId: "",
   salesCount: 0,
