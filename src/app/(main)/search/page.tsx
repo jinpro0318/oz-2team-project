@@ -8,15 +8,30 @@ import BottomNav from "@/components/common/BottomNav";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useProducts } from "@/hooks/useProducts";
 
-const popularSearches = ["크롭 재킷", "원숄더 드레스", "수트", "스니커즈", "제니 착장"];
-
 export default function SearchPage() {
   const router = useRouter();
   const [keyword, setKeyword] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>(["트위드 재킷", "아이유 드레스"]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useProducts();
+
+  // [효진] 인기 검색어는 노출 중인 상품을 누적 판매량 순으로 정렬해 동적으로 구성
+  const popularSearches = useMemo(() => {
+    const tokens: string[] = [];
+    const seen = new Set<string>();
+    const sorted = [...products].sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0));
+    for (const p of sorted) {
+      const label = p.name.split(/\s+/).slice(-2).join(" ").trim() || p.name;
+      const key = label.toLowerCase();
+      if (label && !seen.has(key)) {
+        seen.add(key);
+        tokens.push(label);
+      }
+      if (tokens.length >= 5) break;
+    }
+    return tokens;
+  }, [products]);
 
   const results = useMemo(() => {
     if (!keyword.trim()) return { celebs: [], prods: [] };
@@ -158,20 +173,22 @@ export default function SearchPage() {
             ))}
           </div>
 
-          <div className="bg-surface px-3 py-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-secondary">인기 검색어</p>
-            <div className="flex flex-wrap gap-2">
-              {popularSearches.map((s) => (
-                <button
-                  key={s}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs text-text-secondary"
-                  onClick={() => handleSearch(s)}
-                >
-                  {s}
-                </button>
-              ))}
+          {popularSearches.length > 0 && (
+            <div className="bg-surface px-3 py-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-secondary">인기 검색어</p>
+              <div className="flex flex-wrap gap-2">
+                {popularSearches.map((s) => (
+                  <button
+                    key={s}
+                    className="rounded-full border border-border px-3 py-1.5 text-xs text-text-secondary"
+                    onClick={() => handleSearch(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
