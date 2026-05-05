@@ -7,7 +7,10 @@ export const metadata = {
   title: "C.O.D.E. Admin",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+
   return (
     <AdminGuard>
       <App>
