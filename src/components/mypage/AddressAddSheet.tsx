@@ -17,7 +17,7 @@ export default function AddressAddSheet({ onClose }: Props) {
   const { embedPostcode } = useDaumPostcode();
 
   const [label, setLabel] = useState("");
-  const [recipient, setRecipient] = useState(user?.name || "");
+  const [recipient, setRecipient] = useState(user?.nickname || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
