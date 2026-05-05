@@ -1,7 +1,12 @@
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth, setPersistence, browserSessionPersistence } from "firebase/auth"; // [효진] 인증 지속성 관련 임포트 추가
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import {
+  getAuth,
+  setPersistence,
+  browserSessionPersistence,
+  type Auth,
+} from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,16 +17,73 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let _app: FirebaseApp | undefined;
+let _auth: Auth | undefined;
+let _db: Firestore | undefined;
+let _storage: FirebaseStorage | undefined;
+let _persistenceApplied = false;
 
-export const auth = getAuth(app);
-
-// [효진] 앱 로드 시 브라우저 세션 지속성 설정 (브라우저 종료 시 로그아웃)
-// SSR 환경에서는 window 객체가 없으므로, 빌드 에러 및 서버 사이드 에러 방지를 위해 체크 로직을 추가했습니다.
-if (typeof window !== "undefined") {
-  setPersistence(auth, browserSessionPersistence);
+function ensureApp(): FirebaseApp {
+  if (_app) return _app;
+  if (!firebaseConfig.apiKey) {
+    throw new Error(
+      "Firebase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_FIREBASE_* 값을 확인하세요."
+    );
+  }
+  _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  return _app;
 }
 
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export default app;
+function ensureAuth(): Auth {
+  if (!_auth) {
+    _auth = getAuth(ensureApp());
+    if (typeof window !== "undefined" && !_persistenceApplied) {
+      setPersistence(_auth, browserSessionPersistence).catch(() => {});
+      _persistenceApplied = true;
+    }
+  }
+  return _auth;
+}
+
+function ensureDb(): Firestore {
+  if (!_db) _db = getFirestore(ensureApp());
+  return _db;
+}
+
+function ensureStorage(): FirebaseStorage {
+  if (!_storage) _storage = getStorage(ensureApp());
+  return _storage;
+}
+
+function lazyProxy<T extends object>(getter: () => T): T {
+  return new Proxy({} as T, {
+    get(_t, prop, receiver) {
+      const target = getter() as any;
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set(_t, prop, value) {
+      const target = getter() as any;
+      return Reflect.set(target, prop, value);
+    },
+    has(_t, prop) {
+      return Reflect.has(getter() as any, prop);
+    },
+    ownKeys() {
+      return Reflect.ownKeys(getter() as any);
+    },
+    getOwnPropertyDescriptor(_t, prop) {
+      return Reflect.getOwnPropertyDescriptor(getter() as any, prop);
+    },
+    getPrototypeOf() {
+      return Reflect.getPrototypeOf(getter() as any);
+    },
+  });
+}
+
+export const auth: Auth = lazyProxy(ensureAuth);
+export const db: Firestore = lazyProxy(ensureDb);
+export const storage: FirebaseStorage = lazyProxy(ensureStorage);
+
+const appProxy: FirebaseApp = lazyProxy(ensureApp);
+export default appProxy;

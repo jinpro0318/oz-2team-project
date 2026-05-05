@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 /**
  * [효진] 서버 사이드 이미지 업로드 API
  * 브라우저의 CORS 정책을 우회하여 Firebase Storage에 이미지를 안전하게 업로드함
