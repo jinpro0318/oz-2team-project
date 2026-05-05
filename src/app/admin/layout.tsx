@@ -10,10 +10,8 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-
   return (
     <AdminGuard>
-      <App>
       <div className="flex min-h-dvh bg-[#F5F6FA]" style={{ maxWidth: "none" }}>
         <AdminSidebar />
         <div className="ml-[220px] flex flex-1 flex-col">
@@ -21,7 +19,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <main className="flex-1 p-6">{children}</main>
         </div>
       </div>
-      </App>
     </AdminGuard>
   );
 }
+
