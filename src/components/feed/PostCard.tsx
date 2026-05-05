@@ -51,13 +51,37 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         </button>
       </div>
 
-      {/* Image with Hotspots */}
-      <HotspotImage
-        imageUrl={post.imageUrl}
-        hotspots={post.hotspots}
-        gradient={celebrity.gradient}
-        celebName={celebrity.name}
-      />
+      {/* Image with Hotspots / Carousel */}
+      <div className="relative">
+        <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide no-scrollbar">
+          {/* [효진] 모든 이미지를 HotspotImage로 감싸고, 각 인덱스에 맞는 핫스팟만 전달 */}
+          {(post.imageUrls && post.imageUrls.length > 0 ? post.imageUrls : [post.imageUrl]).map((url, idx) => (
+            <div key={idx} className="w-full shrink-0 snap-center relative">
+              <HotspotImage
+                imageUrl={url}
+                // [효진] 해당 이미지 인덱스에 속하는 핫스팟만 필터링
+                hotspots={(post.hotspots || []).filter(h => (h.imageIndex ?? 0) === idx)}
+                gradient={celebrity.gradient}
+                celebName={celebrity.name}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Indicator Dots */}
+        {(post.imageUrls?.length || 1) > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
+            {(post.imageUrls || [post.imageUrl]).map((_, i) => (
+              <div 
+                key={i} 
+                className="w-1.5 h-1.5 rounded-full bg-white/50 shadow-sm"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+
 
       {/* Actions & Likes */}
       <InstagramBar likes={post.likes} onLike={() => {}} />
@@ -67,8 +91,9 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         <p className="text-[13.5px] leading-[1.5] text-text">
           {/* [효진] 캡션 부분은 쇼핑몰 공식 계정 느낌을 주기 위해 작성자를 'C.O.D.E'로 고정했습니다. */}
           <span className="font-bold mr-1.5">C.O.D.E</span>
-          {post.caption}
+          <span className="whitespace-pre-wrap">{post.caption}</span>
         </p>
+
         {post.comments > 0 && (
           <button
             className="text-[13px] mt-1 text-text-secondary hover:text-text transition-colors"

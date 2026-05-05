@@ -4,13 +4,14 @@ import { useState } from "react";
 import { Card, Select, Spin, App } from "antd"; // [효진] App 컴포넌트 추가
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
-import { useAllOrders } from "@/hooks/useOrders";
+import { useAllOrders, useAnalyticsOrders } from "@/hooks/useOrders";
 import {
   ArrowUpOutlined,
   ShoppingCartOutlined,
   DollarOutlined,
   RiseOutlined,
 } from "@ant-design/icons";
+
 
 const colors = ["#3699FF", "#00C851", "#FF6B35", "#ED4956", "#9B59B6"];
 
@@ -74,7 +75,8 @@ function AdminAnalytics() {
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
-  const { data: orders = [], isLoading: ordersLoading } = useAllOrders();
+  const { data: orders = [], isLoading: ordersLoading } = useAnalyticsOrders();
+
 
   const isLoading = celebLoading || prodLoading || ordersLoading;
 

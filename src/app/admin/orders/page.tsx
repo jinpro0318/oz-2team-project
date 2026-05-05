@@ -23,6 +23,8 @@ import {
 } from "@/lib/utils/order";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 
+
+
 const statusTabs = [
   { key: "all", label: "전체" },
   { key: "payment_complete", label: "결제완료" },
@@ -32,9 +34,9 @@ const statusTabs = [
   { key: "purchase_confirmed", label: "판매완료" },
   { key: "exchange", label: "교환요청", statuses: ["exchange_requested", "returning", "returned", "exchange_completed"], type: "exchange" },
   { key: "return", label: "반품요청", statuses: ["return_requested", "returning", "returned"], type: "return" },
-  { key: "claim_rejected", label: "클레임 반려", statuses: ["claim_rejected"] },
   { key: "cancelled", label: "취소" },
 ];
+
 
 const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   payment_complete: { label: "결제완료", color: "blue" },
@@ -49,9 +51,9 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   returned: { label: "반송완료", color: "magenta" },
   exchange_completed: { label: "교환완료", color: "geekblue" },
   return_completed: { label: "반품완료", color: "gray" },
-  claim_rejected: { label: "클레임 반려", color: "red" },
   purchase_confirmed: { label: "구매확정", color: "green" },
 };
+
 
 const CARRIERS = [
   { label: "CJ대한통운", value: "04" },
@@ -116,45 +118,9 @@ function AdminOrders() {
     return acc;
   }, {});
 
-  // [추가] 미결제 만료건 일괄 정리 로직
-  const handleCleanupExpiredOrders = async () => {
-    const now = dayjs();
-    const expiredOrders = orders.filter(o => 
-      o.status === "payment_pending" && 
-      now.diff(dayjs(o.createdAt), 'hour') >= 72
-    );
-
-    if (expiredOrders.length === 0) {
-      message.info("정리할 만료된 주문이 없습니다.");
-      return;
-    }
-
-    modal.confirm({
-      title: `미결제 만료건 정리 (${expiredOrders.length}건)`,
-      content: "3일 이상 결제가 되지 않은 주문들을 일괄 취소 처리하시겠습니까? (재고가 자동 복구됩니다)",
-      onOk: async () => {
-        try {
-          for (const order of expiredOrders) {
-            await updateStatus.mutateAsync({
-              id: order.id,
-              status: "cancelled",
-              timelineEntry: {
-                status: "cancelled",
-                label: "미결제 유효기간 만료",
-                date: new Date().toISOString(),
-                description: "3일 내 입금이 확인되지 않아 시스템에서 자동 취소 처리되었습니다.",
-              },
-            });
-          }
-          message.success(`${expiredOrders.length}건의 주문이 정리되었습니다.`);
-        } catch (error) {
-          message.error("정리 중 오류가 발생했습니다.");
-        }
-      },
-    });
-  };
-
   const handlePrepare = async (order: Order) => {
+
+
     try {
       const newTracking = getCodeLogisticsTrackingNumber(order.trackingNumber, "preparing");
       await updateStatus.mutateAsync({
@@ -573,23 +539,9 @@ function AdminOrders() {
       key: "date",
       width: 100,
       render: (date: string, record: Order) => {
-        const diffHours = dayjs().diff(dayjs(date), 'hour');
-        const isExpired = record.status === "payment_pending" && diffHours >= 72;
         return (
           <Space orientation="vertical" size={0}>
             <span className="text-xs">{dayjs(date).format("YYYY-MM-DD HH:mm")}</span>
-            {record.status === "payment_pending" && (
-              <span className={`text-[10px] font-bold ${isExpired ? 'text-red-500 animate-pulse' : 'text-gray-400'} flex items-center gap-1`}>
-                {isExpired ? (
-                  <>
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-                    ⚠️ 결제기한 만료
-                  </>
-                ) : (
-                  `${72 - diffHours}시간 후 만료`
-                )}
-              </span>
-            )}
           </Space>
         );
       },
@@ -754,16 +706,9 @@ function AdminOrders() {
           <Button icon={<DownloadOutlined />} size="small" className="text-xs font-medium">
             엑셀 다운로드
           </Button>
-          <Button
-            danger
-            size="small"
-            icon={<CloseOutlined />}
-            onClick={handleCleanupExpiredOrders}
-            className="border-red-100 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-medium"
-          >
-            미결제 만료건 정리
-          </Button>
         </div>
+
+
       </div>
 
       <Card size="small" className="border-[#E4E6EF]">

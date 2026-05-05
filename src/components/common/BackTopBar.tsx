@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { LeftOutlined } from "@ant-design/icons";
+import AdminLinkButtons from "./AdminLinkButtons";
+
 
 interface BackTopBarProps {
   title: string;
@@ -24,7 +26,9 @@ export default function BackTopBar({ title, rightAction, backUrl }: BackTopBarPr
     <header className="sticky top-0 z-30 flex h-11 items-center gap-2.5 border-b border-border bg-surface px-3">
       <LeftOutlined className="cursor-pointer text-base" onClick={handleBack} />
       <h2 className="flex-1 text-[15px] font-bold">{title}</h2>
+      <AdminLinkButtons variant="mall" />
       {rightAction}
     </header>
+
   );
 }

@@ -4,7 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getOrders,
   getAllOrders,
+  getAllOrdersForAnalytics, // [효진] 추가
   getOrder,
+
   createOrder,
   updateOrderStatus,
   subscribeOrder,
@@ -15,9 +17,11 @@ import {
 import {
   createExchange,
   getExchangesByOrder,
-  getAllExchanges, // [효진] 추가
+  getAllExchanges,
+  updateExchangeStatus, // [효진] 추가
   type CreateExchangeInput,
 } from "@/lib/services/exchange";
+
 import { useAuthStore } from "@/stores/authStore";
 import type { OrderStatus, OrderTimeline } from "@/types";
 
@@ -129,3 +133,27 @@ export function useAllExchanges() {
     queryFn: getAllExchanges,
   });
 }
+
+// [효진] 통계용 주문 데이터 조회 훅
+export function useAnalyticsOrders() {
+  return useQuery({
+    queryKey: ["orders", "analytics"],
+    queryFn: getAllOrdersForAnalytics,
+    staleTime: 5 * 60 * 1000, // 통계 데이터는 5분 정도 캐시 유지 가능
+  });
+}
+
+// [효진] 교환/반품 상태 업데이트 훅
+
+export function useUpdateExchangeStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { id: string; status: "requested" | "processing" | "completed" }) =>
+      updateExchangeStatus(params.id, params.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exchanges"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] }); // 연동된 주문 상태 변경 가능성 대응
+    },
+  });
+}
+

@@ -9,6 +9,8 @@ import { useCartStore } from "@/stores/cartStore";
 import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useUIStore } from "@/stores/uiStore";
+import AdminLinkButtons from "./AdminLinkButtons";
+
 
 export default function TopBar() {
   const router = useRouter();
@@ -32,18 +34,8 @@ export default function TopBar() {
         C.O.D.E.
       </Link>
       <div className="flex items-center gap-4">
-        {/* [효진] 관리자 권한이 있는 계정으로 로그인 시, 상단 바에서 바로 어드민 페이지로 이동할 수 있는 아이콘을 추가했습니다. 
-            SSR 환경에서의 하이드레이션 오류를 방지하기 위해 mounted 상태를 체크합니다. */}
-        {mounted && user?.role === "admin" && (
-          <Tooltip title="관리자 페이지" placement="bottom">
-            <button
-              className="hover:opacity-60 transition-opacity p-1 rounded-full bg-blue-50"
-              onClick={() => router.push("/admin")}
-            >
-              <Settings className="w-5 h-5 text-blue-500" strokeWidth={2} />
-            </button>
-          </Tooltip>
-        )}
+        <AdminLinkButtons variant="mall" />
+
 
         <button 
           className="hover:opacity-60 transition-opacity relative"

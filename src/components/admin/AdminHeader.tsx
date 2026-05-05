@@ -6,6 +6,7 @@ import { BellOutlined, LogoutOutlined, ShopOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/authStore";
 import { logoutUser } from "@/lib/auth";
 import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 미처리 주문 수 계산용으로 추가
+import AdminLinkButtons from "@/components/common/AdminLinkButtons";
 
 // [효진] pathname → 한글 페이지명 매핑 (브레드크럼에 표시)
 const pageLabels: Record<string, string> = {
@@ -58,17 +59,8 @@ export default function AdminHeader() {
           </button>
         </Badge>
 
-        {/* [효진] 쇼핑몰 사이트로 바로가기 버튼 추가 */}
-        <button
-          className="flex items-center gap-1.5 text-xs text-[#7E8299] transition-colors hover:text-[#3699FF]"
-          onClick={() => router.push("/feed")}
-          title="쇼핑몰 메인으로 이동"
-        >
-          <ShopOutlined />
-          <span>쇼핑몰 가기</span>
-        </button>
+        <AdminLinkButtons variant="admin" />
 
-        <div className="h-5 w-px bg-[#E4E6EF]" />
 
         {/* [효진] 로그아웃 버튼 추가 */}
         <button

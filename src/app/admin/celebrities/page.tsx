@@ -35,8 +35,10 @@ import {
   usePostsByCelebrity,
   useUpdatePostHotspots,
   useCreatePost,
+  useUpdatePost, // [효진] 추가
   useDeletePost, // [효진] 추가
 } from "@/hooks/useCelebrities";
+
 import { useAllProducts } from "@/hooks/useProducts";
 import type { Celebrity, CelebrityFormData, Hotspot, Post } from "@/types";
 import ImageUpload from "@/components/admin/ImageUpload";
@@ -65,29 +67,49 @@ function HotspotEditor({
 }) {
   const { message } = App.useApp();
   const [hotspots, setHotspots] = useState<Hotspot[]>(post.hotspots ?? []);
-  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const [activeImgIdx, setActiveImgIdx] = useState(0); // [효진] 현재 편집 중인 이미지 번호
+  const [activeHsIdx, setActiveHsIdx] = useState<number | null>(null);
+
+  // 현재 선택된 이미지의 이미지 URL
+  const currentImgUrl = (post.imageUrls && post.imageUrls[activeImgIdx]) || post.imageUrl;
+  
+  // 현재 선택된 이미지에 속한 핫스팟들만 필터링
+  const currentImgHotspots = hotspots.filter(h => (h.imageIndex ?? 0) === activeImgIdx);
 
   const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (activeIdx === null) {
+    if (activeHsIdx === null) {
       message.info("편집할 핫스팟 항목을 먼저 선택하거나 추가해주세요.");
       return;
     }
+    // [효진] 클릭한 핫스팟이 현재 이미지의 것인지 확인 후 좌표 업데이트
+    const hsToUpdate = hotspots[activeHsIdx];
+    if ((hsToUpdate.imageIndex ?? 0) !== activeImgIdx) {
+      message.warning("현재 선택된 이미지의 핫스팟이 아닙니다.");
+      return;
+    }
+
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const left = Math.round((x / rect.width) * 100);
     const top = Math.round((y / rect.height) * 100);
-    updateHotspot(activeIdx, "top", top);
-    updateHotspot(activeIdx, "left", left);
+    updateHotspot(activeHsIdx, "top", top);
+    updateHotspot(activeHsIdx, "left", left);
   };
 
   const addHotspot = () => {
+    const newHs: Hotspot = { 
+      id: `hs-${Date.now()}`, 
+      productId: "", 
+      label: "", 
+      price: "", 
+      top: 50, 
+      left: 50,
+      imageIndex: activeImgIdx // [효진] 현재 이미지 인덱스 할당
+    };
     const newIdx = hotspots.length;
-    setHotspots([
-      ...hotspots,
-      { id: `hs-${Date.now()}`, productId: "", label: "", price: "", top: 50, left: 50 },
-    ]);
-    setActiveIdx(newIdx);
+    setHotspots([...hotspots, newHs]);
+    setActiveHsIdx(newIdx);
   };
 
   const updateHotspot = (idx: number, field: keyof Hotspot, value: string | number) => {
@@ -111,86 +133,114 @@ function HotspotEditor({
 
   const removeHotspot = (idx: number) => {
     setHotspots((prev) => prev.filter((_, i) => i !== idx));
-    if (activeIdx === idx) setActiveIdx(null);
+    if (activeHsIdx === idx) setActiveHsIdx(null);
   };
 
   return (
     <div className="flex flex-col h-full bg-[#F8F9FA] rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 p-4 bg-white border-b">
-        <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>뒤로가기</Button>
-        <span className="font-bold text-[#181C32]">"{post.caption}" 핫스팟 편집</span>
+      <div className="flex items-center justify-between p-4 bg-white border-b">
+        <div className="flex items-center gap-2">
+          <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>뒤로가기</Button>
+          <span className="font-bold text-[#181C32]">"{post.caption}" 핫스팟 편집</span>
+        </div>
+        
+        {/* [효진] 이미지 선택 탭 */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {(post.imageUrls || [post.imageUrl]).map((_, i) => (
+            <button
+              key={i}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeImgIdx === i ? "bg-white text-[#3699FF] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              onClick={() => { setActiveImgIdx(i); setActiveHsIdx(null); }}
+            >
+              이미지 {i + 1}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-1 gap-4 p-4 overflow-hidden">
         {/* 좌측: 이미지 */}
         <div className="flex-1 relative bg-black rounded-lg overflow-hidden flex items-center justify-center">
           <div className="relative cursor-crosshair max-h-full" onClick={handleImageClick}>
-            <img src={post.imageUrl} alt="Preview" className="max-w-full max-h-full block object-contain" />
-            {hotspots.map((hs, i) => (
-              <div
-                key={hs.id}
-                className={`absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-[11px] font-bold shadow-xl transition-all ${
-                  activeIdx === i ? "scale-125 border-white bg-[#3699FF] text-white ring-4 ring-[#3699FF]/30" : "border-white/50 bg-white/80 text-[#181C32]"
-                }`}
-                style={{ top: `${hs.top}%`, left: `${hs.left}%` }}
-                onClick={(e) => { e.stopPropagation(); setActiveIdx(i); }}
-              >
-                {i + 1}
-              </div>
-            ))}
+            <img src={currentImgUrl} alt="Preview" className="max-w-full max-h-full block object-contain" />
+            {/* [효진] 현재 이미지의 핫스팟만 화면에 표시 */}
+            {hotspots.map((hs, i) => {
+              if ((hs.imageIndex ?? 0) !== activeImgIdx) return null;
+              return (
+                <div
+                  key={hs.id}
+                  className={`absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-[11px] font-bold shadow-xl transition-all ${
+                    activeHsIdx === i ? "scale-125 border-white bg-[#3699FF] text-white ring-4 ring-[#3699FF]/30" : "border-white/50 bg-white/80 text-[#181C32]"
+                  }`}
+                  style={{ top: `${hs.top}%`, left: `${hs.left}%` }}
+                  onClick={(e) => { e.stopPropagation(); setActiveHsIdx(i); }}
+                >
+                  {i + 1}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* 우측: 리스트 */}
         <div className="w-[300px] flex flex-col bg-white rounded-lg border border-[#E4E6EF] overflow-hidden">
           <div className="p-3 border-b flex justify-between items-center bg-[#F3F8FF]">
-            <span className="text-xs font-bold text-[#3699FF]">핫스팟 리스트 ({hotspots.length})</span>
+            <span className="text-xs font-bold text-[#3699FF]">
+              이미지 {activeImgIdx + 1} 핫스팟 ({currentImgHotspots.length})
+            </span>
             <Button size="small" type="primary" icon={<PlusOutlined />} onClick={addHotspot}>추가</Button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {hotspots.map((hs, i) => (
-              <div 
-                key={hs.id}
-                className={`p-3 rounded-lg border transition-all cursor-pointer ${activeIdx === i ? "border-[#3699FF] bg-[#F3F8FF]" : "border-[#E4E6EF]"}`}
-                onClick={() => setActiveIdx(i)}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-bold text-[#7E8299]">#{i + 1} 상품 정보</span>
-                  <DeleteOutlined className="text-[#ED4956] text-xs" onClick={() => removeHotspot(i)} />
+            {hotspots.map((hs, i) => {
+              // [효진] 리스트에서도 현재 이미지의 것만 보여주거나, 전체를 보여주되 구분 필요
+              // 여기서는 관리 편의상 현재 이미지의 것만 필터링해서 보여주되 인덱스 유지
+              if ((hs.imageIndex ?? 0) !== activeImgIdx) return null;
+
+              return (
+                <div 
+                  key={hs.id}
+                  className={`p-3 rounded-lg border transition-all cursor-pointer ${activeHsIdx === i ? "border-[#3699FF] bg-[#F3F8FF]" : "border-[#E4E6EF]"}`}
+                  onClick={() => setActiveHsIdx(i)}
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold text-[#7E8299]">#{i + 1} 상품 정보</span>
+                    <DeleteOutlined className="text-[#ED4956] text-xs" onClick={() => removeHotspot(i)} />
+                  </div>
+                  <div className="space-y-2">
+                    <select
+                      className="w-full text-xs p-1.5 border rounded bg-white outline-none"
+                      value={hs.productId}
+                      onChange={(e) => updateHotspot(i, "productId", e.target.value)}
+                    >
+                      <option value="">상품 선택</option>
+                      {products.map(p => <option key={p.id} value={p.id}>[{p.brand}] {p.name}</option>)}
+                    </select>
+                    <Input 
+                      size="small" 
+                      placeholder="라벨" 
+                      value={hs.label} 
+                      onChange={e => updateHotspot(i, "label", e.target.value)} 
+                    />
+                    <Input 
+                      size="small" 
+                      placeholder="가격 (예: ₩129,000)" 
+                      value={hs.price} 
+                      onChange={e => updateHotspot(i, "price", e.target.value)} 
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <select
-                    className="w-full text-xs p-1.5 border rounded bg-white outline-none"
-                    value={hs.productId}
-                    onChange={(e) => updateHotspot(i, "productId", e.target.value)}
-                  >
-                    <option value="">상품 선택</option>
-                    {products.map(p => <option key={p.id} value={p.id}>[{p.brand}] {p.name}</option>)}
-                  </select>
-                  <Input 
-                    size="small" 
-                    placeholder="라벨" 
-                    value={hs.label} 
-                    onChange={e => updateHotspot(i, "label", e.target.value)} 
-                  />
-                  <Input 
-                    size="small" 
-                    placeholder="가격 (예: ₩129,000)" 
-                    value={hs.price} 
-                    onChange={e => updateHotspot(i, "price", e.target.value)} 
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="p-3 border-t">
-            <Button type="primary" block onClick={() => onSave(hotspots)}>핫스팟 저장</Button>
+            <Button type="primary" block onClick={() => onSave(hotspots)}>전체 핫스팟 저장</Button>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 /**
  * [효진] 셀럽 통합 관리 드로어 (프로필 + 착장 + 핫스팟)
@@ -210,14 +260,18 @@ function CelebrityManageDrawer({
   const [activeTab, setActiveTab] = useState("profile");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isAddingPost, setIsAddingPost] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null); // [효진] 수정 중인 포스트 상태 추가
   const [form] = Form.useForm();
   const [postForm] = Form.useForm();
+
 
   const { data: posts = [], isLoading: postsLoading } = usePostsByCelebrity(celeb?.id ?? "");
   const updateCelebrity = useUpdateCelebrity();
   const createPost = useCreatePost();
   const deletePost = useDeletePost(); // [효진] 삭제 mutation 추가
+  const updatePost = useUpdatePost(); // [효진] 수정 mutation 추가
   const updateHotspots = useUpdatePostHotspots();
+
 
   // 셀럽 프로필 폼 세팅
   useState(() => {
@@ -232,6 +286,8 @@ function CelebrityManageDrawer({
         avatarUrl: celeb.avatarUrl,
       });
     }
+
+
   });
 
   const handleUpdateProfile = async () => {
@@ -241,6 +297,8 @@ function CelebrityManageDrawer({
       await updateCelebrity.mutateAsync({ id: celeb.id, data: values });
       message.success("프로필이 수정되었습니다.");
     } catch (err) {
+
+
       message.error("정보 수정 중 오류가 발생했습니다.");
     }
   };
@@ -249,22 +307,51 @@ function CelebrityManageDrawer({
     if (!celeb) return;
     try {
       const values = await postForm.validateFields();
-      await createPost.mutateAsync({
-        celebrityId: celeb.id,
-        imageUrl: values.imageUrl,
-        caption: values.caption,
-        hotspots: [],
-        createdAt: new Date().toISOString(),
-        likes: 0,
-        comments: 0,
-      });
-      message.success("새로운 착장이 등록되었습니다.");
+      if (editingPost) {
+        // 수정 모드
+        await updatePost.mutateAsync({
+          postId: editingPost.id,
+          data: {
+            imageUrls: values.imageUrls,
+            imageUrl: values.imageUrls?.[0] || "",
+            caption: values.caption,
+          }
+
+        });
+        message.success("착장 정보가 수정되었습니다.");
+      } else {
+        // 신규 등록 모드
+        await createPost.mutateAsync({
+          celebrityId: celeb.id,
+          imageUrls: values.imageUrls,
+          imageUrl: values.imageUrls?.[0] || "",
+          caption: values.caption,
+          hotspots: [],
+
+          createdAt: new Date().toISOString(),
+          likes: 0,
+          comments: 0,
+        });
+        message.success("새로운 착장이 등록되었습니다.");
+      }
       setIsAddingPost(false);
+      setEditingPost(null);
       postForm.resetFields();
     } catch (err) {
-      message.error("등록 실패");
+      message.error(editingPost ? "수정 실패" : "등록 실패");
     }
   };
+
+  const handleEditPost = (post: Post) => {
+    setEditingPost(post);
+    setIsAddingPost(true);
+    postForm.setFieldsValue({
+      imageUrls: post.imageUrls || [post.imageUrl].filter(Boolean),
+      caption: post.caption,
+    });
+
+  };
+
 
   const handleDeletePost = async (postId: string) => {
     try {
@@ -328,6 +415,8 @@ function CelebrityManageDrawer({
                     <Form.Item name="avatarUrl" label="프로필 이미지">
                       <ImageUpload folder="avatars" />
                     </Form.Item>
+
+
                     <Button type="primary" block size="large" onClick={handleUpdateProfile}>프로필 저장하기</Button>
                   </Form>
                 </div>
@@ -339,20 +428,29 @@ function CelebrityManageDrawer({
               children: (
                 <div className="p-4 space-y-6">
                   {isAddingPost ? (
-                    <Card size="small" title="새 착장 등록" extra={<Button type="text" onClick={() => setIsAddingPost(false)}>취소</Button>}>
+                    <Card 
+                      size="small" 
+                      title={editingPost ? "착장 정보 수정" : "새 착장 등록"} 
+                      extra={<Button type="text" onClick={() => { setIsAddingPost(false); setEditingPost(null); postForm.resetFields(); }}>취소</Button>}
+                    >
                       <Form form={postForm} layout="vertical">
-                        <Form.Item name="imageUrl" label="사진 업로드" rules={[{ required: true }]}>
-                          <ImageUpload folder="posts" />
+                        <Form.Item name="imageUrls" label="사진 업로드 (최대 3장)" rules={[{ required: true }]}>
+                          <ImageUpload folder="posts" multiple maxCount={3} />
                         </Form.Item>
+
                         <Form.Item name="caption" label="내용" rules={[{ required: true }]}>
-                          <Input placeholder="예: 인스타그램 데일리룩" />
+                          <Input.TextArea placeholder="예: 인스타그램 데일리룩" rows={2} />
                         </Form.Item>
-                        <Button type="primary" block onClick={handleAddPost} loading={createPost.isPending}>등록 완료</Button>
+
+                        <Button type="primary" block onClick={handleAddPost} loading={createPost.isPending || updatePost.isPending}>
+                          {editingPost ? "수정 완료" : "등록 완료"}
+                        </Button>
                       </Form>
                     </Card>
                   ) : (
-                    <Button type="dashed" block icon={<PlusOutlined />} className="h-12" onClick={() => setIsAddingPost(true)}>새 착장 추가하기</Button>
+                    <Button type="dashed" block icon={<PlusOutlined />} className="h-12" onClick={() => { setIsAddingPost(true); setEditingPost(null); postForm.resetFields(); }}>새 착장 추가하기</Button>
                   )}
+
 
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-[#7E8299]">등록된 착장 ({posts.length})</h4>
@@ -364,11 +462,13 @@ function CelebrityManageDrawer({
                           <Tag color="blue" className="mt-1 text-[9px]">핫스팟 {post.hotspots?.length ?? 0}개</Tag>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button size="small" icon={<EditOutlined />} onClick={() => handleEditPost(post)} />
                           <Button size="small" icon={<AimOutlined />} onClick={() => setSelectedPost(post)} />
                           <Popconfirm title="이 착장을 삭제하시겠습니까?" onConfirm={() => handleDeletePost(post.id)}>
                             <Button size="small" danger icon={<DeleteOutlined />} />
                           </Popconfirm>
                         </div>
+
                       </div>
                     ))}
                   </div>
@@ -408,6 +508,7 @@ function AdminCelebrities() {
       const values = await form.validateFields();
       await createCelebrity.mutateAsync(values);
       message.success("새로운 셀럽이 추가되었습니다.");
+
       setCreateModalOpen(false);
       form.resetFields();
     } catch (err) {
@@ -431,8 +532,8 @@ function AdminCelebrities() {
         {celebrities.map(celeb => (
           <Card key={celeb.id} size="small" className="hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm" style={{ background: celeb.gradient }}>
-                {celeb.name[0]}
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm overflow-hidden" style={{ background: celeb.gradient }}>
+                {celeb.avatarUrl ? <img src={celeb.avatarUrl} className="w-full h-full object-cover" /> : celeb.name[0]}
               </div>
               <div className="flex-1">
                 <p className="font-bold text-sm text-[#181C32]">{celeb.name}</p>
@@ -458,13 +559,21 @@ function AdminCelebrities() {
         <Form form={form} layout="vertical" className="mt-4">
           <Form.Item name="name" label="이름" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="handle" label="핸들" rules={[{ required: true }]}><Input placeholder="@username" /></Form.Item>
+          <Form.Item name="bio" label="소개글">
+            <Input.TextArea rows={3} placeholder="셀럽 소개를 입력하세요" />
+          </Form.Item>
           <Form.Item name="gradient" label="테마 색상" initialValue={GRADIENTS[0]}>
             <Select>
               {GRADIENTS.map((g, i) => <Select.Option key={i} value={g}><div className="h-4 w-full rounded" style={{ background: g }} /></Select.Option>)}
             </Select>
           </Form.Item>
+          <Form.Item name="avatarUrl" label="프로필 이미지">
+            <ImageUpload folder="avatars" />
+          </Form.Item>
         </Form>
+
       </Modal>
+
     </div>
   );
 }

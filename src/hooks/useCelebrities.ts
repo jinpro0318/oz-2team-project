@@ -11,8 +11,10 @@ import {
   getPostsByCelebrity,
   updatePostHotspots,
   createPost,
+  updatePost, // [효진] 추가
   deletePost, // [효진] 추가
 } from "@/lib/services/post";
+
 import type { CelebrityFormData, Hotspot, Post } from "@/types"; // [효진] 추가
 
 // 기존: 전체 셀럽 목록 조회 (피드·어드민 K1·K4·K5·K7에서 사용)
@@ -101,3 +103,16 @@ export function useDeletePost() {
     },
   });
 }
+
+// [효진] 포스트 수정 mutation (K4 셀럽 관리용)
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ postId, data }: { postId: string; data: Partial<Omit<Post, "id">> }) =>
+      updatePost(postId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
+}
+

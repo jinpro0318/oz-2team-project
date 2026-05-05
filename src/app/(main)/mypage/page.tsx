@@ -7,6 +7,8 @@ import { logoutUser } from "@/lib/auth";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useOrders } from "@/hooks/useOrders";
 import EmailProtector from "@/components/mypage/EmailProtector";
+import AdminLinkButtons from "@/components/common/AdminLinkButtons";
+
 
 export default function MyPage() {
   const router = useRouter();
@@ -48,8 +50,10 @@ export default function MyPage() {
       {/* Custom TopBar for MyPage */}
       <div className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border bg-surface px-3">
         <div className="text-[15px] font-bold text-text">{username}</div>
-        <div className="flex gap-[15px]">
+        <div className="flex gap-[15px] items-center">
+          <AdminLinkButtons variant="mall" />
           <div className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+
             <svg
               viewBox="0 0 24 24"
               className="h-[22px] w-[22px] fill-none stroke-text stroke-[1.8px]"

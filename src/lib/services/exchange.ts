@@ -32,3 +32,12 @@ export async function getExchangesByOrder(orderId: string): Promise<Exchange[]> 
 export async function getAllExchanges(): Promise<Exchange[]> {
   return getDocuments<Exchange>("exchanges");
 }
+
+export async function updateExchangeStatus(
+  id: string,
+  status: "requested" | "processing" | "completed"
+): Promise<void> {
+  const { updateDocument } = await import("@/lib/firestore");
+  return updateDocument("exchanges", id, { status });
+}
+

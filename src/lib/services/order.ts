@@ -91,25 +91,25 @@ async function enrichOrdersWithRealtimeStatus(orders: Order[]): Promise<Order[]>
 export async function getOrders(userId: string): Promise<Order[]> {
   const docs = await getDocuments<Order>("orders", [
     where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+    limit(50),
   ]);
   
-  // 1. 메모리 내 정렬 (최신순)
-  const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  
-  // 2. 실시간 배송 상태를 미리 조회하여 합침 (최초 렌더링용)
-  return enrichOrdersWithRealtimeStatus(sorted);
+  // 실시간 배송 상태를 미리 조회하여 합침 (최초 렌더링용)
+  return enrichOrdersWithRealtimeStatus(docs);
 }
 
 export function subscribeOrders(userId: string, onUpdate: (orders: Order[]) => void) {
   return subscribeDocuments<Order>(
     "orders",
-    [where("userId", "==", userId)],
+    [
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(50),
+    ],
     async (docs) => {
-      // 1. 메모리 내 정렬 (최신순)
-      const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
-      // 2. 데이터가 바뀌면 실시간 상태를 다시 입혀서 업데이트 (이중 출력 방지)
-      const enriched = await enrichOrdersWithRealtimeStatus(sorted);
+      // 데이터가 바뀌면 실시간 상태를 다시 입혀서 업데이트 (이중 출력 방지)
+      const enriched = await enrichOrdersWithRealtimeStatus(docs);
       onUpdate(enriched);
     }
   );
@@ -119,23 +119,58 @@ export function subscribeOrder(id: string, onUpdate: (order: Order | null) => vo
   return subscribeDocument<Order>("orders", id, onUpdate);
 }
 
+const PAID_STATUSES: OrderStatus[] = [
+  "payment_complete", "preparing", "shipping", "delivered", 
+  "cancelled", "exchange_requested", "return_requested", 
+  "returning", "returned", "exchange_completed", 
+  "return_completed", "purchase_confirmed"
+];
+
+
 export async function getAllOrders(): Promise<Order[]> {
-  const docs = await getDocuments<Order>("orders");
-  const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return enrichOrdersWithRealtimeStatus(sorted);
+  const docs = await getDocuments<Order>("orders", [
+    where("status", "in", PAID_STATUSES),
+    orderBy("createdAt", "desc"),
+    limit(300),
+  ]);
+  return enrichOrdersWithRealtimeStatus(docs);
 }
+
+export async function getAllOrdersForAnalytics(): Promise<Order[]> {
+  const docs = await getDocuments<Order>("orders", [
+    where("status", "in", PAID_STATUSES),
+    orderBy("createdAt", "desc"),
+    limit(1000), 
+  ]);
+  return docs;
+}
+
+
+
+
+
+
 
 export function subscribeAllOrders(onUpdate: (orders: Order[]) => void) {
   return subscribeDocuments<Order>(
     "orders",
-    [],
+    [
+      where("status", "in", PAID_STATUSES),
+      orderBy("createdAt", "desc"),
+      limit(300),
+    ],
     async (docs) => {
-      const sorted = docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      const enriched = await enrichOrdersWithRealtimeStatus(sorted);
+      const enriched = await enrichOrdersWithRealtimeStatus(docs);
       onUpdate(enriched);
     }
+
+
+
+
+
   );
 }
+
 
 export async function getOrder(id: string): Promise<Order | null> {
   const order = await getDocument<Order>("orders", id);

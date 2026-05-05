@@ -60,6 +60,10 @@ export default function ProductDetailPage() {
   }
 
   const activeColor = selectedColor || product.colors[0]?.name || "";
+  const colorData = product.colors.find(c => c.name === activeColor);
+  
+  // [효진] 선택된 색상에 연결된 이미지가 있으면 우선 노출, 없으면 기본 이미지 노출
+  const mainImageUrl = colorData?.imageUrl || product.imageUrls?.[0];
 
   const handleAddToCart = () => {
     if (!selectedSize) {
@@ -85,9 +89,9 @@ export default function ProductDetailPage() {
     <div className="flex flex-col bg-surface min-h-screen">
       <TopBar />
       <div className="relative aspect-square w-full flex-shrink-0 bg-gray-100">
-        {product.imageUrls?.[0] ? (
+        {mainImageUrl ? (
           <img
-            src={product.imageUrls[0]}
+            src={mainImageUrl}
             alt={product.name}
             className="h-full w-full object-cover"
           />
@@ -154,26 +158,23 @@ export default function ProductDetailPage() {
 
       <div className="border-b border-border px-3 py-3.5">
         <p className="mb-2.5 text-[13px] font-bold">색상</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {product.colors.map((c) => (
             <button
               key={c.name}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs ${
+              className={`flex items-center justify-center rounded-lg border px-4 py-2 text-xs transition-all ${
                 activeColor === c.name
-                  ? "border-text font-bold text-text"
-                  : "border-border text-text-secondary"
+                  ? "border-text border-2 font-bold text-text bg-gray-50"
+                  : "border-border text-text-secondary hover:border-gray-400"
               }`}
               onClick={() => setSelectedColor(c.name)}
             >
-              <span
-                className="block h-3 w-3 rounded-full border border-border"
-                style={{ background: c.hex }}
-              />
               {c.name}
             </button>
           ))}
         </div>
       </div>
+
 
       <div className="border-b border-border px-3 py-3.5">
         <p className="mb-2.5 text-[13px] font-bold">사이즈</p>
@@ -203,18 +204,35 @@ export default function ProductDetailPage() {
 
       <div className="border-b border-border px-3 py-3.5">
         <h4 className="mb-2 text-[13px] font-bold">상품 설명</h4>
-        <p className="text-[13px] leading-relaxed text-text-secondary">{product.description}</p>
+        <p className="text-[13px] leading-relaxed text-text-secondary whitespace-pre-wrap">{product.description}</p>
+        
+        {/* [효진] 추가 이미지들을 상세 설명 영역에 순차적으로 노출 */}
+        {product.imageUrls && product.imageUrls.length > 1 && (
+          <div className="mt-6 space-y-2">
+            {product.imageUrls.slice(1).map((url, idx) => (
+              <img 
+                key={idx} 
+                src={url} 
+                alt={`${product.name} detail ${idx + 1}`} 
+                className="w-full h-auto rounded-lg"
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="border-b border-border px-3 py-3.5">
         <h4 className="mb-2.5 text-[13px] font-bold">상품 정보</h4>
-        {Object.entries(product.specs).map(([k, v]) => (
-          <div key={k} className="flex border-b border-border-light py-1.5 text-xs last:border-b-0">
-            <span className="w-[88px] shrink-0 text-text-secondary">{k}</span>
-            <span className="font-medium text-text">{v}</span>
+        {product.specs ? (
+          <div className="text-[13px] leading-relaxed text-text-secondary whitespace-pre-wrap py-1">
+            {product.specs}
           </div>
-        ))}
+        ) : (
+          <p className="text-xs text-text-muted py-2">등록된 상세 정보가 없습니다.</p>
+        )}
       </div>
+
+
 
       <div className="border-b border-border px-3 py-3.5">
         <div className="flex items-center gap-2">

@@ -4,7 +4,8 @@ import { Order, OrderStatus } from "@/types";
  * 주문이 최종 종료된 상태인지 확인합니다.
  */
 export const isFinishedStatus = (status: OrderStatus): boolean => {
-  return ["purchase_confirmed", "cancelled", "return_completed", "claim_rejected"].includes(status);
+  return ["purchase_confirmed", "cancelled", "return_completed"].includes(status);
+
 };
 
 /**

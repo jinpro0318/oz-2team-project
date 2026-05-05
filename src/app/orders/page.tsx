@@ -22,8 +22,8 @@ const statusConfig: Record<OrderStatus, { label: string; icon: string; className
   returned: { label: "반송 완료", icon: "📦", className: "text-green-500" },
   exchange_completed: { label: "교환완료", icon: "✅", className: "text-blue-500" },
   return_completed: { label: "반품완료", icon: "💸", className: "text-gray-600" },
-  claim_rejected: { label: "클레임 반려", icon: "🚫", className: "text-red-600" },
   purchase_confirmed: { label: "구매확정", icon: "✨", className: "text-gray-900" },
+
   payment_pending: { label: "결제대기", icon: "⏳", className: "text-gray-400" },
 };
 
@@ -68,8 +68,8 @@ export default function OrdersPage() {
   }, [user?.id]);
 
   const filteredOrders = orders.filter((order) => {
-    if (order.status === "payment_pending") return false;
     if (activeFilter === "all") return true;
+
     if (activeFilter === "shipping") return order.status === "shipping" || order.status === "preparing";
     if (activeFilter === "delivered") return order.status === "delivered" || order.status === "purchase_confirmed";
     if (activeFilter === "cancelled") {
@@ -77,9 +77,9 @@ export default function OrdersPage() {
         "cancelled", 
         "exchange_requested", "return_requested", 
         "returning", "returned", 
-        "exchange_completed", "return_completed", 
-        "claim_rejected"
+        "exchange_completed", "return_completed"
       ].includes(order.status);
+
     }
     return true;
   });

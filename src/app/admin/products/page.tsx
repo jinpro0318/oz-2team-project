@@ -113,38 +113,18 @@ function AdminProducts() {
   const openEdit = (product: Product) => {
     setEditTarget(product);
     form.setFieldsValue({
-      brand: product.brand,
-      name: product.name,
-      price: product.price,
-      originalPrice: product.originalPrice,
-      discount: product.discount,
-      description: product.description,
-      celebrityId: product.celebrityId,
-      isVisible: product.isVisible,
-      category: product.category,
-      salesCount: product.salesCount,
-      colors: product.colors || [],
-      sizes: product.sizes || [],
-      specs: Object.entries(product.specs || {}).map(([key, value]) => ({ key, value })),
-      imageUrls: product.imageUrls,
-    } as any); // [효진] specs의 Record -> Array 변환을 위한 타입 우회
+      ...product,
+    });
     setModalOpen(true);
   };
 
+
   const handleSubmit = async () => {
     try {
-      const values = await form.validateFields() as any; // [효진] 폼 데이터 -> API 데이터 변환을 위해 any 처리
-      
-      // [효진] specs 배열({key, value}[])을 Record<string, string>으로 변환
-      const formattedSpecs: Record<string, string> = {};
-      if (Array.isArray(values.specs)) {
-        values.specs.forEach((item: any) => {
-          if (item.key) formattedSpecs[item.key] = item.value;
-        });
-      }
-      
-      const submitData = { ...values, specs: formattedSpecs };
+      const values = await form.validateFields();
+      const submitData = { ...values };
       console.log("[효진] 상품 데이터 저장 시도:", submitData);
+
       
       if (editTarget) {
         await updateProduct.mutateAsync({ id: editTarget.id, data: submitData });
@@ -345,7 +325,28 @@ function AdminProducts() {
         confirmLoading={createProduct.isPending || updateProduct.isPending}
         width={600}
       >
-        <Form form={form} layout="vertical" className="mt-4">
+        <Form 
+          form={form} 
+          layout="vertical" 
+          className="mt-4"
+          onValuesChange={(changed, all) => {
+            // [효진] 정가나 할인율 변경 시 판매가 자동 계산
+            if (changed.originalPrice !== undefined || changed.discount !== undefined) {
+              const orig = all.originalPrice || 0;
+              const disc = all.discount || 0;
+              const calcPrice = Math.floor(orig * (1 - disc / 100));
+              form.setFieldValue("price", calcPrice);
+            }
+          }}
+        >
+          {/* [효진] 노출 상태를 가장 상단으로 이동 */}
+          <div className="mb-4 flex items-center justify-between rounded-lg bg-gray-50 p-3">
+            <span className="text-sm font-bold text-[#181C32]">상품 노출 상태</span>
+            <Form.Item name="isVisible" valuePropName="checked" noStyle>
+              <Switch checkedChildren="판매중" unCheckedChildren="숨김" />
+            </Form.Item>
+          </div>
+
           <div className="grid grid-cols-2 gap-x-4">
             <Form.Item
               name="brand"
@@ -364,18 +365,18 @@ function AdminProducts() {
           </div>
 
           <div className="grid grid-cols-3 gap-x-4">
+            <Form.Item name="originalPrice" label="정가 (₩)">
+              <InputNumber className="w-full" min={0} step={1000} />
+            </Form.Item>
+            <Form.Item name="discount" label="할인율 (%)">
+              <InputNumber className="w-full" min={0} max={100} />
+            </Form.Item>
             <Form.Item
               name="price"
               label="판매가 (₩)"
               rules={[{ required: true }]}
             >
               <InputNumber className="w-full" min={0} step={1000} />
-            </Form.Item>
-            <Form.Item name="originalPrice" label="정가 (₩)">
-              <InputNumber className="w-full" min={0} step={1000} />
-            </Form.Item>
-            <Form.Item name="discount" label="할인율 (%)">
-              <InputNumber className="w-full" min={0} max={100} />
             </Form.Item>
           </div>
 
@@ -412,40 +413,64 @@ function AdminProducts() {
             <ImageUpload folder="products" multiple maxCount={8} />
           </Form.Item>
 
-          <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="sizes" label="사이즈 선택">
-              <Select mode="tags" placeholder="사이즈 입력 (S, M, L...)" />
-            </Form.Item>
-            <Form.Item name="isVisible" label="노출 상태" valuePropName="checked">
-              <Switch checkedChildren="판매중" unCheckedChildren="숨김" />
-            </Form.Item>
-          </div>
+          {/* [효진] 사이즈 선택형으로 변경 및 신발 사이즈 추가 */}
+          <Form.Item name="sizes" label="사이즈 선택 (다중 선택 가능)">
+            <Select mode="multiple" placeholder="사이즈를 선택하세요" allowClear>
+              <Select.OptGroup label="의류">
+                <Select.Option value="S">S</Select.Option>
+                <Select.Option value="M">M</Select.Option>
+                <Select.Option value="L">L</Select.Option>
+                <Select.Option value="XL">XL</Select.Option>
+                <Select.Option value="2XL">2XL</Select.Option>
+                <Select.Option value="FREE">FREE</Select.Option>
+              </Select.OptGroup>
+              <Select.OptGroup label="신발">
+                {["220", "225", "230", "235", "240", "245", "250", "255", "260", "265", "270", "275", "280"].map(s => (
+                  <Select.Option key={s} value={s}>{s}</Select.Option>
+                ))}
+              </Select.OptGroup>
+            </Select>
+          </Form.Item>
+
 
           <div className="mb-4">
-            <p className="mb-2 text-sm font-medium">색상 관리</p>
+            <p className="mb-2 text-sm font-medium">색상 관리 (색상별 이미지 등록 가능)</p>
             <Form.List name="colors">
               {(fields, { add, remove }) => (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} align="baseline" className="flex">
-                      <Form.Item
-                        {...restField}
-                        name={[name, "name"]}
-                        rules={[{ required: true, message: "이름" }]}
-                      >
-                        <Input placeholder="색상명 (예: 블랙)" size="small" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, "hex"]}
-                        rules={[{ required: true, message: "HEX" }]}
-                      >
-                        <Input placeholder="#000000" size="small" style={{ width: 100 }} />
-                      </Form.Item>
-                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
-                    </Space>
+                    <div key={key} className="rounded-lg border border-gray-100 p-3 bg-gray-50/50">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1 space-y-3">
+                          <Form.Item
+                            {...restField}
+                            name={[name, "name"]}
+                            rules={[{ required: true, message: "색상명" }]}
+                            noStyle
+                          >
+                            <Input placeholder="색상명 (예: 블랙)" className="w-full" />
+                          </Form.Item>
+                          
+                          <Form.Item
+                            {...restField}
+                            name={[name, "imageUrl"]}
+                            label={<span className="text-[11px] text-gray-500">색상 연결 이미지</span>}
+                            className="mb-0"
+                          >
+                            <ImageUpload folder="products" maxCount={1} />
+                          </Form.Item>
+                        </div>
+                        <Button 
+                          type="text" 
+                          danger 
+                          icon={<DeleteOutlined />} 
+                          onClick={() => remove(name)} 
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
                   ))}
-                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} className="h-10">
                     색상 추가
                   </Button>
                 </div>
@@ -453,43 +478,18 @@ function AdminProducts() {
             </Form.List>
           </div>
 
-          <div className="mb-4">
-            <p className="mb-2 text-sm font-medium">상품 상세 정보 (Specs)</p>
-            <Form.List name="specs">
-              {(fields, { add, remove }) => (
-                <div className="space-y-2">
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} align="baseline" className="flex">
-                      <Form.Item
-                        {...restField}
-                        name={[name, "key"]}
-                        rules={[{ required: true, message: "항목" }]}
-                      >
-                        <Input placeholder="항목 (예: 소재)" size="small" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, "value"]}
-                        rules={[{ required: true, message: "내용" }]}
-                      >
-                        <Input placeholder="내용 (예: 면 100%)" size="small" />
-                      </Form.Item>
-                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
-                    </Space>
-                  ))}
-                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                    상세 정보 항목 추가
-                  </Button>
-                </div>
-              )}
-            </Form.List>
-          </div>
+
+          <Form.Item name="specs" label="상품 상세 정보 (Specs)">
+            <Input.TextArea rows={4} placeholder="예: 소재: 면 100%&#10;세탁: 손세탁 권장" />
+          </Form.Item>
+
 
           <Form.Item name="description" label="상품 설명">
             <Input.TextArea rows={3} placeholder="상품 설명을 입력하세요" />
           </Form.Item>
         </Form>
       </Modal>
+
     </div>
   );
 }

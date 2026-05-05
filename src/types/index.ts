@@ -9,6 +9,8 @@ export interface Celebrity {
   gradient: string;
 }
 
+
+
 export interface Hotspot {
   id: string;
   productId: string;
@@ -16,13 +18,17 @@ export interface Hotspot {
   price: string;
   top: number;
   left: number;
+  imageIndex?: number; // [효진] 여러 이미지 중 몇 번째 이미지의 핫스팟인지 구분 (0~2)
 }
+
 
 export interface Post {
   id: string;
   celebrityId: string;
-  imageUrl: string;
+  imageUrl: string; // 대표 이미지 (호환성 유지)
+  imageUrls: string[]; // [효진] 착장 이미지 (최대 3장)
   caption: string;
+
   likes: number;
   comments: number;
   createdAt: string;
@@ -31,8 +37,9 @@ export interface Post {
 
 export interface ProductColor {
   name: string;
-  hex: string;
+  imageUrl?: string; // [효진] 색상별 연결 이미지
 }
+
 
 export interface Product {
   id: string;
@@ -44,7 +51,7 @@ export interface Product {
   colors: ProductColor[];
   sizes: string[];
   description: string;
-  specs: Record<string, string>;
+  specs: string;
   imageUrls: string[];
   celebrityId: string;
   salesCount: number;
@@ -104,9 +111,9 @@ export type OrderStatus =
   | "returned"
   | "exchange_completed"
   | "return_completed"
-  | "claim_rejected"
   | "purchase_confirmed"
   | "payment_pending";
+
 
 export interface OrderItem {
   productId: string;
@@ -195,14 +202,13 @@ export interface ProductFormData {
   colors: ProductColor[];
   sizes: string[];
   description: string;
-  specs: Record<string, string>;
+  specs: string;
   imageUrls: string[];
   celebrityId: string;
   salesCount: number;
   isVisible: boolean;
   category: string;
 }
-
 /**
  * 셀럽 등록/수정 폼 데이터 타입
  * - K4 셀럽 관리 페이지의 Modal + Form에서 사용
@@ -217,4 +223,3 @@ export interface CelebrityFormData {
   isActive: boolean;
   gradient: string;
 }
-
