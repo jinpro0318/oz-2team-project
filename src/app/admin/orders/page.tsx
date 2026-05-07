@@ -814,17 +814,15 @@ function AdminOrders() {
                   출고 처리
                 </Button>
               )}
-              {drawerOrder.status === "shipping" && (
-                <Button
-                  block
-                  icon={<CheckOutlined />}
-                  loading={updateStatus.isPending}
-                  onClick={() => handleDeliver(drawerOrder)}
-                  className="bg-green-50 text-green-600 border-green-200"
-                >
-                  배송완료 처리
-                </Button>
-              )}
+              <Button
+                block
+                icon={<CheckOutlined />}
+                loading={updateStatus.isPending}
+                onClick={() => handleDeliver(drawerOrder)}
+                className="bg-green-50 text-green-600 border-green-200"
+              >
+                배송완료 처리
+              </Button>
               {(drawerOrder.status === "exchange_requested" || drawerOrder.status === "return_requested") && (
                 <Space direction="vertical" className="w-full" size={8}>
                   <Button
@@ -880,8 +878,11 @@ function AdminOrders() {
               <p className="mt-0.5 font-mono text-sm font-bold text-[#181C32]">
                 {drawerOrder.orderNumber}
               </p>
-              <p className="mt-0.5 text-[11px] text-[#7E8299]">
-                {dayjs(drawerOrder.createdAt).format("YYYY-MM-DD HH:mm")}
+              <p className="text-[10px] text-[#A1A5B7]">
+                {(() => {
+                  const d = drawerOrder.createdAt?.toDate ? drawerOrder.createdAt.toDate() : drawerOrder.createdAt;
+                  return dayjs(d).format("YYYY-MM-DD HH:mm:ss");
+                })()}
               </p>
             </div>
 
