@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Spin, Button as AntdButton, Tag } from "antd";
+import { SyncOutlined, LoadingOutlined } from "@ant-design/icons";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { deliveryService } from "@/lib/services/delivery";
@@ -147,6 +148,19 @@ export default function DeliveryTracking({ carrierCode, trackingNumber, onStatus
     }
   };
 
+  const handleRefresh = async () => {
+    if (!carrierCode || !trackingNumber) return;
+    setLoading(true);
+    try {
+      const freshData = await deliveryService.track(carrierCode, trackingNumber, undefined, true);
+      setData(freshData);
+    } catch (err: any) {
+      setError(err.message || "새로고침 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center bg-white rounded-xl border border-border-light shadow-sm mx-1">
@@ -224,20 +238,55 @@ export default function DeliveryTracking({ carrierCode, trackingNumber, onStatus
   // MOCK 송장 여부
   const isMock = trackingNumber?.startsWith("MOCK-");
 
+  // isAdmin은 props로 이미 전달받고 있음 (18번 라인)
+
   return (
-    <div className="px-1 py-2">
-      {/* 배송 요약 카드 */}
-      <div className="mb-6 rounded-xl bg-gray-50 p-4 border border-border-light shadow-sm">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <p className="text-[10px] font-bold text-text-muted uppercase tracking-tight">Carrier</p>
-            <p className="text-sm font-bold text-primary">{data.carrier}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-text-muted uppercase tracking-tight">Tracking No.</p>
-            <p className="text-sm font-bold">{data.trackingNumber}</p>
-          </div>
+    <div className="flex flex-col h-full bg-white">
+      {/* 배송 동기화 정보 바 */}
+      <div className="px-5 py-3 bg-[#F8F9FA] border-b border-[#E4E6EF] flex items-center justify-between sticky top-0 z-10">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] font-bold text-[#A8A8A8] uppercase tracking-wider">Last Sync</span>
+          <span className="text-[11px] font-medium text-[#7E8299]">
+            {isMock ? (
+              <span className="text-[#27AE60] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-[#27AE60] rounded-full animate-pulse" />
+                실시간 동기화 중
+              </span>
+            ) : (
+              <>
+                {data.lastSyncedAt ? dayjs(data.lastSyncedAt).format("YYYY-MM-DD HH:mm") : "정보 없음"}
+                {isAdmin && data.isFromCache && <span className="ml-1 text-[10px] text-[#3699FF] font-bold">(CACHE)</span>}
+              </>
+            )}
+          </span>
         </div>
+        
+        {isAdmin && (
+          <AntdButton 
+            size="small" 
+            icon={<SyncOutlined spin={loading} />} 
+            onClick={handleRefresh}
+            disabled={loading}
+            className="text-[10px] h-7 px-3 rounded-full border-[#E4E6EF] hover:border-primary hover:text-primary transition-all font-bold"
+          >
+            갱신
+          </AntdButton>
+        )}
+      </div>
+
+      <div className="px-1 py-2 overflow-y-auto">
+        {/* 배송 요약 카드 */}
+        <div className="mb-6 rounded-xl bg-white p-4 border border-border-light shadow-sm">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-tight">Carrier</p>
+              <p className="text-sm font-bold text-primary">{data.carrier}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-tight">Tracking No.</p>
+              <p className="text-sm font-bold">{data.trackingNumber}</p>
+            </div>
+          </div>
         <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
           <p className="text-[11px] text-text-secondary">현재 위치</p>
           <p className="text-[15px] font-bold text-primary flex items-center gap-1.5">
@@ -319,6 +368,7 @@ export default function DeliveryTracking({ carrierCode, trackingNumber, onStatus
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </div>

@@ -222,38 +222,94 @@ async function getAdminDb() {
   return cachedAdminDb;
 }
 
-/** 신규 Shipment 생성 및 DB 저장 */
+/** 신규 Shipment 생성 및 DB 저장 (MOCK 및 REAL 통합 관리) */
 export async function initShipment(params: {
   trackingNumber: string;
+  carrierCode: string;
   orderId: string;
   type: MOCKShipmentType;
   senderAddress: string;
   receiverAddress: string;
-}): Promise<Shipment> {
+}): Promise<Shipment | any> {
   const now = new Date();
-  const path = generatePathSteps(params.type, params.trackingNumber, params.senderAddress, params.receiverAddress, now);
-  const driver = generateDriver(params.trackingNumber);
+  const isMock = params.trackingNumber.startsWith("MOCK-");
 
-  const shipment: Shipment = {
-    shipmentId: params.trackingNumber,
-    orderId: params.orderId,
-    type: params.type,
-    status: 'IN_TRANSIT',
-    senderAddress: params.senderAddress,
-    receiverAddress: params.receiverAddress,
-    path,
-    currentStep: 0,
-    driver,
-    createdAt: now.toISOString(),
-  };
+  // 1. Shipment 객체 구성 (MOCK인 경우 상세 경로 생성, REAL인 경우 기본 정보만)
+  let shipment: any;
+  
+  if (isMock) {
+    const path = generatePathSteps(params.type, params.trackingNumber, params.senderAddress, params.receiverAddress, now);
+    const driver = generateDriver(params.trackingNumber);
+    shipment = {
+      shipmentId: params.trackingNumber,
+      orderId: params.orderId,
+      type: params.type,
+      status: 'IN_TRANSIT',
+      senderAddress: params.senderAddress,
+      receiverAddress: params.receiverAddress,
+      path,
+      currentStep: 0,
+      driver,
+      createdAt: now.toISOString(),
+      isMock: true
+    };
+  } else {
+    shipment = {
+      shipmentId: params.trackingNumber,
+      orderId: params.orderId,
+      carrierCode: params.carrierCode,
+      status: 'shipping',
+      createdAt: now.toISOString(),
+      isMock: false,
+      lastUpdatedAt: now.toISOString()
+    };
+  }
 
+  // 2. DB 저장 및 주문 정보 업데이트 (Transaction 사용)
   const adminDb = await getAdminDb();
   if (adminDb) {
-    await adminDb.collection(SHIPMENTS_COL).doc(params.trackingNumber).set(shipment);
+    const shipmentRef = adminDb.collection(SHIPMENTS_COL).doc(params.trackingNumber);
+    const orderRef = adminDb.collection("orders").doc(params.orderId);
+
+    await adminDb.runTransaction(async (transaction: any) => {
+      // 송장 데이터 저장
+      transaction.set(shipmentRef, shipment);
+      
+      // 주문 데이터의 송장 배열 업데이트 (arrayUnion 효과)
+      const orderSnap = await transaction.get(orderRef);
+      if (orderSnap.exists) {
+        const orderData = orderSnap.data();
+        const trackingNumbers = Array.isArray(orderData.trackingNumbers) ? orderData.trackingNumbers : (orderData.trackingNumber ? [orderData.trackingNumber] : []);
+        const carrierCodes = Array.isArray(orderData.carrierCodes) ? orderData.carrierCodes : (orderData.carrierCode ? [orderData.carrierCode] : []);
+
+        if (!trackingNumbers.includes(params.trackingNumber)) {
+          trackingNumbers.push(params.trackingNumber);
+          carrierCodes.push(params.carrierCode);
+        }
+
+        transaction.update(orderRef, {
+          trackingNumber: params.trackingNumber, // 최신 송장 (호환성)
+          carrierCode: params.carrierCode,       // 최신 택배사 (호환성)
+          trackingNumbers,                        // 송장 이력 배열
+          carrierCodes,                           // 택배사 이력 배열
+          status: "shipping",
+          updatedAt: now.toISOString()
+        });
+      }
+    });
     return shipment;
   }
 
+  // 클라이언트 사이드 (Transaction 미지원 시 개별 처리)
   await setDoc(doc(db, SHIPMENTS_COL, params.trackingNumber), shipment);
+  const orderRef = doc(db, "orders", params.orderId);
+  await updateDoc(orderRef, {
+    trackingNumber: params.trackingNumber,
+    carrierCode: params.carrierCode,
+    status: "shipping",
+    updatedAt: now.toISOString()
+  });
+  
   return shipment;
 }
 
@@ -311,6 +367,21 @@ export async function advanceLogisticsStep(shipmentId: string): Promise<Shipment
       };
 
       transaction.update(docRef, updated as any);
+
+      // [핵심] MOCK 송장 배송 완료 시 주문 상태 자동 업데이트 (FM)
+      if (isLastStep && shipmentId.startsWith("MOCK-")) {
+        if (data.orderId) {
+          const orderRef = adminDb.collection("orders").doc(data.orderId);
+          transaction.update(orderRef, { status: "delivered", updatedAt: now.toISOString() });
+        } else {
+          // 방어 로직: 송장번호로 주문 조회 후 업데이트
+          const orderSnap = await adminDb.collection("orders").where("trackingNumber", "==", shipmentId).limit(1).get();
+          if (!orderSnap.empty) {
+            transaction.update(orderSnap.docs[0].ref, { status: "delivered", updatedAt: now.toISOString() });
+          }
+        }
+      }
+
       return updated;
     });
   }
@@ -341,6 +412,20 @@ export async function advanceLogisticsStep(shipmentId: string): Promise<Shipment
     };
 
     transaction.update(docRef, updated as any);
+
+    // [핵심] MOCK 송장 배송 완료 시 주문 상태 자동 업데이트
+    if (isLastStep && shipmentId.startsWith("MOCK-")) {
+      if (data.orderId) {
+        const orderRef = doc(db, "orders", data.orderId);
+        transaction.update(orderRef, { status: "delivered", updatedAt: now.toISOString() });
+      } else {
+        const orderSnap = await getDocs(query(collection(db, "orders"), where("trackingNumber", "==", shipmentId)));
+        if (!orderSnap.empty) {
+          transaction.update(doc(db, "orders", orderSnap.docs[0].id), { status: "delivered", updatedAt: now.toISOString() });
+        }
+      }
+    }
+
     return updated;
   });
 }

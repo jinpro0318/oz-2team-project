@@ -43,8 +43,9 @@ class DeliveryEngine {
    * @param carrierCode 택배사 코드
    * @param trackingNumber 운송장 번호
    * @param createdAt 주문 생성 시간 (ISO 8601) - CodeLogistics 시뮬레이션용
+   * @param forceUpdate 강제 API 호출 여부 (캐시 무시)
    */
-  public async track(carrierCode: string, trackingNumber: string, createdAt?: string): Promise<TrackingResult> {
+  public async track(carrierCode: string, trackingNumber: string, createdAt?: string, forceUpdate?: boolean): Promise<TrackingResult> {
     if (!carrierCode || !trackingNumber) {
       throw new DeliveryError('NOT_FOUND', 'MOCK', "택배사 코드 또는 운송장 번호가 누락되었습니다.");
     }
@@ -60,7 +61,7 @@ class DeliveryEngine {
     }
 
     // 2. 그 외 모든 일반 번호는 실제 택배사 API(SweetTracker)로 호출
-    return this.majorAdapter.track(carrierCode, trackingNumber);
+    return this.majorAdapter.track(carrierCode, trackingNumber, forceUpdate);
   }
 }
 

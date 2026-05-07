@@ -194,7 +194,7 @@ export async function updateOrderStatus(
   status: OrderStatus,
   timelineEntry?: OrderTimeline,
   trackingNumber?: string,
-  carrierCode?: string // [추가] 택배사 코드 업데이트 지원
+  carrierCode?: string
 ): Promise<void> {
   const order = await getOrder(id);
   if (!order) return;
@@ -203,8 +203,28 @@ export async function updateOrderStatus(
   if (timelineEntry) timeline.push(timelineEntry);
 
   const updateData: any = { status, timeline, updatedAt: new Date().toISOString() };
-  if (trackingNumber !== undefined) updateData.trackingNumber = trackingNumber;
-  if (carrierCode !== undefined) updateData.carrierCode = carrierCode;
+  
+  if (trackingNumber !== undefined) {
+    updateData.trackingNumber = trackingNumber;
+    
+    // 다중 송장 배열 업데이트 로직
+    const trackingNumbers = Array.isArray(order.trackingNumbers) ? [...order.trackingNumbers] : (order.trackingNumber ? [order.trackingNumber] : []);
+    if (trackingNumber && !trackingNumbers.includes(trackingNumber)) {
+      trackingNumbers.push(trackingNumber);
+    }
+    updateData.trackingNumbers = trackingNumbers;
+  }
+
+  if (carrierCode !== undefined) {
+    updateData.carrierCode = carrierCode;
+    
+    // 택배사 코드 배열 업데이트 로직
+    const carrierCodes = Array.isArray(order.carrierCodes) ? [...order.carrierCodes] : (order.carrierCode ? [order.carrierCode] : []);
+    if (carrierCode && !carrierCodes.includes(carrierCode)) {
+      carrierCodes.push(carrierCode);
+    }
+    updateData.carrierCodes = carrierCodes;
+  }
 
   await updateDocument("orders", id, updateData);
 }

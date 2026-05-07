@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, Table, Tag, Button, Space, Spin, Drawer, Popconfirm, Timeline, App, Typography, Select, Modal } from "antd"; // [효진] App, Select, Modal 추가
 import {
   DownloadOutlined,
@@ -25,6 +25,8 @@ import {
 import { buildProductPriceMap } from "@/lib/utils/price";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { initShipment } from "@/lib/services/logistics";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot, collection, query, orderBy } from "firebase/firestore";
 
 
 
@@ -83,10 +85,38 @@ export default function AdminOrdersPage() {
 
 
 function AdminOrders() {
-  const { message, modal } = App.useApp(); // [효진] 컨텍스트 메시지, 모달 사용
+  const { message, modal } = App.useApp(); 
   const [activeTab, setActiveTab] = useState("all");
   const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
-  const { data: orders = [], isLoading } = useAllOrders();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
+
+  // [핵심] 주문 목록 전체 실시간 동기화 (onSnapshot)
+  useEffect(() => {
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const docs = snap.docs.map(d => {
+        const data = d.data();
+        // [중요] 무한 루프 방지를 위해 Timestamp를 ISO 문자열로 변환
+        return { 
+          id: d.id, 
+          ...data,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt 
+        } as Order;
+      });
+      setOrders(docs);
+      setIsOrdersLoading(false);
+
+      // 현재 열려있는 드로어 데이터도 함께 업데이트
+      if (drawerOrder?.id) {
+        const updated = docs.find(o => o.id === drawerOrder.id);
+        if (updated) setDrawerOrder(updated);
+      }
+    });
+
+    return () => unsub();
+  }, [drawerOrder?.id]);
+
   const { data: products = [] } = useAllProducts();
   const priceMap = buildProductPriceMap(products);
   const computeOrderTotal = (order: Order) =>
@@ -152,11 +182,12 @@ function AdminOrders() {
 
   const handleShip = async (order: Order) => {
     try {
-      // CODE 로지스틱스(MOCK) 송장인 경우 DB에 shipment 생성
-      if (order.trackingNumber?.startsWith('MOCK-') && order.carrierCode === 'MOCK') {
+      // 배송 정보 초기화 및 DB 등록 (MOCK & REAL 공통)
+      if (order.trackingNumber && order.carrierCode) {
         const receiverAddr = `${order.shippingAddress.address} ${order.shippingAddress.addressDetail}`;
         await initShipment({
           trackingNumber: order.trackingNumber,
+          carrierCode: order.carrierCode,
           orderId: order.id,
           type: 'S',
           senderAddress: '서울특별시 강남구 코드로 1',
@@ -551,7 +582,7 @@ function AdminOrders() {
       dataIndex: "createdAt",
       key: "date",
       width: 100,
-      render: (date: string, record: Order) => {
+      render: (date: any) => {
         return (
           <Space orientation="vertical" size={0}>
             <span className="text-xs">{dayjs(date).format("YYYY-MM-DD HH:mm")}</span>
@@ -600,13 +631,15 @@ function AdminOrders() {
               출고
             </Button>
           )}
-          {r.status === "shipping" && !r.timeline?.some(t => t.status === "exchange_requested") && (
+          {(r.status === "shipping" || r.status === "delivered") && !r.timeline?.some(t => t.status === "exchange_requested") && (
             <Button
               size="small"
               icon={<CheckOutlined />}
               loading={updateStatus.isPending}
+              disabled={r.status === "delivered" || r.trackingNumber?.startsWith("MOCK-")}
               onClick={() => handleDeliver(r)}
-              className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+              className={(r.status === "delivered" || r.trackingNumber?.startsWith("MOCK-")) ? "" : "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"}
+              title={r.status === "delivered" ? "이미 완료된 주문입니다" : (r.trackingNumber?.startsWith("MOCK-") ? "MOCK 송장은 자동 처리됩니다" : "")}
             >
               완료
             </Button>
@@ -769,7 +802,8 @@ function AdminOrders() {
           columns={columns}
           rowKey="id"
           size="small"
-          pagination={{ pageSize: 10 }}
+          loading={isOrdersLoading}
+          pagination={{ pageSize: 10, placement: "bottomCenter" }}
           scroll={{ x: 1000 }}
         />
       </Card>
@@ -792,6 +826,19 @@ function AdminOrders() {
         extra={
           drawerOrder && (
             <Space>
+              {(drawerOrder.status === "shipping" || drawerOrder.status === "delivered") && (
+                <Button
+                  block
+                  icon={<CheckOutlined />}
+                  loading={updateStatus.isPending}
+                  disabled={drawerOrder.status === "delivered" || drawerOrder.trackingNumber?.startsWith("MOCK-")}
+                  onClick={() => handleDeliver(drawerOrder)}
+                  className={(drawerOrder.status === "delivered" || drawerOrder.trackingNumber?.startsWith("MOCK-")) ? "" : "bg-green-50 text-green-600 border-green-200"}
+                  title={drawerOrder.status === "delivered" ? "이미 완료된 주문입니다" : (drawerOrder.trackingNumber?.startsWith("MOCK-") ? "MOCK 송장은 자동 처리됩니다" : "")}
+                >
+                  배송완료 처리
+                </Button>
+              )}
               {drawerOrder.status === "payment_complete" && (
                 <Button
                   block
@@ -814,15 +861,6 @@ function AdminOrders() {
                   출고 처리
                 </Button>
               )}
-              <Button
-                block
-                icon={<CheckOutlined />}
-                loading={updateStatus.isPending}
-                onClick={() => handleDeliver(drawerOrder)}
-                className="bg-green-50 text-green-600 border-green-200"
-              >
-                배송완료 처리
-              </Button>
               {(drawerOrder.status === "exchange_requested" || drawerOrder.status === "return_requested") && (
                 <Space direction="vertical" className="w-full" size={8}>
                   <Button
@@ -872,21 +910,16 @@ function AdminOrders() {
       >
         {drawerOrder && (
           <div className="space-y-5">
-            {/* 주문번호 */}
             <div className="rounded-lg bg-[#F5F6FA] px-4 py-3">
               <p className="text-[10px] text-[#7E8299]">주문번호</p>
               <p className="mt-0.5 font-mono text-sm font-bold text-[#181C32]">
                 {drawerOrder.orderNumber}
               </p>
-              <p className="text-[10px] text-[#A1A5B7]">
-                {(() => {
-                  const d = drawerOrder.createdAt?.toDate ? drawerOrder.createdAt.toDate() : drawerOrder.createdAt;
-                  return dayjs(d).format("YYYY-MM-DD HH:mm:ss");
-                })()}
+              <p className="mt-0.5 text-[11px] text-[#7E8299]">
+                {dayjs(drawerOrder.createdAt).format("YYYY-MM-DD HH:mm")}
               </p>
             </div>
 
-            {/* 주문 상품 */}
             <div>
               <p className="mb-2 text-xs font-semibold text-[#181C32]">주문 상품</p>
               <div className="space-y-2">

@@ -1,12 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Badge } from "antd";
+import { Badge, InputNumber, Typography, Space } from "antd";
 import { BellOutlined, LogoutOutlined, ShopOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/authStore";
 import { logoutUser } from "@/lib/auth";
-import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 미처리 주문 수 계산용으로 추가
+import { useAllOrders } from "@/hooks/useOrders";
 import AdminLinkButtons from "@/components/common/AdminLinkButtons";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
 // [효진] pathname → 한글 페이지명 매핑 (브레드크럼에 표시)
 const pageLabels: Record<string, string> = {
@@ -31,6 +34,50 @@ export default function AdminHeader() {
     (o) => o.status === "payment_complete" || o.status === "preparing"
   ).length;
 
+  const [syncInterval, setSyncInterval] = useState(60);
+
+  // [설정] DB에서 전역 캐싱 주기 로드 및 실시간 구독
+  useEffect(() => {
+    const settingsRef = doc(db, "settings", "logistics");
+    
+    // 1. 초기 로드 및 실시간 구독
+    const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setSyncInterval(data.sweetTrackerCacheInterval || 60);
+      } else {
+        // 데이터가 없으면 기본값으로 생성
+        setDoc(settingsRef, { 
+          sweetTrackerCacheInterval: 60,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // [설정] DB 저장 (디바운스 적용)
+  const handleSyncIntervalChange = (val: number | null) => {
+    if (!val) return;
+    setSyncInterval(val);
+    
+    // 디바운스 타이머
+    const timer = setTimeout(async () => {
+      const settingsRef = doc(db, "settings", "logistics");
+      try {
+        await setDoc(settingsRef, { 
+          sweetTrackerCacheInterval: val,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (error) {
+        console.error("Failed to update sync interval:", error);
+      }
+    }, 800); // 0.8초 멈춤 시 저장
+
+    return () => clearTimeout(timer);
+  };
+
   // [효진] 로그아웃 버튼 신규 추가: logoutUser() → authStore 초기화 → /login 이동
   const handleLogout = async () => {
     await logoutUser();
@@ -48,6 +95,19 @@ export default function AdminHeader() {
       </div>
 
       <div className="flex items-center gap-4">
+        <div className="mr-6 flex items-center gap-2">
+          <Typography.Text className="text-[11px] font-medium text-[#7E8299]">스윗트래커 DB 캐싱</Typography.Text>
+          <InputNumber
+            size="small"
+            min={1}
+            max={1440}
+            value={syncInterval}
+            onChange={handleSyncIntervalChange}
+            suffix="분"
+            className="w-20"
+          />
+        </div>
+
         {/* [효진] 벨 클릭 시 /admin/orders로 이동 연결 */}
         <Badge count={pendingCount} size="small" color="#F64E60">
           <button

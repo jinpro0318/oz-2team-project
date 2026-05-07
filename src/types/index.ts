@@ -143,6 +143,8 @@ export interface Order {
   status: OrderStatus;
   carrierCode?: string;    // 택배사 코드
   trackingNumber?: string; // 운송장 번호
+  carrierCodes?: string[];    // [NEW] 택배사 코드 목록
+  trackingNumbers?: string[]; // [NEW] 운송장 번호 목록
   createdAt: string;
   updatedAt: string;
   timeline: OrderTimeline[];
