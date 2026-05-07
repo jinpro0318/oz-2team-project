@@ -1,8 +1,13 @@
 /**
- * CODE 로지스틱스 자체 배송 시뮬레이션 시스템 (CodeLogistics)
+ * ═══════════════════════════════════════════════════════════════
+ * [v9.0 §15] CODE 로지스틱스 Stateful 어댑터
+ * ═══════════════════════════════════════════════════════════════
+ * - 모든 Stateless 시간 계산 로직 제거 (Clean Slate)
+ * - DB(shipments 컬렉션)가 유일한 진실 공급원(Single Source of Truth)
+ * - Temporal Reveal Engine으로 노출 여부만 시간 기반 결정
  */
 import { TrackingResult, DeliveryServiceConfig } from "../types";
-import { DeliveryError } from "../errors";
+import { getShipment, applyRevealFilter, generateDriver } from "../../logistics";
 
 export class CodeLogistics {
   private config: DeliveryServiceConfig;
@@ -11,68 +16,60 @@ export class CodeLogistics {
     this.config = config;
   }
 
-  async track(carrierCode: string, trackingNumber: string, createdAt?: string): Promise<TrackingResult> {
-    const now = new Date();
-    
-    // 1. 시간 기반 동적 상태 계산
-    const createDate = createdAt ? new Date(createdAt) : new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const diffMinutes = Math.max(0, Math.floor((now.getTime() - createDate.getTime()) / (60 * 1000)));
+  async track(carrierCode: string, trackingNumber: string, _createdAt?: string): Promise<TrackingResult> {
+    // 1. DB에서 shipment 조회 (유일한 진실 공급원)
+    const shipment = await getShipment(trackingNumber);
 
-    // 2. 송장번호 해시 (일관된 무작위성)
-    const getHash = (str: string) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash |= 0;
-      }
-      return Math.abs(hash);
-    };
-    const hashValue = getHash(trackingNumber);
-    
-    let status: TrackingResult["status"] = "preparing";
-    let lastLocation = "판매처";
-    let history: TrackingResult["history"] = [];
-
-    const formatTime = (minusMinutes: number) => {
-      const d = new Date(now.getTime() - minusMinutes * 60 * 1000);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    };
-
-    // 3. 경과 시간에 따른 시나리오
-    if (diffMinutes < 60) {
-      status = "preparing";
-      lastLocation = "판매처 (확인 중)";
-      history = [{ time: formatTime(diffMinutes), location: "판매처", status: "결제 완료", description: "주문이 정상 접수되었습니다." }];
-    } 
-    else if (diffMinutes < 180) {
-      status = "preparing";
-      lastLocation = "판매처 (상품 준비 중)";
-      history = [
-        { time: formatTime(diffMinutes), location: "판매처", status: "결제 완료", description: "주문이 정상 접수되었습니다." },
-        { time: formatTime(diffMinutes - 60), location: "판매처", status: "상품 준비 중", description: "판매자가 상품을 포장하고 있습니다." }
-      ];
+    if (!shipment) {
+      // DB에 없는 경우: 아직 출고 전이거나 송장만 발급된 상태
+      return {
+        carrier: "CODE 로지스틱스",
+        carrierCode,
+        trackingNumber,
+        status: "preparing",
+        lastLocation: "판매처",
+        history: [{
+          time: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          location: "판매처",
+          status: "송장 발급 완료",
+          description: "CODE 로지스틱스 전용 송장이 발급되었습니다. 출고 준비 중입니다.",
+        }],
+      };
     }
-    else if (diffMinutes < 1440) {
+
+    // 2. Reveal Engine: 현재 시각 기준으로 확정/예정 로그 분리
+    const { revealed, pending } = applyRevealFilter(shipment.path);
+    const driver = shipment.driver;
+
+    // 3. 확정된 로그를 TrackingHistory 형식으로 변환
+    const history = revealed.map(step => ({
+      time: new Date(step.estimatedTime).toISOString().replace('T', ' ').slice(0, 16),
+      location: step.location,
+      status: step.statusLabel,
+      description: step.message,
+    }));
+
+    // 4. 배송 상태 결정
+    let status: TrackingResult["status"];
+    if (shipment.status === 'DELIVERED') {
+      status = "delivered";
+    } else if (revealed.length === 0) {
+      status = "preparing";
+    } else {
       status = "shipping";
-      lastLocation = "물류 센터";
-      history = [
-        { time: formatTime(diffMinutes), location: "판매처", status: "결제 완료", description: "주문이 정상 접수되었습니다." },
-        { time: formatTime(diffMinutes - 180), location: "물류 센터", status: "상품 발송", description: "배송이 시작되었습니다." }
-      ];
     }
-    else {
-      status = "shipping";
-      lastLocation = "지역 배송 센터";
-      history = [
-        { time: formatTime(diffMinutes), location: "판매처", status: "결제 완료", description: "주문이 정상 접수되었습니다." },
-        { time: formatTime(diffMinutes - 180), location: "물류 센터", status: "상품 발송", description: "배송 시작" },
-        { time: formatTime(0), location: "지역 배송 센터", status: "배송 중", description: "정상 배송 중입니다." }
-      ];
-      if (hashValue % 2 === 0 && diffMinutes > 2880) {
-        status = "delivered";
-        lastLocation = "고객님 자택";
-        history.push({ time: formatTime(0), location: "고객님 자택", status: "배송 완료", description: "배송이 완료되었습니다." });
-      }
+
+    // 5. 마지막 확정 위치
+    const lastRevealed = revealed[revealed.length - 1];
+    const lastLocation = lastRevealed
+      ? `${lastRevealed.location} (${lastRevealed.statusLabel})`
+      : "판매처";
+
+    // 6. 기사 정보를 마지막 히스토리 항목에 추가 (배송출발 이후)
+    const driverSteps = ["배송출발", "배송완료", "수거완료"];
+    if (lastRevealed && driverSteps.includes(lastRevealed.statusLabel)) {
+      const lastHistory = history[history.length - 1];
+      lastHistory.description += ` [기사: ${driver.name} / ${driver.vehicle} / ${driver.contact}]`;
     }
 
     return {
@@ -81,7 +78,7 @@ export class CodeLogistics {
       trackingNumber,
       status,
       lastLocation,
-      history
+      history,
     };
   }
 }

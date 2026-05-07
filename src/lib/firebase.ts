@@ -5,7 +5,7 @@ import {
   browserSessionPersistence,
   type Auth,
 } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, type Firestore, initializeFirestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -46,7 +46,23 @@ function ensureAuth(): Auth {
 }
 
 function ensureDb(): Firestore {
-  if (!_db) _db = getFirestore(ensureApp());
+  if (!_db) {
+    const app = ensureApp();
+    const isServer = typeof window === "undefined";
+
+    if (isServer) {
+      try {
+        // 서버 사이드에서는 연결 안정성을 위해 별도의 명명된 인스턴스로 초기화
+        _db = initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+        }, "server-db");
+      } catch (e) {
+        _db = getFirestore(app);
+      }
+    } else {
+      _db = getFirestore(app);
+    }
+  }
   return _db;
 }
 

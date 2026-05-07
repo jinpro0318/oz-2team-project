@@ -1,0 +1,59 @@
+function generatePathSteps(
+  type: MOCKShipmentType,
+  trackingNumber: string,
+  senderAddress: string,
+  receiverAddress: string,
+  startTime: Date,
+): PathStep[] {
+  const h = hashString(trackingNumber);
+
+  if (type === 'R') {
+    // 반품 경로: 고객 → 판매처
+    const customerRegion = getRegion(senderAddress);
+    const hub = HUB_MAP[customerRegion];
+    const terminal = hub.terminals[h % hub.terminals.length];
+
+    const templates = [
+      { location: "고객님",      statusLabel: "결제완료", message: "반품 주문이 접수되었습니다." },
+      { location: "고객님 자택",  statusLabel: "반품접수", message: "고객님의 반품 신청이 정상 접수되었습니다." },
+      { location: terminal,      statusLabel: "방문예정", message: "배송 기사가 상품 수거를 위해 방문할 예정입니다." },
+      { location: terminal,      statusLabel: "수거완료", message: "상품 수거가 완료되어 터미널로 이동합니다." },
+      { location: hub.hub,       statusLabel: "HUB통과",  message: "물류 거점을 통과하여 판매처로 이동 중입니다." },
+      { location: "판매처",      statusLabel: "반품완료", message: "판매처에 상품이 도착하여 검수 중입니다." },
+    ];
+
+    let cumulativeMs = 0;
+    return templates.map((t, i) => {
+      const dur = i === 0 ? 0 : getDeterministicDuration(trackingNumber, i, RETURN_DURATIONS[Math.min(i-1, RETURN_DURATIONS.length-1)][0], RETURN_DURATIONS[Math.min(i-1, RETURN_DURATIONS.length-1)][1]);
+      cumulativeMs += dur * 3600000;
+      return { step: i, ...t, estimatedTime: new Date(startTime.getTime() + cumulativeMs).toISOString(), durationHours: dur };
+    });
+  }
+
+  // 일반 배송(S) 또는 교환 재배송(E): 판매처 → 고객
+  const sellerRegion = getRegion(senderAddress);
+  const customerRegion = getRegion(receiverAddress);
+  const sellerHub = HUB_MAP[sellerRegion];
+  const customerHub = HUB_MAP[customerRegion];
+  const originTerminal = sellerHub.terminals[h % sellerHub.terminals.length];
+  const destTerminal = customerHub.terminals[(h >> 4) % customerHub.terminals.length];
+  const localArea = receiverAddress.split(' ').slice(0, 2).join(' ') || "배송지 인근";
+
+  const templates = [
+    { location: "고객님",        statusLabel: "결제완료",   message: "주문 및 결제가 정상적으로 완료되었습니다." },
+    { location: "판매처",        statusLabel: "상품인수",   message: "보내시는 분이 상품을 접수하였습니다." },
+    { location: originTerminal,  statusLabel: "터미널입고", message: "물류센터로 이동하기 위해 터미널에 입고되었습니다." },
+    { location: sellerHub.hub,   statusLabel: "간선하차",   message: `${sellerHub.hub}에 도착하여 분류 작업을 시작합니다.` },
+    { location: sellerHub.hub,   statusLabel: "간선상차",   message: "분류 완료 후 목적지 터미널로 발송되었습니다." },
+    { location: destTerminal,    statusLabel: "터미널도착", message: "고객님 지역의 터미널에 도착하였습니다." },
+    { location: localArea,       statusLabel: "배송출발",   message: "배송 기사가 고객님께 상품을 배달 중입니다." },
+    { location: "고객님 자택",   statusLabel: "배송완료",   message: "상품 배송이 완료되었습니다. 감사합니다." },
+  ];
+
+  let cumulativeMs = 0;
+  return templates.map((t, i) => {
+    const dur = i === 0 ? 0 : getDeterministicDuration(trackingNumber, i, STANDARD_DURATIONS[Math.min(i-1, STANDARD_DURATIONS.length-1)][0], STANDARD_DURATIONS[Math.min(i-1, STANDARD_DURATIONS.length-1)][1]);
+    cumulativeMs += dur * 3600000;
+    return { step: i, ...t, estimatedTime: new Date(startTime.getTime() + cumulativeMs).toISOString(), durationHours: dur };
+  });
+}

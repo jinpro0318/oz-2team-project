@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deliveryService } from "@/lib/services/delivery";
+import { adminDb } from "@/lib/firebase-admin";
 import { getDocument, getDocuments, setDocument, where } from "@/lib/firestore";
 
 /**
@@ -13,7 +14,10 @@ export async function GET(
   const { carrierCode, trackingNumber } = resolvedParams;
 
   try {
-    if (!carrierCode || carrierCode === "undefined" || !trackingNumber || trackingNumber === "undefined") {
+    console.log(`[Delivery API] Request: carrier=${carrierCode}, tracking=${trackingNumber}`);
+
+    if (!carrierCode || carrierCode === "undefined" || !trackingNumber || trackingNumber === "undefined" || trackingNumber.length < 5) {
+      console.warn(`[Delivery API] Invalid parameters ignored: ${carrierCode}/${trackingNumber}`);
       return NextResponse.json({ error: "유효하지 않은 요청 파라미터입니다." }, { status: 400 });
     }
 
@@ -22,33 +26,42 @@ export async function GET(
     const nowTs = Date.now();
 
     // 1. 캐시 체크 (메이저 택배사인 경우)
-    if (!isMock) {
+    if (!isMock && adminDb) {
       try {
-        const cacheDoc: any = await getDocument("delivery_cache", cacheId);
-        if (cacheDoc && cacheDoc.updatedAt) {
-          const lastUpdateTs = new Date(cacheDoc.updatedAt).getTime();
-          const diffMs = nowTs - lastUpdateTs;
-          
-          // 60분(3600000ms) 이내라면 캐시 반환
-          if (diffMs < 3600000) {
-            console.log(`[Delivery API] Cache Hit! for ${cacheId}`);
-            return NextResponse.json(cacheDoc.result);
+        const cacheSnap = await adminDb.collection("delivery_cache").doc(cacheId).get();
+        if (cacheSnap.exists) {
+          const cacheDoc = cacheSnap.data() as any;
+          if (cacheDoc && cacheDoc.updatedAt) {
+            const lastUpdateTs = new Date(cacheDoc.updatedAt).getTime();
+            const diffMs = nowTs - lastUpdateTs;
+            
+            // 60분(3600000ms) 이내라면 캐시 반환
+            if (diffMs < 3600000) {
+              console.log(`[Delivery API Admin] Cache Hit! for ${cacheId}`);
+              return NextResponse.json(cacheDoc.result);
+            }
           }
         }
       } catch (cacheErr) {
-        console.warn("[Delivery API] Cache Lookup Warning:", cacheErr);
+        console.warn("[Delivery API Admin] Cache Lookup Warning:", cacheErr);
       }
     }
 
     // 2. 주문 생성 시간 파악 (목업용 시나리오 결정용)
     let createdAt: string | undefined = undefined;
-    try {
-      const orders = await getDocuments("orders", [where("trackingNumber", "==", trackingNumber)]);
-      if (orders && orders.length > 0) {
-        createdAt = (orders[0] as any).createdAt;
+    if (adminDb) {
+      try {
+        const orderSnap = await adminDb.collection("orders")
+          .where("trackingNumber", "==", trackingNumber)
+          .limit(1)
+          .get();
+        
+        if (!orderSnap.empty) {
+          createdAt = (orderSnap.docs[0].data() as any).createdAt;
+        }
+      } catch (dbErr: any) {
+        console.warn("[Delivery API Admin] Order DB Lookup Warning:", dbErr.message);
       }
-    } catch (dbErr: any) {
-      console.warn("[Delivery API] Order DB Lookup Warning:", dbErr.message);
     }
 
     // 3. 실시간 배송 조회 수행
@@ -60,28 +73,37 @@ export async function GET(
     }
 
     // 4. 성공 결과 캐싱 (메이저 택배사인 경우)
-    if (!isMock) {
+    if (!isMock && adminDb) {
       try {
-        await setDocument("delivery_cache", cacheId, {
+        await adminDb.collection("delivery_cache").doc(cacheId).set({
           result,
           updatedAt: new Date().toISOString(),
         });
       } catch (saveErr: any) {
-        console.warn("[Delivery API] Cache Save Warning:", saveErr.message);
+        console.warn("[Delivery API Admin] Cache Save Warning:", saveErr.message);
       }
     }
     
     return NextResponse.json(result);
+
   } catch (error: any) {
     console.error(`[Delivery API FATAL] ${carrierCode}/${trackingNumber}:`, error);
     
     let status = 500;
-    if (error.code === "NOT_FOUND") status = 404;
-    else if (error.code === "MISSING_CONFIG" || error.code === "UNAUTHORIZED") status = 401;
+    let message = error.message || "배송 정보를 조회할 수 없습니다.";
+
+    if (error.code === "NOT_FOUND" || error.message?.includes("not found")) {
+      status = 404;
+    } else if (error.code === "unavailable" || error.message?.includes("offline")) {
+      status = 503;
+      message = "서비스를 일시적으로 사용할 수 없습니다. (DB 연결 오류)";
+    } else if (error.code === "MISSING_CONFIG" || error.code === "UNAUTHORIZED") {
+      status = 401;
+    }
 
     return NextResponse.json(
       { 
-        error: error.message || "배송 정보를 조회할 수 없습니다.",
+        error: message,
         code: error.code || "UNKNOWN_ERROR" 
       },
       { status } 

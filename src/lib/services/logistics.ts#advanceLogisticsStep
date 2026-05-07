@@ -1,0 +1,62 @@
+/** [v9.0 §15.3] 관리자 건너뛰기 로직 */
+export async function advanceLogisticsStep(shipmentId: string): Promise<Shipment> {
+  // [v9.0 Admin 연동] 서버 사이드 전용 트랜잭션 처리
+  if (typeof window === "undefined") {
+    const { adminDb } = await import("@/lib/firebase-admin");
+    if (adminDb) {
+      return await adminDb.runTransaction(async (transaction) => {
+        const docRef = adminDb.collection(SHIPMENTS_COL).doc(shipmentId);
+        const snap = await transaction.get(docRef);
+
+        if (!snap.exists) throw new Error("배송 정보를 찾을 수 없습니다.");
+        const data = snap.data() as Shipment;
+
+        const nextStep = data.currentStep + 1;
+        if (nextStep >= data.path.length) throw new Error("이미 마지막 단계입니다.");
+
+        const now = new Date();
+        const updatedPath = [...data.path];
+        
+        // 현재 시간을 실제 도착 시간으로 기록
+        updatedPath[nextStep].actualTime = now.toISOString();
+
+        const updated: Shipment = {
+          ...data,
+          currentStep: nextStep,
+          status: nextStep === data.path.length - 1 ? "DELIVERED" : "SHIPPING",
+          path: updatedPath,
+          updatedAt: now.toISOString(),
+        };
+
+        transaction.update(docRef, updated as any);
+        return updated;
+      });
+    }
+  }
+
+  // Fallback (Client SDK)
+  return await runTransaction(db, async (transaction) => {
+    const docRef = doc(db, SHIPMENTS_COL, shipmentId);
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) throw new Error("배송 정보를 찾을 수 없습니다.");
+    
+    const data = snap.data() as Shipment;
+    const nextStep = data.currentStep + 1;
+    if (nextStep >= data.path.length) throw new Error("이미 마지막 단계입니다.");
+
+    const now = new Date();
+    const updatedPath = [...data.path];
+    updatedPath[nextStep].actualTime = now.toISOString();
+
+    const updated: Shipment = {
+      ...data,
+      currentStep: nextStep,
+      status: nextStep === data.path.length - 1 ? "DELIVERED" : "SHIPPING",
+      path: updatedPath,
+      updatedAt: now.toISOString(),
+    };
+
+    transaction.update(docRef, updated as any);
+    return updated;
+  });
+}

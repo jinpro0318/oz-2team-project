@@ -20,10 +20,11 @@ import {
   isFinishedStatus,
   getActiveClaimType,
   isClaimInProgress,
-  getCodeLogisticsTrackingNumber
+  generateMOCKTrackingNumber
 } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
+import { initShipment } from "@/lib/services/logistics";
 
 
 
@@ -132,11 +133,9 @@ function AdminOrders() {
 
 
     try {
-      const newTracking = getCodeLogisticsTrackingNumber(order.trackingNumber, "preparing");
       await updateStatus.mutateAsync({
         id: order.id,
         status: "preparing",
-        trackingNumber: newTracking,
         timelineEntry: {
           status: "preparing",
           label: "상품 준비중",
@@ -145,7 +144,7 @@ function AdminOrders() {
         },
       });
       message.success("상품 준비중으로 변경되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "preparing", trackingNumber: newTracking });
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "preparing" });
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -153,11 +152,21 @@ function AdminOrders() {
 
   const handleShip = async (order: Order) => {
     try {
-      const newTracking = getCodeLogisticsTrackingNumber(order.trackingNumber, "shipping");
+      // CODE 로지스틱스(MOCK) 송장인 경우 DB에 shipment 생성
+      if (order.trackingNumber?.startsWith('MOCK-') && order.carrierCode === 'MOCK') {
+        const receiverAddr = `${order.shippingAddress.address} ${order.shippingAddress.addressDetail}`;
+        await initShipment({
+          trackingNumber: order.trackingNumber,
+          orderId: order.id,
+          type: 'S',
+          senderAddress: '서울특별시 강남구 코드로 1',
+          receiverAddress: receiverAddr,
+        });
+      }
+
       await updateStatus.mutateAsync({
         id: order.id,
         status: "shipping",
-        trackingNumber: newTracking,
         timelineEntry: {
           status: "shipping",
           label: "상품 출고(배송 시작)",
@@ -166,7 +175,7 @@ function AdminOrders() {
         },
       });
       message.success("출고 처리 완료");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "shipping", trackingNumber: newTracking });
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "shipping" });
     } catch (err: any) {
       console.error("[효진] 출고 에러:", err);
       message.error("출고 처리에 실패했습니다.");
@@ -175,11 +184,9 @@ function AdminOrders() {
 
   const handleDeliver = async (order: Order) => {
     try {
-      const newTracking = getCodeLogisticsTrackingNumber(order.trackingNumber, "delivered");
       await updateStatus.mutateAsync({
         id: order.id,
         status: "delivered",
-        trackingNumber: newTracking,
         timelineEntry: {
           status: "delivered",
           label: "배송 완료",
@@ -188,7 +195,7 @@ function AdminOrders() {
         },
       });
       message.success("배송 완료 처리되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "delivered", trackingNumber: newTracking });
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "delivered" });
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -196,12 +203,9 @@ function AdminOrders() {
 
   const handleReturnPickUp = async (order: Order) => {
     try {
-      const newTracking = getCodeLogisticsTrackingNumber(order.trackingNumber, "returning");
-      
       await updateStatus.mutateAsync({
         id: order.id,
         status: "returning",
-        trackingNumber: newTracking,
         timelineEntry: {
           status: "returning",
           label: "반송 수거 지시",
@@ -210,7 +214,7 @@ function AdminOrders() {
         },
       });
       message.success("수거 지시가 완료되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "returning", trackingNumber: newTracking });
+      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "returning" });
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -360,7 +364,7 @@ function AdminOrders() {
                         centered: true,
                         className: "premium-modal",
                         onOk: () => {
-                          const autoTracking = `MOCK-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+                          const autoTracking = generateMOCKTrackingNumber('S');
                           updateStatus.mutate({
                             id: r.id,
                             status: r.status,
@@ -939,13 +943,14 @@ function AdminOrders() {
             </div>
 
             {/* 실시간 배송 조회 (관리자용) */}
-            {drawerOrder.status === "shipping" || drawerOrder.status === "delivered" ? (
+            {(drawerOrder.status === "preparing" || drawerOrder.status === "shipping" || drawerOrder.status === "delivered") ? (
               <div>
                 <p className="mb-2 text-xs font-semibold text-[#181C32]">실시간 배송 현황</p>
                 <div className="rounded-lg border border-[#E4E6EF] p-1">
                   <DeliveryTracking 
                     carrierCode={drawerOrder.carrierCode} 
-                    trackingNumber={drawerOrder.trackingNumber} 
+                    trackingNumber={drawerOrder.trackingNumber}
+                    isAdmin={true}
                   />
                 </div>
               </div>

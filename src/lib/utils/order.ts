@@ -31,27 +31,29 @@ export const isClaimInProgress = (order: Order): boolean => {
 };
 
 /**
- * 상태별 송장번호 끝자리 시뮬레이션 규칙 (CODE 로지스틱스 전용)
+ * ──────────────────────────────────────────────────────────────
+ * [v9.0 §7] 통합 스마트 송장 엔진 (Smart Tracking Engine)
+ * ──────────────────────────────────────────────────────────────
+ * 포맷: MOCK-{Type}{YYMMDD}-{Random4}
+ *
+ * @param type - 'S' (Standard 최초출고) | 'R' (Return 반품수거) | 'E' (Exchange 교환재배송)
+ * @returns 고유한 MOCK 송장 번호 (예: MOCK-S260507-A1B2)
  */
-export const getCodeLogisticsTrackingNumber = (currentNumber: string | undefined, status: OrderStatus): string => {
-  const base = currentNumber?.length && currentNumber.length > 5 
-    ? currentNumber.slice(0, -1) 
-    : "MOCK940000000";
+export type MOCKShipmentType = 'S' | 'R' | 'E';
 
-  switch (status) {
-    case "delivered":
-    case "exchange_completed":
-    case "purchase_confirmed":
-      return base + "5";
-    case "returning":
-    case "returned":
-    case "return_completed":
-      return base + "6";
-    case "shipping":
-      return base + "3";
-    case "preparing":
-      return base + "2";
-    default:
-      return currentNumber || base + "1";
+export const generateMOCKTrackingNumber = (type: MOCKShipmentType): string => {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const datePart = `${yy}${mm}${dd}`;
+
+  // 4자리 영숫자 랜덤 (충돌 가능성 극히 낮음)
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let random = '';
+  for (let i = 0; i < 4; i++) {
+    random += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+
+  return `MOCK-${type}${datePart}-${random}`;
 };

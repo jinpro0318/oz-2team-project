@@ -8,7 +8,7 @@ import BackTopBar from "@/components/common/BackTopBar";
 import { useOrder } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
-import { isFinishedStatus, getActiveClaimType, getCodeLogisticsTrackingNumber } from "@/lib/utils/order";
+import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
 
 const statusStepMap: Record<string, number> = {
@@ -176,11 +176,10 @@ export default function OrderDetailPage() {
           </div>
         ) : (
           (() => {
-            const displayTrackingNumber = getCodeLogisticsTrackingNumber(order.trackingNumber, order.status);
             return (
               <DeliveryTracking 
                 carrierCode={order.carrierCode} 
-                trackingNumber={displayTrackingNumber} 
+                trackingNumber={order.trackingNumber} 
                 onStatusChange={setTrackingStatus}
               />
             );
