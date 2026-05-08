@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { advanceLogisticsStep } from "@/lib/services/logistics";
+import { advanceLogisticsStepServer } from "@/lib/services/logistics-server";
 
 /**
  * [v9.0 §15.3] 관리자 건너뛰기(Skip) API
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updated = await advanceLogisticsStep(shipmentId);
+    const updated = await advanceLogisticsStepServer(shipmentId);
 
     return NextResponse.json({
       success: true,

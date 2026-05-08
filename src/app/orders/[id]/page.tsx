@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Steps, Tag, Spin, Alert } from "antd";
 import { PhoneOutlined } from "@ant-design/icons";
@@ -35,7 +35,31 @@ export default function OrderDetailPage() {
   const { data: order, isLoading } = useOrder(id);
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
-  const [trackingStatus, setTrackingStatus] = useState<string | null>(null);
+
+  // [v9.1] 배송 엔진으로부터 받은 실시간 단계 정보
+  const [stepperData, setStepperData] = useState<{
+    current: number;
+    steps: any[];
+  } | null>(null);
+
+  // [v9.1] 콜백 안정화: 무한 루프 방지 핵심 로직
+  const handleStatusChange = useCallback(
+    (status: string, extra?: { current: number; steps: any[] }) => {
+      if (extra) {
+        setStepperData((prev) => {
+          // 불필요한 상태 업데이트 방지 (값 비교)
+          if (
+            prev?.current === extra.current &&
+            prev?.steps.length === extra.steps.length
+          ) {
+            return prev;
+          }
+          return { current: extra.current, steps: extra.steps };
+        });
+      }
+    },
+    [],
+  );
 
   if (isLoading) {
     return (
@@ -62,46 +86,71 @@ export default function OrderDetailPage() {
   // 클레임 이력 및 종료 여부 판단 (유틸리티 활용)
   const claimType = getActiveClaimType(order);
   const isFinished = isFinishedStatus(order.status);
-  
-  // 클레임 흐름 유지 판단
-  const isReturnFlow = !!claimType && !isFinished;
-  
+
   // 현재 접수 대기 상태 (수거 지시 전)
-  const isPendingReturn = ["exchange_requested", "return_requested"].includes(order.status) &&
-                          (!order.timeline?.some(t => t.status === "returning"));
+  const isPendingReturn =
+    ["exchange_requested", "return_requested"].includes(order.status) &&
+    !order.timeline?.some((t) => t.status === "returning");
 
-  // 기본 상태 결정
-  let currentStep = statusStepMap[order.status] ?? 0;
+  // [v9.1] 단일 진실의 샘 원칙: 주문서(order.status)를 마스터로, 배송기(stepperData)를 디테일로 사용
+  const fallbackMap: Record<string, number> = {
+    payment_complete: 0,
+    preparing: 1,
+    shipping: 2,
+    delivered: 3,
+    purchase_confirmed: 4,
+    exchange_requested: 0,
+    return_requested: 0,
+  };
 
-  // 실시간 상태 보정
-  if (trackingStatus) {
-    const isShipping = trackingStatus === "shipping" || ["배송중", "상품발송", "간선상차", "간선하차"].some(s => trackingStatus.includes(s));
-    const isDelivered = trackingStatus === "delivered" || trackingStatus.includes("배송완료");
-    const isReturning = trackingStatus === "returned" || trackingStatus.includes("반송") || trackingStatus.includes("수거");
+  // [v9.1] 클레임(교환/반품) 전용 단계 정의
+  const claimStepMap: Record<string, number> = {
+    exchange_requested: 0,
+    return_requested: 0,
+    returning: 1,
+    returned: 2,
+    inspecting: 3,
+    "re-shipping": 4,
+    exchange_completed: 5,
+    return_completed: 3,
+  };
 
-    if (isReturnFlow) {
-      if (order.status === "shipping" || order.status === "delivered" || order.status === "exchange_completed") {
-        currentStep = 4; // 재배송/완료 단계
-      } else if (isReturning) {
-        currentStep = Math.max(currentStep, 2);
-      } else if (trackingStatus === "delivered" && order.status === "returning") {
-        currentStep = Math.max(currentStep, 3);
-      }
-    } else {
-      if (isDelivered) currentStep = Math.max(currentStep, 3); 
-      else if (isShipping) currentStep = Math.max(currentStep, 2);
+  const claimSteps = claimType === "return" 
+    ? [{ title: "반품접수" }, { title: "수거중" }, { title: "수거완료" }, { title: "반품완료" }]
+    : [{ title: "교환접수" }, { title: "수거중" }, { title: "수거완료" }, { title: "검수중" }, { title: "교환배송" }, { title: "교환완료" }];
+
+  // 1. 기본 단계 결정 (클레임 여부에 따라 분기)
+  let currentStep = 0;
+  let displaySteps = [];
+
+  if (claimType) {
+    currentStep = claimStepMap[order.status] ?? 0;
+    displaySteps = claimSteps;
+    
+    if (stepperData) {
+      currentStep = Math.max(currentStep, stepperData.current);
     }
-  } else if (isReturnFlow && (order.status === "shipping" || order.status === "delivered" || order.status === "exchange_completed")) {
-    currentStep = 4;
-  }
+  } else {
+    currentStep = fallbackMap[order.status] ?? 0;
+    displaySteps = [
+      { title: "결제완료" },
+      { title: "준비중" },
+      { title: "배송중" },
+      { title: "배송완료" },
+      { title: "구매확정" },
+    ];
 
-  // [보정] 클레임 반려 시 마지막 '반려' 단계 활성화
-  if (order.status === "claim_rejected") {
-    currentStep = 4;
+    if (stepperData) {
+      if (order.status === "shipping" && stepperData.current < 2) currentStep = 2;
+      else if (order.status === "delivered" && stepperData.current < 3) currentStep = 3;
+      else if (order.status === "purchase_confirmed") currentStep = 4;
+    }
   }
 
   // [추가] 반려 사유 추출
-  const rejectionReason = order.timeline?.find(t => t.status === "claim_rejected")?.description;
+  const rejectionReason = order.timeline?.find(
+    (t) => t.status === "claim_rejected",
+  )?.description;
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg pb-[60px]">
@@ -112,9 +161,12 @@ export default function OrderDetailPage() {
           <p className="text-xs text-text-secondary">주문번호</p>
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold">{order.orderNumber}</p>
-            {isReturnFlow && (
-              <Tag color="volcano" className="m-0 text-[10px] py-0 px-1 border-none font-bold">
-                교환/반품 진행중
+            {claimType && !isFinished && (
+              <Tag
+                color="volcano"
+                className="m-0 text-[10px] py-0 px-1 border-none font-bold"
+              >
+                {claimType === "exchange" ? "교환 진행중" : "반품 진행중"}
               </Tag>
             )}
           </div>
@@ -131,9 +183,15 @@ export default function OrderDetailPage() {
               title="클레임 반려 안내"
               description={
                 <div className="whitespace-pre-wrap">
-                  <div className="text-black font-semibold">판매자가 클레임을 반려했습니다.</div>
+                  <div className="text-black font-semibold">
+                    판매자가 클레임을 반려했습니다.
+                  </div>
                   <div className="text-gray-500 text-xs mt-1">
-                    사유: {rejectionReason.replace("판매자가 클레임을 반려했습니다.", "").replace("사유:", "").trim()}
+                    사유:{" "}
+                    {rejectionReason
+                      .replace("판매자가 클레임을 반려했습니다.", "")
+                      .replace("사유:", "")
+                      .trim()}
                   </div>
                 </div>
               }
@@ -144,62 +202,47 @@ export default function OrderDetailPage() {
           </div>
         )}
         <h3 className="mb-3 text-[15px] font-bold">배송 현황</h3>
-        <Steps
-          current={currentStep}
-          size="small"
-          items={
-            isReturnFlow
-              ? [
-                  { title: "접수완료" },
-                  { title: "수거지시" },
-                  { title: "반송중" },
-                  { title: "반송완료" },
-                  { title: "재배송" },
-                ]
-              : [
-                  { title: "결제완료" },
-                  { title: "준비중" },
-                  { title: "배송중" },
-                  { title: "배송완료" },
-                  { title: order.status === "claim_rejected" ? "반려" : "구매확정" },
-                ]
-          }
-        />
+        <Steps current={currentStep} size="small" items={displaySteps} />
       </div>
 
       <div className="bg-surface px-3 py-4 border-b border-border">
         <h3 className="mb-3 text-[15px] font-bold">실시간 배송 조회</h3>
-        {isPendingReturn ? (
-          <div className="rounded-lg bg-orange-50 p-4 border border-orange-100 text-center">
-            <p className="text-sm font-bold text-orange-600 mb-1">📦 교환/반품 접수가 완료되었습니다</p>
-            <p className="text-xs text-orange-500">담당자가 확인 후 택배 기사님께 수거 지시를 내릴 예정입니다. 조금만 기다려 주세요!</p>
-          </div>
-        ) : (
-          (() => {
-            return (
-              <DeliveryTracking 
-                carrierCode={order.carrierCode} 
-                trackingNumber={order.trackingNumber} 
-                onStatusChange={setTrackingStatus}
-              />
-            );
-          })()
-        )}
+        <DeliveryTracking
+          key={order.trackingNumber}
+          orderId={order.id}
+          carrierCode={order.carrierCode}
+          trackingNumber={order.trackingNumber}
+          onStatusChange={handleStatusChange}
+          orderStatus={order.status}
+        />
       </div>
 
       <div className="bg-surface px-3 py-4 border-b border-border">
         <h3 className="mb-3 text-[15px] font-bold">주문 상품</h3>
         {order.items.map((item, idx) => {
-          const lineTotal = (priceMap.get(item.productId) ?? item.product.price) * item.quantity;
+          const lineTotal =
+            (priceMap.get(item.productId) ?? item.product.price) *
+            item.quantity;
           return (
-            <div key={idx} className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0">
+            <div
+              key={idx}
+              className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0"
+            >
               <div className="h-16 w-14 shrink-0 rounded bg-gradient-to-br from-gray-200 to-gray-300" />
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-semibold uppercase text-text-muted">{item.product.brand}</p>
-                <p className="truncate text-[13px] font-bold">{item.product.name}</p>
-                <p className="text-[11px] text-text-secondary">{item.color} / {item.size} · {item.quantity}개</p>
+                <p className="text-[10px] font-semibold uppercase text-text-muted">
+                  {item.product.brand}
+                </p>
+                <p className="truncate text-[13px] font-bold">
+                  {item.product.name}
+                </p>
+                <p className="text-[11px] text-text-secondary">
+                  {item.color} / {item.size} · {item.quantity}개
+                </p>
               </div>
-              <p className="shrink-0 text-sm font-bold">₩{formatPrice(lineTotal)}</p>
+              <p className="shrink-0 text-sm font-bold">
+                ₩{formatPrice(lineTotal)}
+              </p>
             </div>
           );
         })}
@@ -207,10 +250,15 @@ export default function OrderDetailPage() {
 
       <div className="bg-surface px-3 py-4 border-b border-border">
         <h3 className="mb-2 text-[15px] font-bold">배송지 정보</h3>
-        <p className="text-sm font-semibold">{order.shippingAddress.recipient}</p>
-        <p className="text-xs text-text-secondary">{order.shippingAddress.phone}</p>
+        <p className="text-sm font-semibold">
+          {order.shippingAddress.recipient}
+        </p>
+        <p className="text-xs text-text-secondary">
+          {order.shippingAddress.phone}
+        </p>
         <p className="mt-1 text-xs text-text-secondary">
-          ({order.shippingAddress.zipCode}) {order.shippingAddress.address} {order.shippingAddress.addressDetail}
+          ({order.shippingAddress.zipCode}) {order.shippingAddress.address}{" "}
+          {order.shippingAddress.addressDetail}
         </p>
       </div>
 
@@ -218,8 +266,11 @@ export default function OrderDetailPage() {
         <h3 className="mb-2 text-[15px] font-bold">결제 정보</h3>
         {(() => {
           const liveTotal = order.items.reduce(
-            (sum, item) => sum + (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
-            0
+            (sum, item) =>
+              sum +
+              (priceMap.get(item.productId) ?? item.product.price) *
+                item.quantity,
+            0,
           );
           return (
             <div className="space-y-1.5 text-sm">
@@ -233,7 +284,11 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">배송비</span>
-                <span>{order.shippingFee === 0 ? "무료" : `₩${formatPrice(order.shippingFee)}`}</span>
+                <span>
+                  {order.shippingFee === 0
+                    ? "무료"
+                    : `₩${formatPrice(order.shippingFee)}`}
+                </span>
               </div>
               <div className="flex justify-between border-t border-border pt-1.5 font-bold">
                 <span>총 결제 금액</span>
@@ -245,17 +300,30 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">
-        {(order.status === "payment_complete" || order.status === "preparing") && (
-          <Button block danger onClick={() => router.push(`/orders/${order.id}/cancel`)}>
+        {(order.status === "payment_complete" ||
+          order.status === "preparing") && (
+          <Button
+            block
+            danger
+            onClick={() => router.push(`/orders/${order.id}/cancel`)}
+          >
             주문 취소 신청
           </Button>
         )}
-        {(order.status === "delivered" || order.status === "exchange_completed" || order.status === "claim_rejected") && (
-          <Button block type="primary" style={{ background: "#262626" }} onClick={() => router.push(`/orders/${order.id}/confirm`)}>
+        {(order.status === "delivered" ||
+          order.status === "exchange_completed" ||
+          order.status === "claim_rejected") && (
+          <Button
+            block
+            type="primary"
+            style={{ background: "#262626" }}
+            onClick={() => router.push(`/orders/${order.id}/confirm`)}
+          >
             구매 결정하기
           </Button>
         )}
-        {(order.status === "delivered" || order.status === "exchange_completed") && (
+        {(order.status === "delivered" ||
+          order.status === "exchange_completed") && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청
           </Button>

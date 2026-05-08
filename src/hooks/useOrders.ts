@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getOrders,
@@ -29,21 +30,20 @@ export function useOrders() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
+  // [v9.1] 실시간 구독 로직을 훅 내부에서 안정적으로 관리
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = subscribeOrders(user.id, (data) => {
+      queryClient.setQueryData(["orders", user.id], data);
+    });
+    return () => unsub();
+  }, [user?.id, queryClient]);
+
   return useQuery({
     queryKey: ["orders", user?.id],
-    queryFn: async () => {
-      // 초기 데이터 로드 및 실시간 구독 설정
-      if (!user) return [];
-      
-      // useEffect 밖에서 구독을 관리하기 위해 queryClient 활용
-      const unsubscribe = subscribeOrders(user.id, (data) => {
-        queryClient.setQueryData(["orders", user.id], data);
-      });
-
-      return getOrders(user.id);
-    },
+    queryFn: () => (user ? getOrders(user.id) : []),
     enabled: !!user,
-    staleTime: Infinity, // 실시간으로 관리되므로 자동 만료 방지
+    staleTime: 1000 * 60 * 5, // 5분 캐시, 하지만 구독이 데이터를 실시간으로 주입함
   });
 }
 

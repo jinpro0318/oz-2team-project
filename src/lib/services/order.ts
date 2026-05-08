@@ -75,12 +75,10 @@ async function enrichOrdersWithRealtimeStatus(orders: Order[]): Promise<Order[]>
       }
 
       try {
-        // 실시간 배송 조회 수행
+        // [v9.1] 실시간 배송 조회는 참고용 데이터로만 활용합니다.
+        // DB의 'status'를 덮어쓰는 행위는 '단일 진실의 샘' 원칙을 위반하므로 중단합니다.
         const trackResult = await deliveryService.track(order.carrierCode, order.trackingNumber, order.createdAt);
-        if (trackResult && trackResult.status) {
-          // 서버에서 받은 최신 상태를 주문 객체에 즉시 반영
-          return { ...order, status: trackResult.status as OrderStatus };
-        }
+        // 더 이상 order.status를 덮어쓰지 않고 원본 order를 그대로 반환하거나 필요 정보만 추가합니다.
       } catch (e) {
         console.error(`[Delivery Track Error] Order ${order.id}:`, e);
       }
@@ -196,35 +194,130 @@ export async function updateOrderStatus(
   trackingNumber?: string,
   carrierCode?: string
 ): Promise<void> {
-  const order = await getOrder(id);
+  console.log("[updateOrderStatus] Start Processing:", { id, status, trackingNumber, carrierCode });
+  
+  const order = await getDocument<Order>("orders", id);
   if (!order) return;
 
-  const timeline = [...(order.timeline || [])];
-  if (timelineEntry) timeline.push(timelineEntry);
-
-  const updateData: any = { status, timeline, updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  let finalStatus = status;
   
+  // [v9.1] 비즈니스 로직: 송장이 부여되었는데 '결제완료'라면 '준비중'으로 자동 격상
+  if ((trackingNumber || order.trackingNumber) && finalStatus === "payment_complete") {
+    finalStatus = "preparing";
+  }
+
+  // 1. 타임라인(이력) 관리 고도화
+  const timeline = [...(order.timeline || [])];
+  
+  // 외부에서 명시적인 이력을 주지 않아도, 상태 변화에 따른 표준 이력 자동 생성
+  if (!timelineEntry && order.status !== finalStatus) {
+    const statusMessages: Record<string, string> = {
+      preparing: "배송을 위해 상품 포장을 시작했습니다.",
+      shipping: "상품이 택배사로 전달되어 배송이 시작되었습니다.",
+      delivered: "배송이 완료되었습니다. 이용해 주셔서 감사합니다.",
+      purchase_confirmed: "구매가 확정되었습니다. 즐거운 하루 되세요!",
+      cancelled: "주문이 취소되었습니다.",
+      exchange_requested: "교환 요청이 접수되었습니다.",
+      return_requested: "반품 요청이 접수되었습니다.",
+    };
+
+    timeline.push({
+      status: finalStatus,
+      label: statusMessages[finalStatus] || `${finalStatus} 상태로 변경되었습니다.`,
+      date: now,
+      description: "시스템 자동 기록"
+    });
+  } else if (timelineEntry) {
+    timeline.push(timelineEntry);
+  }
+
+  // 2. 송장 및 택배사 정보 (배열 및 단일 필드 동시 관리)
+  const updateData: any = { 
+    status: finalStatus, 
+    timeline, 
+    updatedAt: now 
+  };
+
   if (trackingNumber !== undefined) {
     updateData.trackingNumber = trackingNumber;
-    
-    // 다중 송장 배열 업데이트 로직
-    const trackingNumbers = Array.isArray(order.trackingNumbers) ? [...order.trackingNumbers] : (order.trackingNumber ? [order.trackingNumber] : []);
-    if (trackingNumber && !trackingNumbers.includes(trackingNumber)) {
-      trackingNumbers.push(trackingNumber);
-    }
-    updateData.trackingNumbers = trackingNumbers;
+    let tns = Array.isArray(order.trackingNumbers) ? [...order.trackingNumbers] : [];
+    if (trackingNumber && !tns.includes(trackingNumber)) tns.push(trackingNumber);
+    updateData.trackingNumbers = tns;
   }
 
   if (carrierCode !== undefined) {
     updateData.carrierCode = carrierCode;
-    
-    // 택배사 코드 배열 업데이트 로직
-    const carrierCodes = Array.isArray(order.carrierCodes) ? [...order.carrierCodes] : (order.carrierCode ? [order.carrierCode] : []);
-    if (carrierCode && !carrierCodes.includes(carrierCode)) {
-      carrierCodes.push(carrierCode);
-    }
-    updateData.carrierCodes = carrierCodes;
+    let ccs = Array.isArray(order.carrierCodes) ? [...order.carrierCodes] : [];
+    if (carrierCode && !ccs.includes(carrierCode)) ccs.push(carrierCode);
+    updateData.carrierCodes = ccs;
   }
 
+  // 3. DB 업데이트 수행
   await updateDocument("orders", id, updateData);
+
+  // 4. [핵심] 가상 배송 시뮬레이터(shipments) 연동 및 동기화
+  const targetTN = trackingNumber || order.trackingNumber;
+  const targetCC = carrierCode || order.carrierCode;
+
+  if (targetTN && targetCC === "MOCK") {
+    try {
+      const isReturn = targetTN.startsWith("MOCK-R");
+      
+      // A. 배송 문서 자동 생성 (준비중 또는 출고 단계 진입 시)
+      if (finalStatus === "preparing" || finalStatus === "shipping") {
+        const existingShipment = await getDocument("shipments", targetTN);
+        if (!existingShipment) {
+          const type = targetTN.split('-')[1]?.[0] || 'S';
+          const steps = type === 'R' ? 4 : 6;
+          const initialStep = finalStatus === "shipping" ? 1 : 0; // 출고로 바로 넘어가면 1단계(배송중)로 시작
+          
+          const path = Array.from({ length: steps }).map((_, i) => ({
+            label: `단계 ${i + 1}`,
+            status: i === initialStep ? finalStatus : (i < initialStep ? "finished" : "pending"),
+            location: i === 0 ? "판매처 창고" : (i === 1 ? "허브 터미널" : ""),
+            timestamp: i <= initialStep ? now : ""
+          }));
+
+          await updateDocument("shipments", targetTN, {
+            orderId: id,
+            type,
+            status: finalStatus,
+            currentStep: initialStep,
+            path,
+            createdAt: now,
+            updatedAt: now
+          });
+          console.log(`[updateOrderStatus] MOCK Shipment Auto-Created (${finalStatus}): ${targetTN}`);
+        }
+      }
+
+      // B. 출고(shipping) 단계 진입 시: 시뮬레이터 바늘을 [배송중]으로 전진
+      if (finalStatus === "shipping") {
+        const isReturn = targetTN.startsWith("MOCK-R");
+        const shippingStep = 1; // S, R, E 공통적으로 1번 인덱스가 본격적인 배송/수거 시작 단계
+        
+        await updateDocument("shipments", targetTN, {
+          currentStep: shippingStep,
+          status: "shipping",
+          updatedAt: now
+        });
+        console.log(`[updateOrderStatus] MOCK Shipment synced to shipping step: ${targetTN}`);
+      }
+
+      // C. 배송 완료/구매 확정 시: 시뮬레이션 강제 종료 (도트 정렬)
+      if (finalStatus === "delivered" || finalStatus === "purchase_confirmed") {
+        const lastStep = isReturn ? 3 : 5;
+        await updateDocument("shipments", targetTN, {
+          currentStep: lastStep,
+          status: isReturn ? "returned" : "delivered",
+          updatedAt: now,
+          deliveredAt: now
+        });
+        console.log(`[updateOrderStatus] MOCK Shipment synced to final step: ${targetTN}`);
+      }
+    } catch (err) {
+      console.warn("[updateOrderStatus] MOCK Sync Warning:", err);
+    }
+  }
 }

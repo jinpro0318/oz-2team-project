@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, Table, Tag, Button, Space, Spin, Drawer, Popconfirm, Timeline, App, Typography, Select, Modal } from "antd"; // [효진] App, Select, Modal 추가
 import {
   DownloadOutlined,
@@ -141,40 +141,33 @@ function AdminOrders() {
     return o.status === activeTab;
   });
 
-  const tabCounts = statusTabs.reduce<Record<string, number>>((acc, tab) => {
-    if (tab.key === "all") {
-      acc[tab.key] = orders.length;
-    } else if (tab.key === "exchange" || tab.key === "return") {
-      acc[tab.key] = orders.filter(o => 
-        getActiveClaimType(o) === tab.key && !isFinishedStatus(o.status)
-      ).length;
-    } else if (tab.key === "purchase_confirmed") {
-      // 판매완료는 구매확정 상태인 건만 카운트
-      acc[tab.key] = orders.filter(o => o.status === "purchase_confirmed").length;
-    } else {
-      acc[tab.key] = orders.filter(o => 
-        o.status === tab.key && !isClaimInProgress(o)
-      ).length;
-    }
+  const tabCounts = useMemo(() => {
+    const acc: Record<string, number> = {};
+    statusTabs.forEach(tab => {
+      if (tab.key === "all") {
+        acc[tab.key] = orders.length;
+      } else if (tab.key === "exchange" || tab.key === "return") {
+        acc[tab.key] = orders.filter(o => 
+          getActiveClaimType(o) === tab.key && !isFinishedStatus(o.status)
+        ).length;
+      } else if (tab.key === "purchase_confirmed") {
+        acc[tab.key] = orders.filter(o => o.status === "purchase_confirmed").length;
+      } else {
+        acc[tab.key] = orders.filter(o => 
+          o.status === tab.key && !isClaimInProgress(o)
+        ).length;
+      }
+    });
     return acc;
-  }, {});
+  }, [orders]);
 
   const handlePrepare = async (order: Order) => {
-
-
     try {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "preparing",
-        timelineEntry: {
-          status: "preparing",
-          label: "상품 준비중",
-          date: new Date().toISOString(),
-          description: "고객님의 소중한 상품을 정성껏 포장하고 있습니다.",
-        },
       });
       message.success("상품 준비중으로 변경되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "preparing" });
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -182,31 +175,13 @@ function AdminOrders() {
 
   const handleShip = async (order: Order) => {
     try {
-      // 배송 정보 초기화 및 DB 등록 (MOCK & REAL 공통)
-      if (order.trackingNumber && order.carrierCode) {
-        const receiverAddr = `${order.shippingAddress.address} ${order.shippingAddress.addressDetail}`;
-        await initShipment({
-          trackingNumber: order.trackingNumber,
-          carrierCode: order.carrierCode,
-          orderId: order.id,
-          type: 'S',
-          senderAddress: '서울특별시 강남구 코드로 1',
-          receiverAddress: receiverAddr,
-        });
-      }
-
+      // [v9.1] 배송 문서 생성은 이제 서비스 엔진(updateOrderStatus)에서 자동으로 관리합니다.
+      // 관리자는 오직 '출고'라는 상태 변경 명령만 내립니다.
       await updateStatus.mutateAsync({
         id: order.id,
         status: "shipping",
-        timelineEntry: {
-          status: "shipping",
-          label: "상품 출고(배송 시작)",
-          date: new Date().toISOString(),
-          description: "상품이 출고되어 택배사로 전달되었습니다.",
-        },
       });
       message.success("출고 처리 완료");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "shipping" });
     } catch (err: any) {
       console.error("[효진] 출고 에러:", err);
       message.error("출고 처리에 실패했습니다.");
@@ -218,34 +193,22 @@ function AdminOrders() {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "delivered",
-        timelineEntry: {
-          status: "delivered",
-          label: "배송 완료",
-          date: new Date().toISOString(),
-          description: "상품이 고객님께 안전하게 전달되었습니다.",
-        },
       });
       message.success("배송 완료 처리되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "delivered" });
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
   };
 
   const handleReturnPickUp = async (order: Order) => {
+    const returnTracking = generateMOCKTrackingNumber("R");
     try {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "returning",
-        timelineEntry: {
-          status: "returning",
-          label: "반송 수거 지시",
-          date: new Date().toISOString(),
-          description: "택배 기사님께 수거 지시를 내렸습니다. (기존 배송 완료 후 반송 진행)",
-        },
+        trackingNumber: returnTracking,
       });
-      message.success("수거 지시가 완료되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "returning" });
+      message.success(`수거 지시가 완료되었습니다. (송장: ${returnTracking})`);
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -256,15 +219,8 @@ function AdminOrders() {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "returned",
-        timelineEntry: {
-          status: "returned",
-          label: "반품 입고 확인",
-          date: new Date().toISOString(),
-          description: "창고에 상품이 도착하여 검수를 시작합니다.",
-        },
       });
       message.success("입고 확인 완료");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "returned" });
     } catch (err: any) {
       message.error("입고 확인 실패");
     }
@@ -272,19 +228,11 @@ function AdminOrders() {
 
   const handleCancel = async (order: Order) => {
     try {
-      // [효진] 주문 취소 처리
       await updateStatus.mutateAsync({
         id: order.id,
         status: "cancelled",
-        timelineEntry: {
-          status: "cancelled",
-          label: "주문 취소",
-          date: new Date().toISOString(),
-          description: "주문이 취소 처리되었습니다",
-        },
       });
       message.success("주문이 취소되었습니다");
-      setDrawerOrder(null);
     } catch (err: any) {
       message.error("취소 실패: " + err.message);
     }
@@ -295,15 +243,8 @@ function AdminOrders() {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "exchange_completed",
-        timelineEntry: {
-          status: "exchange_completed",
-          label: "교환 완료",
-          date: new Date().toISOString(),
-          description: "교환 절차가 모두 완료되었습니다. 이용해 주셔서 감사합니다.",
-        },
       });
       message.success("교환 완료 처리되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "exchange_completed" });
     } catch (err: any) {
       message.error("처리 실패");
     }
@@ -314,15 +255,8 @@ function AdminOrders() {
       await updateStatus.mutateAsync({
         id: order.id,
         status: "return_completed",
-        timelineEntry: {
-          status: "return_completed",
-          label: "반품 완료",
-          date: new Date().toISOString(),
-          description: "반품 및 환불 절차가 완료되었습니다.",
-        },
       });
       message.success("반품 완료 처리되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "return_completed" });
     } catch (err: any) {
       message.error("처리 실패");
     }
@@ -382,6 +316,7 @@ function AdminOrders() {
                   disabled={isOrderLocked}
                   onChange={(val) => {
                     if (val === "MOCK") {
+                      const autoTracking = generateMOCKTrackingNumber('S');
                       modal.confirm({
                         title: <div className="text-center w-full font-bold">서비스 안내</div>,
                         content: (
@@ -398,11 +333,11 @@ function AdminOrders() {
                           const autoTracking = generateMOCKTrackingNumber('S');
                           updateStatus.mutate({
                             id: r.id,
-                            status: r.status,
+                            status: "preparing", // [v9.1] 송장 발송 시 자동으로 '준비중'으로 격상
                             carrierCode: "MOCK",
                             trackingNumber: autoTracking,
                           });
-                          message.success({ content: "CODE 로지스틱스 전용 송장이 발급되었습니다.", style: { marginTop: '20vh' } });
+                          message.success({ content: "CODE 로지스틱스 송장이 발급되어 '배송 준비중'으로 변경되었습니다.", style: { marginTop: '20vh' } });
                         },
                       });
                       return;
@@ -614,8 +549,10 @@ function AdminOrders() {
               size="small"
               icon={<EditOutlined />}
               loading={updateStatus.isPending}
+              disabled={!r.carrierCode || !r.trackingNumber}
               onClick={() => handlePrepare(r)}
-              className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
+              className={!r.carrierCode || !r.trackingNumber ? "" : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"}
+              title={!r.carrierCode || !r.trackingNumber ? "택배사와 송장번호를 먼저 입력해주세요" : ""}
             >
               준비중
             </Button>
@@ -862,7 +799,7 @@ function AdminOrders() {
                 </Button>
               )}
               {(drawerOrder.status === "exchange_requested" || drawerOrder.status === "return_requested") && (
-                <Space direction="vertical" className="w-full" size={8}>
+                <Space orientation="vertical" className="w-full" size={8}>
                   <Button
                     block
                     icon={<SendOutlined />}
@@ -976,15 +913,18 @@ function AdminOrders() {
               </div>
             </div>
 
-            {/* 실시간 배송 조회 (관리자용) */}
-            {(drawerOrder.status === "preparing" || drawerOrder.status === "shipping" || drawerOrder.status === "delivered") ? (
+            {/* 실시간 배송 조회 (관리자용) - 모든 유효 상태에서 노출 */}
+            {(drawerOrder.trackingNumber && drawerOrder.trackingNumber !== "") ? (
               <div>
                 <p className="mb-2 text-xs font-semibold text-[#181C32]">실시간 배송 현황</p>
                 <div className="rounded-lg border border-[#E4E6EF] p-1">
                   <DeliveryTracking 
+                    key={drawerOrder.trackingNumber}
+                    orderId={drawerOrder.id}
                     carrierCode={drawerOrder.carrierCode} 
                     trackingNumber={drawerOrder.trackingNumber}
                     isAdmin={true}
+                    orderStatus={drawerOrder.status}
                   />
                 </div>
               </div>

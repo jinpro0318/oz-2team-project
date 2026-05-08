@@ -64,9 +64,21 @@ export async function GET(
       }
     }
 
-    // 3. 실시간 배송 조회 수행
+    // 3. 실시간 배송 조회 수행 (MOCK인 경우 Admin SDK로 미리 조회하여 전달)
+    let preFetchedShipment = null;
+    if (isMock && adminDb) {
+      try {
+        const shipSnap = await adminDb.collection("shipments").doc(trackingNumber).get();
+        if (shipSnap.exists) {
+          preFetchedShipment = { shipmentId: shipSnap.id, ...shipSnap.data() };
+        }
+      } catch (e) {
+        console.warn("[Delivery API Admin] Shipment Lookup Warning:", e);
+      }
+    }
+
     console.log(`[Delivery API] Calling real-time for ${carrierCode}/${trackingNumber}`);
-    const result = await deliveryService.track(carrierCode, trackingNumber, createdAt);
+    const result = await (deliveryService as any).track(carrierCode, trackingNumber, createdAt, preFetchedShipment);
     
     if (!result) {
       throw new Error("배송사로부터 응답을 받지 못했습니다.");

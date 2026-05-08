@@ -97,9 +97,12 @@ function lazyProxy<T extends object>(getter: () => T): T {
   });
 }
 
-export const auth: Auth = lazyProxy(ensureAuth);
-export const db: Firestore = lazyProxy(ensureDb);
-export const storage: FirebaseStorage = lazyProxy(ensureStorage);
+// [§v9.1] Proxy 제거: Firestore SDK와의 호환성을 위해 순수 인스턴스 사용
+export const getRawDb = ensureDb;
 
-const appProxy: FirebaseApp = lazyProxy(ensureApp);
-export default appProxy;
+// 초기화 보장 및 직접 수출
+export const auth: Auth = ensureAuth();
+export const db: Firestore = ensureDb();
+export const storage: FirebaseStorage = ensureStorage();
+
+export default ensureApp();
