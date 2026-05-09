@@ -101,6 +101,19 @@ export default function ExchangePage() {
         }
       });
 
+      // [v10.5] 기존 배송(MOCK-S) 송장 문서에 클레임 상태(claimType) 마킹
+      if (order.trackingNumber) {
+        try {
+          const { updateDocument } = await import("@/lib/firestore");
+          await updateDocument("shipments", order.trackingNumber, { 
+            claimType: newStatus 
+          });
+          console.log(`[ExchangePage] 송장(${order.trackingNumber}) 문서에 claimType(${newStatus}) 마킹 완료`);
+        } catch (e) {
+          console.warn("송장 클레임 상태 업데이트 실패 (송장이 없거나 권한 오류일 수 있음):", e);
+        }
+      }
+
       setTicketNumber(exchange.ticketNumber);
       setView("complete");
     } catch (error) {

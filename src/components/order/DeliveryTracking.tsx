@@ -82,18 +82,37 @@ export default function DeliveryTracking({ orderId, carrierCode, trackingNumber,
         // 주소지에서 지역명 추출 (UI 표시용)
         const region = (shipData.receiverAddress || "").split(' ')[1] || "지역";
 
+        // [v10.5] 클레임 상태인지 판단하여 가상 이력(Virtual History) 생성
+        let finalHistory = path.slice(0, currentStep + 1).map((p: any) => ({
+          time: p.estimatedTime ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm") : "",
+          location: p.location.replace("지역", region),
+          status: p.statusLabel,
+          description: p.message
+        }));
+
+        let finalLocation = path[currentStep]?.location.replace("지역", region) || "위치 정보 없음";
+
+        // 기존 일반 송장(MOCK-S)인데 클레임이 걸려있다면 과거 이력을 숨기고 가상 이력 1줄만 노출
+        if (shipData.claimType && activeTrackingNumber.startsWith("MOCK-S")) {
+          const isExchange = shipData.claimType.includes("exchange");
+          const virtualStatus = isExchange ? "교환접수" : "반품접수";
+          
+          finalHistory = [{
+            time: dayjs().format("YYYY-MM-DD HH:mm"), // 신청한 현재 시간 (또는 updatedAt)
+            location: "고객님 댁",
+            status: virtualStatus,
+            description: `${virtualStatus}가 완료되어 수거 대기 중입니다.`
+          }];
+          finalLocation = "고객님 댁";
+        }
+
         const result: TrackingResult = {
           carrier: "CODE 로지스틱스",
           carrierCode: "MOCK",
           trackingNumber: activeTrackingNumber,
           status: shipData.status,
-          lastLocation: path[currentStep]?.location.replace("지역", region) || "위치 정보 없음",
-          history: path.slice(0, currentStep + 1).map((p: any) => ({
-            time: p.estimatedTime ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm") : "",
-            location: p.location.replace("지역", region),
-            status: p.statusLabel,
-            description: p.message
-          }))
+          lastLocation: finalLocation,
+          history: finalHistory
         };
 
         setData(result);

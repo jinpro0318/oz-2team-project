@@ -45,7 +45,7 @@ export const MOCK_STANDARD_PATH: PathStep[] = [
 
 // [v9.30] 마스터 교환 배송 경로 (6단계 정석)
 export const MOCK_EXCHANGE_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "preparing", statusLabel: "반품접수", message: "교환을 위한 반품 접수가 완료되었습니다.", estimatedTime: "" },
+  { location: "고객님 자택", status: "preparing", statusLabel: "교환접수", message: "교환을 위한 반품 접수가 완료되었습니다.", estimatedTime: "" },
   { location: "수거지 인근", status: "shipping", statusLabel: "수거중", message: "기사님이 상품 수거를 위해 방문 예정입니다.", estimatedTime: "" },
   { location: "수거지", status: "shipping", statusLabel: "수거완료", message: "판매처로 상품 수거가 완료되었습니다.", estimatedTime: "" },
   { location: "검수 센터", status: "shipping", statusLabel: "검수중", message: "반품 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "" },

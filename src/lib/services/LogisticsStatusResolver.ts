@@ -46,6 +46,29 @@ export class LogisticsStatusResolver {
     exchange_completed: 5, // 5: 고객님 댁 (교환완료)
   };
 
+  static readonly STANDARD_STEPS = [
+    { title: "상품준비" },
+    { title: "배송중" },
+    { title: "배송완료" },
+  ];
+
+  static readonly RETURN_STEPS = [
+    { title: "반품접수" },
+    { title: "수거중" },
+    { title: "수거완료" },
+    { title: "검수중" },
+    { title: "반품완료" },
+  ];
+
+  static readonly EXCHANGE_STEPS = [
+    { title: "교환접수" }, // 수정됨: 반품접수 -> 교환접수
+    { title: "수거중" },
+    { title: "수거완료" },
+    { title: "검수중" },
+    { title: "교환배송" },
+    { title: "교환완료" },
+  ];
+
   /**
    * 주문 상태와 배송 타입을 받아, 가장 알맞은 배송 인덱스(currentStep)를 반환합니다.
    * 매핑되지 않은 상태인 경우 기본값 0을 반환합니다.

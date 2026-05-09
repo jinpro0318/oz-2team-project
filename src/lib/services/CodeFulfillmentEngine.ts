@@ -56,7 +56,24 @@ export class CodeFulfillmentEngine {
 
       // 3. 주문(orders) 컬렉션 업데이트 준비
       const orderUpdates: any = { updatedAt: new Date().toISOString() };
-      if (extraData?.trackingNumber) orderUpdates.trackingNumber = extraData.trackingNumber;
+      
+      // [v10.4] 교환 재발송(reshipping) 단계 진입 시 MOCK-E 송장 자동 생성 및 교체 로직
+      let finalTrackingNumber = trackingNumber;
+      let finalShipmentRef = shipmentRef;
+      let finalIsNewShipment = !shipmentSnap || !shipmentSnap.exists();
+
+      if (shipmentType === "E" && resolved.step === 4 && !trackingNumber.startsWith("MOCK-E")) {
+          const { generateMOCKTrackingNumber } = await import("@/lib/utils/order");
+          finalTrackingNumber = generateMOCKTrackingNumber("E");
+          orderUpdates.trackingNumber = finalTrackingNumber;
+          finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
+          finalIsNewShipment = true; // 새 송장이므로 무조건 신규 문서
+          console.log(`[CodeFulfillmentEngine] 교환 재발송 감지: 송장을 ${trackingNumber} -> ${finalTrackingNumber}로 자동 교체합니다.`);
+      }
+
+      if (extraData?.trackingNumber && !orderUpdates.trackingNumber) {
+        orderUpdates.trackingNumber = extraData.trackingNumber;
+      }
       if (extraData?.carrierCode) orderUpdates.carrierCode = extraData.carrierCode;
       
       if (resolved.status) {
@@ -68,7 +85,7 @@ export class CodeFulfillmentEngine {
           status: resolved.status,
           label: this.getLabelForStatus(resolved.status),
           date: new Date().toISOString(),
-          description: `시스템 의도(${intent})에 의한 자동 업데이트`
+          description: `시스템 의도(${intent})에 의한 자동 업데이트${finalTrackingNumber !== trackingNumber ? ` (새 송장: ${finalTrackingNumber})` : ""}`
         });
         orderUpdates.timeline = timeline;
       }
@@ -76,26 +93,25 @@ export class CodeFulfillmentEngine {
       transaction.update(orderRef, orderUpdates);
 
       // 4. 배송(shipments) 컬렉션 업데이트
-      if (resolved.shouldUpdateShipment && shipmentRef && resolved.step !== undefined) {
+      if (resolved.shouldUpdateShipment && finalShipmentRef && resolved.step !== undefined) {
         const shipmentStatus = LogisticsStatusResolver.getShipmentStatusForIndex(resolved.step, shipmentType);
-        const isNewShipment = !shipmentSnap || !shipmentSnap.exists();
-
+        
         const shipmentData: any = {
           currentStep: resolved.step,
           status: shipmentStatus,
           updatedAt: serverTimestamp()
         };
         
-        if (isNewShipment) {
+        if (finalIsNewShipment) {
           shipmentData.orderId = orderData.orderNumber;
           shipmentData.carrierCode = carrierCode;
-          shipmentData.trackingNumber = trackingNumber;
+          shipmentData.trackingNumber = finalTrackingNumber;
           shipmentData.createdAt = serverTimestamp();
           shipmentData.path = LogisticsStatusResolver.getUISteps(shipmentType).map((s, idx) => ({
-            location: idx === 0 ? "접수지" : "지역 터미널",
+            location: idx === 0 ? "접수지" : (idx >= 4 ? "교환 배송지" : "지역 터미널"),
             status: s.title,
             statusLabel: s.title,
-            message: idx === 0 ? "클레임 접수 및 수거 대기" : "배송 처리 중",
+            message: idx === 0 ? "클레임 접수 및 수거 대기" : (idx === 4 ? "교환 상품이 발송되었습니다." : "배송 처리 중"),
             estimatedTime: new Date().toISOString()
           }));
         }
@@ -104,16 +120,16 @@ export class CodeFulfillmentEngine {
             shipmentData.deliveredAt = serverTimestamp();
         }
 
-        transaction.set(shipmentRef, shipmentData, { merge: true });
+        transaction.set(finalShipmentRef, shipmentData, { merge: true });
 
         // 5. 배송 상세 로그 남기기
-        const logRef = doc(collection(shipmentRef, "logs"), `step-${resolved.step}-${Date.now()}`);
+        const logRef = doc(collection(finalShipmentRef, "logs"), `step-${resolved.step}-${Date.now()}`);
         transaction.set(logRef, {
           logId: `step-${resolved.step}`,
           status: shipmentStatus,
           location: "CodeFulfillmentEngine",
-          message: isNewShipment 
-            ? `신규 배송 세션(${shipmentType})이 시작되었습니다.`
+          message: finalIsNewShipment 
+            ? `신규 배송 세션(${shipmentType} - 교환품 발송)이 시작되었습니다.`
             : `관리자/시스템(${intent})에 의해 배송 상태가 [${shipmentStatus}](으)로 업데이트 되었습니다.`,
           timestamp: serverTimestamp(),
           isSystem: true
@@ -131,6 +147,7 @@ export class CodeFulfillmentEngine {
       delivered: "배송 완료",
       returning: "반품 수거중",
       returned: "반품 수거완료",
+      inspecting: "상품 검수중",
       reshipping: "교환품 재발송",
       exchange_completed: "교환 완료",
       claim_rejected: "클레임 반려"

@@ -200,9 +200,8 @@ function AdminOrders() {
   };
 
   const handleReturnPickUp = async (order: Order) => {
-    const claimType = getActiveClaimType(order);
-    const prefix = claimType === "exchange" ? "E" : "R";
-    const returnTracking = generateMOCKTrackingNumber(prefix);
+    // [논리 수정] 수거 단계는 교환/반품 관계없이 무조건 Return(R) 송장을 사용합니다.
+    const returnTracking = generateMOCKTrackingNumber("R");
     
     try {
       await executeAction.mutateAsync({
