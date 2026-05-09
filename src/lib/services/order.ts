@@ -11,6 +11,9 @@ import {
 } from "@/lib/firestore";
 
 import type { Order, OrderStatus, OrderItem, Address, OrderTimeline } from "@/types";
+import { LogisticsMasterService } from "./LogisticsMasterService";
+import { getShipmentTypeFromTracking } from "./logistics";
+import { LogisticsStatusResolver } from "./LogisticsStatusResolver";
 
 export interface CreateOrderInput {
   userId: string;
@@ -256,68 +259,5 @@ export async function updateOrderStatus(
   // 3. DB 업데이트 수행
   await updateDocument("orders", id, updateData);
 
-  // 4. [핵심] 가상 배송 시뮬레이터(shipments) 연동 및 동기화
-  const targetTN = trackingNumber || order.trackingNumber;
-  const targetCC = carrierCode || order.carrierCode;
-
-  if (targetTN && targetCC === "MOCK") {
-    try {
-      const isReturn = targetTN.startsWith("MOCK-R");
-      
-      // A. 배송 문서 자동 생성 (준비중 또는 출고 단계 진입 시)
-      if (finalStatus === "preparing" || finalStatus === "shipping") {
-        const existingShipment = await getDocument("shipments", targetTN);
-        if (!existingShipment) {
-          const type = targetTN.split('-')[1]?.[0] || 'S';
-          const steps = type === 'R' ? 4 : 6;
-          const initialStep = finalStatus === "shipping" ? 1 : 0; // 출고로 바로 넘어가면 1단계(배송중)로 시작
-          
-          const path = Array.from({ length: steps }).map((_, i) => ({
-            label: `단계 ${i + 1}`,
-            status: i === initialStep ? finalStatus : (i < initialStep ? "finished" : "pending"),
-            location: i === 0 ? "판매처 창고" : (i === 1 ? "허브 터미널" : ""),
-            timestamp: i <= initialStep ? now : ""
-          }));
-
-          await updateDocument("shipments", targetTN, {
-            orderId: id,
-            type,
-            status: finalStatus,
-            currentStep: initialStep,
-            path,
-            createdAt: now,
-            updatedAt: now
-          });
-          console.log(`[updateOrderStatus] MOCK Shipment Auto-Created (${finalStatus}): ${targetTN}`);
-        }
-      }
-
-      // B. 출고(shipping) 단계 진입 시: 시뮬레이터 바늘을 [배송중]으로 전진
-      if (finalStatus === "shipping") {
-        const isReturn = targetTN.startsWith("MOCK-R");
-        const shippingStep = 1; // S, R, E 공통적으로 1번 인덱스가 본격적인 배송/수거 시작 단계
-        
-        await updateDocument("shipments", targetTN, {
-          currentStep: shippingStep,
-          status: "shipping",
-          updatedAt: now
-        });
-        console.log(`[updateOrderStatus] MOCK Shipment synced to shipping step: ${targetTN}`);
-      }
-
-      // C. 배송 완료/구매 확정 시: 시뮬레이션 강제 종료 (도트 정렬)
-      if (finalStatus === "delivered" || finalStatus === "purchase_confirmed") {
-        const lastStep = isReturn ? 3 : 5;
-        await updateDocument("shipments", targetTN, {
-          currentStep: lastStep,
-          status: isReturn ? "returned" : "delivered",
-          updatedAt: now,
-          deliveredAt: now
-        });
-        console.log(`[updateOrderStatus] MOCK Shipment synced to final step: ${targetTN}`);
-      }
-    } catch (err) {
-      console.warn("[updateOrderStatus] MOCK Sync Warning:", err);
-    }
-  }
+  // 4. [완료] 배송(shipments) 동기화는 이제 CodeFulfillmentEngine(통합 지휘소)에서 전담하므로 여기서 처리하지 않습니다.
 }

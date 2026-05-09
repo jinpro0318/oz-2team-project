@@ -1,5 +1,6 @@
 import { TrackingResult, DeliveryServiceConfig } from "../types";
 import { DeliveryError } from "../errors";
+import { LogisticsMasterService } from "../../LogisticsMasterService";
 
 /**
  * 스윗트래커(SweetTracker) 배송 조회 서비스 어댑터
@@ -32,18 +33,28 @@ export class MajorAdapter {
 
       if (shipmentSnap.exists() && !forceUpdate) {
         const cachedData = shipmentSnap.data();
-        const lastUpdated = cachedData.lastUpdatedAt?.toDate();
+        // [v10.1] lastSyncedAt 필드로 캐시 체크 통일
+        const lastSynced = cachedData.lastSyncedAt?.toDate?.() || cachedData.lastSyncedAt;
         
-        if (lastUpdated) {
-          const diffMinutes = (new Date().getTime() - lastUpdated.getTime()) / (1000 * 60);
+        if (lastSynced) {
+          const diffMinutes = (new Date().getTime() - new Date(lastSynced).getTime()) / (1000 * 60);
           
-          // 배송 완료된 데이터는 영구 캐싱, 배송 중인 데이터는 설정 주기 내에서 캐싱
           if (cachedData.status === "delivered" || diffMinutes < cacheMinutes) {
-            console.log(`[Cache HIT] Using cached data for ${trackingNumber} (Last updated: ${lastUpdated.toLocaleString()})`);
+            console.log(`[Cache HIT] ${trackingNumber} (Last synced: ${diffMinutes.toFixed(1)} min ago)`);
             return {
-              ...cachedData.lastTrackingResult,
+              carrier: cachedData.carrier || "택배",
+              carrierCode: cachedData.carrierCode,
+              trackingNumber: cachedData.trackingNumber,
+              status: cachedData.status,
+              lastLocation: cachedData.path?.[cachedData.path.length - 1]?.location || "",
+              history: cachedData.path?.map((p: any) => ({
+                time: p.estimatedTime,
+                location: p.location,
+                status: p.statusLabel,
+                description: p.message
+              })) || [],
               isFromCache: true,
-              lastSyncedAt: lastUpdated.toISOString()
+              lastSyncedAt: new Date(lastSynced).toISOString()
             };
           }
         }
@@ -95,26 +106,21 @@ export class MajorAdapter {
         lastSyncedAt: new Date().toISOString()
       };
 
-      // 4. DB 캐시 저장 및 주문 상태 동기화
-      await setDoc(shipmentRef, {
-        isMock: false,
+      // 4. DB 캐시 저장 및 주문 상태 동기화 (v10.1 통합 엔진 위임)
+      const orderId = shipmentSnap.exists() ? shipmentSnap.data().orderId : "";
+      
+      await LogisticsMasterService.syncExternalDelivery({
+        trackingNumber,
+        orderId,
         carrierCode,
-        orderId: shipmentSnap.exists() ? shipmentSnap.data().orderId : "", // 기존 orderId 보존
         status: result.status,
-        lastTrackingResult: result,
-        lastUpdatedAt: serverTimestamp()
-      }, { merge: true });
+        history: result.history
+      });
 
-      // 배송 완료 시 주문 상태 자동 업데이트
-      if (result.status === "delivered") {
-        const orderId = shipmentSnap.exists() ? shipmentSnap.data().orderId : "";
-        if (orderId) {
-          const orderRef = doc(db, "orders", orderId);
-          await updateDoc(orderRef, { 
-            status: "delivered",
-            updatedAt: new Date().toISOString()
-          });
-        }
+      // 배송 완료 시 주문 상태 자동 업데이트 (통합 지휘소 통과)
+      if (result.status === "delivered" && orderId) {
+        const { CodeFulfillmentEngine } = await import("../../CodeFulfillmentEngine");
+        await CodeFulfillmentEngine.executeAction(orderId, "DELIVER");
       }
 
       return result;

@@ -32,6 +32,17 @@ export async function advanceLogisticsStepServer(shipmentId: string): Promise<an
 
     t.update(docRef, updatePayload);
 
+    // [하이브리드 동기화] logs 서브컬렉션에도 기록
+    const logRef = docRef.collection("logs").doc(`step-${nextStep}-${Date.now()}`);
+    t.set(logRef, {
+      logId: `step-${nextStep}`,
+      status: updatePayload.status,
+      location: "어드민 강제 조작",
+      message: updatedPath[nextStep].message || "배송 단계가 관리자에 의해 강제 변경되었습니다.",
+      timestamp: new Date(),
+      isSystem: true
+    });
+
     // 주문 상태 동기화
     if (isLastStep && data.orderId) {
       t.update(adminDb.collection("orders").doc(data.orderId), {

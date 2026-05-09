@@ -1,25 +1,21 @@
-/**
- * ═══════════════════════════════════════════════════════════════
- * [v9.1] 물류 서비스 (Shared/Client Safe)
- * ═══════════════════════════════════════════════════════════════
- * - 송장 번호 DNA 파싱 기반의 지능형 경로 선택 로직 도입
- * - S(Standard), R(Return), E(Exchange)에 따른 자동 패스 할당
- * - 클라이언트 빌드 에러 방지를 위해 Admin SDK 완전 배제
- */
-
-import { db } from "@/lib/firebase";
-import {
-  doc, getDoc, setDoc,
-  collection, query, where, getDocs
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where 
 } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-// ─── 타입 정의 ───────────────────────────────────────────────
+const SHIPMENTS_COL = "shipments";
 
 export interface PathStep {
   location: string;
   status: string;
-  statusLabel: string; // [v9.1] UI 표시용 한글 라벨 추가
-  message: string;     // [v9.1] 상세 메시지
+  statusLabel: string;
+  message: string;
   estimatedTime: string;
 }
 
@@ -28,73 +24,70 @@ export interface Shipment {
   orderId: string;
   carrierCode: string;
   trackingNumber: string;
-  status: "preparing" | "shipping" | "delivered" | "returning" | "returned";
-  type: "S" | "R" | "E"; // [v9.1] 기존 설계 기반 타입 (Standard, Return, Exchange)
+  status: string;
+  type: "S" | "R" | "E";
   currentStep: number;
   path: PathStep[];
   senderAddress: string;
   receiverAddress: string;
-  driver: {
-    name: string;
-    contact: string;
-    vehicle: string;
-  };
   createdAt: string;
   updatedAt: string;
-  deliveredAt?: string;
 }
 
-export const SHIPMENTS_COL = "shipments";
-
-// ─── 지능형 배송 경로 (Milestones) ───────────────────────────────
-
-// [S/E] 표준/교환 배송 경로 (6단계)
-export const MOCK_LOGISTICS_PATH: PathStep[] = [
-  { location: "판매처 창고", status: "preparing", statusLabel: "상품인수/접수", message: "상품을 확인하고 발송 준비를 완료했습니다.", estimatedTime: "" },
-  { location: "곤지암 HUB", status: "shipping", statusLabel: "간선하차", message: "분류 센터에 상품이 도착했습니다.", estimatedTime: "" },
-  { location: "곤지암 HUB", status: "shipping", statusLabel: "간선상차", message: "분류 완료 후 목적지 터미널로 발송되었습니다.", estimatedTime: "" },
-  { location: "부천 터미널", status: "shipping", statusLabel: "터미널도착", message: "고객님 지역의 터미널에 도착하였습니다.", estimatedTime: "" },
-  { location: "인천 강화군", status: "shipping", statusLabel: "배송출발", message: "배송 기사가 고객님께 상품을 배달 중입니다.", estimatedTime: "" },
-  { location: "고객님 자택", status: "delivered", statusLabel: "배송완료", message: "상품 배송이 완료되었습니다. 감사합니다.", estimatedTime: "" },
+// [v9.30] 마스터 표준 배송 경로 (5단계 정석)
+export const MOCK_STANDARD_PATH: PathStep[] = [
+  { location: "결제 시스템", status: "preparing", statusLabel: "결제완료", message: "결제가 정상적으로 완료되었습니다.", estimatedTime: "" },
+  { location: "판매처 창고", status: "preparing", statusLabel: "상품준비", message: "판매자가 상품을 검수하고 발송을 준비 중입니다.", estimatedTime: "" },
+  { location: "지역 터미널", status: "shipping", statusLabel: "배송중", message: "상품이 고객님 지역으로 이동 중입니다.", estimatedTime: "" },
+  { location: "고객님 댁", status: "delivered", statusLabel: "배송완료", message: "배송이 완료되었습니다. 이용해주셔서 감사합니다.", estimatedTime: "" },
+  { location: "주문 종료", status: "delivered", statusLabel: "구매확정", message: "구매가 확정되어 거래가 종료되었습니다.", estimatedTime: "" }
 ];
 
-// [R] 반품 수거 경로 (4단계)
+// [v9.30] 마스터 교환 배송 경로 (6단계 정석)
+export const MOCK_EXCHANGE_PATH: PathStep[] = [
+  { location: "고객님 자택", status: "preparing", statusLabel: "반품접수", message: "교환을 위한 반품 접수가 완료되었습니다.", estimatedTime: "" },
+  { location: "수거지 인근", status: "shipping", statusLabel: "수거중", message: "기사님이 상품 수거를 위해 방문 예정입니다.", estimatedTime: "" },
+  { location: "수거지", status: "shipping", statusLabel: "수거완료", message: "판매처로 상품 수거가 완료되었습니다.", estimatedTime: "" },
+  { location: "검수 센터", status: "shipping", statusLabel: "검수중", message: "반품 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "" },
+  { location: "분류 센터", status: "shipping", statusLabel: "교환배송", message: "새 상품이 고객님께 재발송되었습니다.", estimatedTime: "" },
+  { location: "고객님 댁", status: "exchange_completed", statusLabel: "교환완료", message: "교환 상품 배송이 최종 완료되었습니다.", estimatedTime: "" }
+];
+
+// [v9.30] 마스터 반품 수거 경로 (4단계)
 export const MOCK_RETURN_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "returning", statusLabel: "반품접수", message: "반품 접수가 정상적으로 완료되었습니다.", estimatedTime: "" },
-  { location: "고객님 자택", status: "returning", statusLabel: "수거지시", message: "기사님이 수거를 위해 방문할 예정입니다.", estimatedTime: "" },
-  { location: "인천 강화군", status: "returning", statusLabel: "반송중", message: "고객님으로부터 상품을 수령하여 반송 센터로 이동 중입니다.", estimatedTime: "" },
-  { location: "판매처 창고", status: "returned", statusLabel: "반송완료", message: "상품이 판매처에 정상적으로 입고되었습니다.", estimatedTime: "" },
+  { location: "고객님 자택", status: "preparing", statusLabel: "반품접수", message: "반품 접수가 정상적으로 완료되었습니다.", estimatedTime: "" },
+  { location: "수거지 인근", status: "shipping", statusLabel: "수거중", message: "기사님이 수거를 위해 이동 중입니다.", estimatedTime: "" },
+  { location: "수거지", status: "shipping", statusLabel: "수거완료", message: "상품 수거가 완료되었습니다.", estimatedTime: "" },
+  { location: "판매처", status: "returned", statusLabel: "반품완료", message: "판매처 입고 확인 후 반품이 완료되었습니다.", estimatedTime: "" }
 ];
 
-// ─── 유틸리티 함수 ───────────────────────────────────────────
-
-/** 송장 번호에서 타입을 추출 (MOCK-S... -> S) */
 export function getShipmentTypeFromTracking(trackingNumber: string): "S" | "R" | "E" {
-  if (trackingNumber.startsWith("MOCK-R")) return "R";
-  if (trackingNumber.startsWith("MOCK-E")) return "E";
-  return "S"; // 기본은 Standard
+  if (trackingNumber.includes("-R")) return "R";
+  if (trackingNumber.includes("-E")) return "E";
+  return "S";
+}
+
+export async function getShipment(shipmentId: string): Promise<Shipment | null> {
+  const snap = await getDoc(doc(db, SHIPMENTS_COL, shipmentId));
+  return snap.exists() ? ({ shipmentId: snap.id, ...snap.data() } as Shipment) : null;
+}
+
+export async function getShipmentsByOrder(orderId: string): Promise<Shipment[]> {
+  const q = query(collection(db, SHIPMENTS_COL), where("orderId", "==", orderId));
+  const snap = await getDocs(q);
+  const list: Shipment[] = [];
+  snap.forEach(d => list.push({ shipmentId: d.id, ...d.data() } as Shipment));
+  return list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 export function applyRevealFilter(path: PathStep[]) {
-  const revealed = path.filter(p => !!p.estimatedTime);
-  const pending = path.filter(p => !p.estimatedTime);
+  const now = new Date();
+  const revealed = path.filter(p => p.estimatedTime && new Date(p.estimatedTime) <= now);
+  const pending = path.filter(p => !p.estimatedTime || new Date(p.estimatedTime) > now);
   return { revealed, pending };
 }
 
-export function generateDriver() {
-  const names = ["김철수", "이영희", "박배송", "최기사"];
-  const vehicles = ["1톤 탑차 (12가 3456)", "전기 트럭 (34나 7890)", "오토바이 (인천 1234)"];
-  return {
-    name: names[Math.floor(Math.random() * names.length)],
-    contact: `010-${Math.floor(Math.random() * 9000 + 1000)}-${Math.floor(Math.random() * 9000 + 1000)}`,
-    vehicle: vehicles[Math.floor(Math.random() * vehicles.length)],
-  };
-}
-
-// ─── 클라이언트 전용 데이터 함수 (No Admin SDK) ──────────────────
-
-/** 주문과 연결된 새로운 Shipment 생성 (송장 기반 자동 경로 선택) */
-export async function initShipment(params: {
+export async function createMockShipment(params: {
   trackingNumber: string;
   carrierCode: string;
   orderId: string;
@@ -104,8 +97,9 @@ export async function initShipment(params: {
   const now = new Date();
   const type = getShipmentTypeFromTracking(params.trackingNumber);
   
-  // 송장 타입에 따른 경로 자동 선택
-  const basePath = type === "R" ? MOCK_RETURN_PATH : MOCK_LOGISTICS_PATH;
+  let basePath = MOCK_STANDARD_PATH;
+  if (type === "R") basePath = MOCK_RETURN_PATH;
+  if (type === "E") basePath = MOCK_EXCHANGE_PATH;
   
   const path: PathStep[] = basePath.map((p, idx) => ({
     ...p,
@@ -117,34 +111,16 @@ export async function initShipment(params: {
     orderId: params.orderId,
     carrierCode: params.carrierCode,
     trackingNumber: params.trackingNumber,
-    status: type === "R" ? "returning" : "shipping",
+    status: type === "S" ? "shipping" : (type === "R" ? "returning" : "exchange_preparing"),
     type,
     currentStep: 0,
     path,
     senderAddress: params.senderAddress,
     receiverAddress: params.receiverAddress,
-    driver: generateDriver(),
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
 
   await setDoc(doc(db, SHIPMENTS_COL, params.trackingNumber), shipment);
   return shipment;
-}
-
-/** Shipment 조회 (Client SDK 전용) */
-export async function getShipment(shipmentId: string): Promise<Shipment | null> {
-  const snap = await getDoc(doc(db, SHIPMENTS_COL, shipmentId));
-  return snap.exists() ? ({ shipmentId: snap.id, ...snap.data() } as Shipment) : null;
-}
-
-/** 특정 주문과 연결된 모든 배송 정보 조회 (히스토리용) */
-export async function getShipmentsByOrder(orderId: string): Promise<Shipment[]> {
-  const q = query(collection(db, SHIPMENTS_COL), where("orderId", "==", orderId));
-  const querySnapshot = await getDocs(q);
-  const shipments: Shipment[] = [];
-  querySnapshot.forEach((doc) => {
-    shipments.push({ shipmentId: doc.id, ...doc.data() } as Shipment);
-  });
-  return shipments.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }

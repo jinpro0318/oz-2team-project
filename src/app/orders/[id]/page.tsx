@@ -11,19 +11,7 @@ import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
 
-const statusStepMap: Record<string, number> = {
-  // 정상 흐름
-  payment_complete: 0,
-  preparing: 1,
-  shipping: 2,
-  delivered: 3,
-  purchase_confirmed: 4,
-  // 교환/반품 흐름
-  exchange_requested: 0,
-  return_requested: 0,
-  returning: 2,
-  returned: 3,
-};
+import { LogisticsStatusResolver } from "@/lib/services/LogisticsStatusResolver";
 
 function formatPrice(n: number) {
   return n.toLocaleString("ko-KR");
@@ -92,58 +80,28 @@ export default function OrderDetailPage() {
     ["exchange_requested", "return_requested"].includes(order.status) &&
     !order.timeline?.some((t) => t.status === "returning");
 
-  // [v9.1] 단일 진실의 샘 원칙: 주문서(order.status)를 마스터로, 배송기(stepperData)를 디테일로 사용
-  const fallbackMap: Record<string, number> = {
-    payment_complete: 0,
-    preparing: 1,
-    shipping: 2,
-    delivered: 3,
-    purchase_confirmed: 4,
-    exchange_requested: 0,
-    return_requested: 0,
-  };
+  // [v10.1] 공용 정책 모듈(LogisticsStatusResolver)을 통한 단일 진실의 샘 로직
+  const shipmentType = claimType === "return" ? "R" : (claimType === "exchange" ? "E" : "S");
+  
+  // 1. 주문 상태 기반 기본 인덱스
+  let currentStep = LogisticsStatusResolver.getTargetIndex(order.status, shipmentType);
+  
+  // 2. UI용 스텝 리스트 
+  const displaySteps = LogisticsStatusResolver.getUISteps(shipmentType);
 
-  // [v9.1] 클레임(교환/반품) 전용 단계 정의
-  const claimStepMap: Record<string, number> = {
-    exchange_requested: 0,
-    return_requested: 0,
-    returning: 1,
-    returned: 2,
-    inspecting: 3,
-    "re-shipping": 4,
-    exchange_completed: 5,
-    return_completed: 3,
-  };
-
-  const claimSteps = claimType === "return" 
-    ? [{ title: "반품접수" }, { title: "수거중" }, { title: "수거완료" }, { title: "반품완료" }]
-    : [{ title: "교환접수" }, { title: "수거중" }, { title: "수거완료" }, { title: "검수중" }, { title: "교환배송" }, { title: "교환완료" }];
-
-  // 1. 기본 단계 결정 (클레임 여부에 따라 분기)
-  let currentStep = 0;
-  let displaySteps = [];
-
-  if (claimType) {
-    currentStep = claimStepMap[order.status] ?? 0;
-    displaySteps = claimSteps;
-    
-    if (stepperData) {
-      currentStep = Math.max(currentStep, stepperData.current);
-    }
-  } else {
-    currentStep = fallbackMap[order.status] ?? 0;
-    displaySteps = [
-      { title: "결제완료" },
-      { title: "준비중" },
-      { title: "배송중" },
-      { title: "배송완료" },
-      { title: "구매확정" },
-    ];
-
-    if (stepperData) {
-      if (order.status === "shipping" && stepperData.current < 2) currentStep = 2;
-      else if (order.status === "delivered" && stepperData.current < 3) currentStep = 3;
-      else if (order.status === "purchase_confirmed") currentStep = 4;
+  // 3. 실시간 배송 데이터(stepperData)가 존재하면 배송 DB를 절대적인 기준으로 삼음 (SSOT)
+  // [v10.2] MOCK 송장 타입(S/R/E)이 현재 주문 컨텍스트(shipmentType)와 일치할 때만 실시간 데이터 동기화 (믹스업 방지)
+  if (stepperData && order.trackingNumber) {
+    const tn = order.trackingNumber;
+    const isMock = tn.startsWith("MOCK-");
+    if (isMock) {
+      const mockType = tn.startsWith("MOCK-R") ? "R" : (tn.startsWith("MOCK-E") ? "E" : "S");
+      if (mockType === shipmentType) {
+        currentStep = stepperData.current;
+      }
+      // 타입이 다르면(예: 교환요청 중인데 이전 일반 배송 데이터가 오는 경우) 무시하고 주문 상태 기반(0) 유지
+    } else {
+      currentStep = stepperData.current;
     }
   }
 

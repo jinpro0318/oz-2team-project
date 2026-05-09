@@ -1,343 +1,313 @@
-"use client";
-
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { Spin, Button as AntdButton, Tag, Steps } from "antd";
-import { SyncOutlined, LoadingOutlined, CheckCircleFilled } from "@ant-design/icons";
+import React, { useState, useEffect } from "react";
+import { Spin, Button as AntdButton } from "antd";
+import { SyncOutlined } from "@ant-design/icons";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
-import { deliveryService } from "@/lib/services/delivery";
-import { TrackingResult } from "@/lib/services/delivery/types";
-import { DeliveryError } from "@/lib/services/delivery/errors";
-import { getShipmentsByOrder, getShipmentTypeFromTracking } from "@/lib/services/logistics";
+import { doc, onSnapshot, collection, query, orderBy, getDocs } from "firebase/firestore";
 import dayjs from "dayjs";
+import { deliveryService } from "@/lib/services/delivery";
+import { getShipmentsByOrder } from "@/lib/services/logistics";
+import { useExecuteOrderAction } from "@/hooks/useOrders";
+
+interface TrackingResult {
+  carrier: string;
+  carrierCode: string;
+  trackingNumber: string;
+  status: string;
+  lastLocation: string;
+  history: Array<{
+    time: string;
+    location: string;
+    status: string;
+    description: string;
+  }>;
+}
 
 interface DeliveryTrackingProps {
   orderId?: string;
-  carrierCode?: string;
-  trackingNumber?: string;
-  onStatusChange?: (status: string, extra?: { current: number; steps: any[] }) => void;
+  carrierCode: string;
+  trackingNumber: string;
+  onStatusChange?: (status: string, details?: any) => void;
   isAdmin?: boolean;
-  orderStatus?: string; // 주문 상태 추가
+  orderStatus?: string;
 }
 
-/**
- * [v9.1] 지능형 통합 배송 추적 컴포넌트
- * - S/R/E 송장 DNA에 따른 자동 UI 전환
- * - 데이터 기반 다이나믹 도트 스테퍼 적용
- */
 export default function DeliveryTracking({ orderId, carrierCode, trackingNumber, onStatusChange, isAdmin, orderStatus }: DeliveryTrackingProps) {
-  const [activeTrackingNumber, setActiveTrackingNumber] = useState<string | undefined>(trackingNumber);
+  const [activeTrackingNumber, setActiveTrackingNumber] = useState(trackingNumber);
   const [shipmentHistory, setShipmentHistory] = useState<any[]>([]);
   const [data, setData] = useState<TrackingResult | null>(null);
-  const [rawShipment, setRawShipment] = useState<any | null>(null); // 시뮬레이터 원본 데이터
+  const [rawShipment, setRawShipment] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skipping, setSkipping] = useState(false);
+  
+  // [v10.1 하이브리드] 상세 로그 조회용 상태
+  const [showDetails, setShowDetails] = useState(false);
+  const [detailedLogs, setDetailedLogs] = useState<any[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // 1. 송장 히스토리 조회
+  // [v9.30] 마스터 아키텍처: 다중 송장 스택 및 생애주기 통합
   useEffect(() => {
     if (!orderId) return;
     getShipmentsByOrder(orderId).then((list) => {
-      setShipmentHistory(list);
-      if (!activeTrackingNumber && list.length > 0) {
-        setActiveTrackingNumber(list[list.length - 1].shipmentId);
+      // 비즈니스 가중치 및 시간순 정렬 (최신 클레임 우선)
+      const sorted = [...list].sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+      setShipmentHistory(sorted);
+      
+      // 초기 로드 시 가장 최신 송장(주로 클레임) 자동 선택
+      if (sorted.length > 0 && (!activeTrackingNumber || !activeTrackingNumber.includes("-"))) {
+        setActiveTrackingNumber(sorted[0].shipmentId);
       }
     }).catch(console.error);
   }, [orderId]);
 
   useEffect(() => {
-    if (trackingNumber) setActiveTrackingNumber(trackingNumber);
-  }, [trackingNumber]);
-
-  // 2. 데이터 조회 (MOCK 실시간 vs 일반 API)
-  useEffect(() => {
-    const targetTN = activeTrackingNumber;
-    if (!carrierCode || !targetTN || targetTN.length < 5) {
-      setData(null);
+    if (!carrierCode || !activeTrackingNumber || activeTrackingNumber.length < 5) {
       setLoading(false);
       return;
     }
 
-    if (targetTN.startsWith("MOCK-")) {
-      setLoading(true);
-      const unsub = onSnapshot(doc(db, "shipments", targetTN), (snap) => {
-        if (snap.exists()) {
-          const shipData = snap.data() as any;
-          setRawShipment(shipData);
-          
-          const currentStep = shipData.currentStep || 0;
-          const path = shipData.path || [];
+    setLoading(true);
+    const unsub = onSnapshot(doc(db, "shipments", activeTrackingNumber), (snap) => {
+      if (snap.exists()) {
+        const shipData = snap.data() as any;
+        setRawShipment(shipData);
+        
+        const currentStep = shipData.currentStep || 0;
+        const path = Array.isArray(shipData.path) ? shipData.path : [];
 
-          // [v9.2] 지능형 컨텍스트 스위칭: 클레임 상태인데 과거 송장(S)인 경우 과거 데이터 숨김
-          const isClaimRequest = orderStatus === "exchange_requested" || orderStatus === "return_requested";
-          const isLegacyS = shipData.type === 'S' || targetTN.includes('-S');
+        // 주소지에서 지역명 추출 (UI 표시용)
+        const region = (shipData.receiverAddress || "").split(' ')[1] || "지역";
 
-          if (isClaimRequest && isLegacyS) {
-            // [v9.3] 교환/반품 모두 시작은 '반품(회송)' 과정이므로 '반품'으로 통일
-            const labelPrefix = "반품";
+        const result: TrackingResult = {
+          carrier: "CODE 로지스틱스",
+          carrierCode: "MOCK",
+          trackingNumber: activeTrackingNumber,
+          status: shipData.status,
+          lastLocation: path[currentStep]?.location.replace("지역", region) || "위치 정보 없음",
+          history: path.slice(0, currentStep + 1).map((p: any) => ({
+            time: p.estimatedTime ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm") : "",
+            location: p.location.replace("지역", region),
+            status: p.statusLabel,
+            description: p.message
+          }))
+        };
 
-            const claimMiniSteps = [
-              { title: `${labelPrefix}준비` },
-              { title: "배송시작" },
-              { title: "허브회송" },
-              { title: "반송지기착" },
-              { title: "입고중" },
-              { title: `${labelPrefix}완료` }
-            ];
-
-            setData({
-              carrier: "CODE 로지스틱스",
-              carrierCode: "MOCK",
-              trackingNumber: targetTN,
-              status: "preparing",
-              lastLocation: "구매자님 댁",
-              history: [{
-                time: "",
-                location: "수거지 대기",
-                status: `${labelPrefix} 준비중`,
-                description: `판매자가 확인 후 수거 지시를 내릴 예정입니다. (기존 배송 완료)`
-              }]
-            });
-
-            if (onStatusChange) {
-              onStatusChange("preparing", {
-                current: 0,
-                steps: claimMiniSteps
-              });
-            }
-            setLoading(false);
-            return;
-          }
-
-          const result: TrackingResult = {
-            carrier: "CODE 로지스틱스",
-            carrierCode: "MOCK",
-            trackingNumber: shipData.shipmentId,
-            status: shipData.status as any,
-            lastLocation: path[currentStep]?.location || "위치 정보 없음",
-            history: path.slice(0, currentStep + 1).map((p: any) => ({
-              time: p.estimatedTime ? dayjs(p.estimatedTime).format("MM.DD HH:mm") : "",
-              location: p.location,
-              status: p.statusLabel,
-              description: p.message
-            }))
-          };
-          setData(result);
-          
-          if (onStatusChange) {
-            onStatusChange(result.status, {
-              current: currentStep,
-              steps: path.map((p: any) => ({ title: p.statusLabel }))
-            });
-          }
-          setLoading(false);
-        } else {
-          // [v9.1] 데이터가 없으면 자가 치유를 시도하되, UI에는 '수거 예정' 스켈레톤을 노출
-          const type = targetTN.split('-')[1]?.[0] || 'S';
-          if (type === 'R' || type === 'E') {
-             const skeletonResult: TrackingResult = {
-               carrier: "CODE 로지스틱스",
-               carrierCode: "MOCK",
-               trackingNumber: targetTN,
-               status: "preparing",
-               lastLocation: "구매자님 댁",
-               history: [{
-                 time: "",
-                 location: "수거지 대기",
-                 status: "수거 준비중",
-                 description: "택배 기사님이 방문하여 상품을 수거할 예정입니다. (역물류 대기 중)"
-               }]
-             };
-             setData(skeletonResult);
-          }
-
-          deliveryService.track("MOCK", targetTN, undefined).then(() => {
-            setLoading(false);
-          }).catch(() => setLoading(false));
+        setData(result);
+        
+        // [v9.30] 마스터 스테퍼 바인딩: 현재 송장의 '실제 경로'를 상단 스테퍼에 투영
+        if (onStatusChange) {
+          onStatusChange(result.status, {
+            current: currentStep,
+            steps: path.map((p: any) => ({ title: p.statusLabel }))
+          });
         }
-      }, (err) => {
-        setError("실시간 연결 오류");
         setLoading(false);
-      });
-      return () => unsub();
-    } else {
-      // 일반 배송 조회 (기존 API)
-      setLoading(true);
-      fetch(`/api/code-logistics/${carrierCode}/${targetTN}`)
-        .then(res => res.json())
-        .then(result => {
-          setData(result);
-          if (onStatusChange) onStatusChange(result.status);
-        })
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false));
-    }
+      } else {
+        // 자가 치유 엔진 호출
+        deliveryService.track("MOCK", activeTrackingNumber, undefined).catch(console.error);
+      }
+    });
+    return () => unsub();
   }, [carrierCode, activeTrackingNumber, onStatusChange]);
 
-  // 3. 지능형 스테퍼 단계 계산 (가변 대응)
-  const stepperInfo = useMemo(() => {
-    if (!data) return null;
-    
-    const type = getShipmentTypeFromTracking(data.trackingNumber);
-    const isClaimRequest = orderStatus === "exchange_requested" || orderStatus === "return_requested";
-    const isLegacyS = type === 'S' || data.trackingNumber.includes('-S');
-
-    // [v9.2] 클레임 모드 오버라이드 (라벨까지 강제 전환)
-    if (isClaimRequest && isLegacyS) {
-      // [v9.3] 교환/반품 모두 수거 단계는 '반품'으로 라벨 통일
-      const labelPrefix = "반품";
-      
-      const claimLabels = [
-        { title: `${labelPrefix}준비` },
-        { title: "배송시작" }, // 회송 시작
-        { title: "허브이동" },
-        { title: "배송지기착" },
-        { title: "배송출발" },
-        { title: `${labelPrefix}완료` }
-      ];
-
-      return {
-        type,
-        steps: claimLabels,
-        current: 0
-      };
+  // [v10.1 하이브리드] 상세 로그 호출 함수
+  const fetchDetailedLogs = async () => {
+    if (showDetails) {
+      setShowDetails(false);
+      return;
     }
-
-    if (!rawShipment || !rawShipment.path) return null;
-
-    const steps = rawShipment.path.map((p: any) => ({
-      title: p.statusLabel,
-      subTitle: p.location
-    }));
-
-    return {
-      type,
-      steps,
-      current: rawShipment.currentStep || 0
-    };
-  }, [data, rawShipment, orderStatus]);
-
-  const handleSkip = async () => {
-    if (!activeTrackingNumber) return;
-    setSkipping(true);
+    
+    setLoadingDetails(true);
     try {
-      await fetch("/api/code-logistics/skip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shipmentId: activeTrackingNumber }),
+      const q = query(
+        collection(db, "shipments", activeTrackingNumber, "logs"),
+        orderBy("timestamp", "desc")
+      );
+      const snap = await getDocs(q);
+      const logs = snap.docs.map(docSnap => {
+        const d = docSnap.data();
+        return {
+          time: d.timestamp?.toDate ? dayjs(d.timestamp.toDate()).format("YYYY-MM-DD HH:mm:ss") : "",
+          location: d.location,
+          status: d.status,
+          description: d.message
+        };
       });
+      setDetailedLogs(logs);
+      setShowDetails(true);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch detailed logs:", err);
     } finally {
-      setSkipping(false);
+      setLoadingDetails(false);
     }
   };
 
-  if (loading) return <div className="p-10 text-center"><Spin /></div>;
-  if (error) return <div className="p-5 text-red-500 text-xs text-center">{error}</div>;
-  if (!data) {
-    return (
-      <div className="flex items-center justify-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-        <div className="text-center">
-          <div className="animate-spin mb-2 mx-auto h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
-          <p className="text-xs text-text-secondary">배송 정보를 동기화 중입니다...</p>
-        </div>
-      </div>
-    );
-  }
+  const executeAction = useExecuteOrderAction();
+
+  const handleSkip = async () => {
+    if (!activeTrackingNumber || !orderId) return;
+    setSkipping(true);
+    try {
+      await executeAction.mutateAsync({
+        id: orderId,
+        action: "SIMULATE_NEXT"
+      });
+    } catch (err) { console.error(err); } finally { setSkipping(false); }
+  };
+
+  const handleRevert = async () => {
+    if (!activeTrackingNumber || !orderId) return;
+    setSkipping(true);
+    try {
+      await executeAction.mutateAsync({
+        id: orderId,
+        action: "REVERT_PHASE"
+      });
+    } catch (err) { console.error(err); } finally { setSkipping(false); }
+  };
 
   return (
-    <div className="flex flex-col bg-white rounded-xl shadow-sm border border-border-light overflow-hidden">
-      {/* 1. 송장 탭 (멀티 송장 대응) */}
-      {shipmentHistory.length > 1 && (
-        <div className="flex gap-2 p-3 bg-gray-50 border-b overflow-x-auto no-scrollbar">
-          {shipmentHistory.map((s) => (
-            <button
+    <div className="flex flex-col gap-5 p-2 animate-in fade-in duration-500">
+      {/* 1. 다중 송장 스택 탭 (Infinite Loop 지원) */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {shipmentHistory.map((s, idx) => {
+          const type = s.shipmentId.includes("-R") ? "반품" : (s.shipmentId.includes("-E") ? "교환" : "배송");
+          const isActive = activeTrackingNumber === s.shipmentId;
+          const colorClass = type === "배송" ? (isActive ? "bg-[#3699FF] text-white" : "bg-white text-gray-400 border") 
+                                            : (isActive ? "bg-[#FFA800] text-white" : "bg-white text-gray-400 border");
+          return (
+            <div 
               key={s.shipmentId}
               onClick={() => setActiveTrackingNumber(s.shipmentId)}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all shrink-0 ${
-                activeTrackingNumber === s.shipmentId ? "bg-black text-white" : "bg-white text-gray-400 border"
-              }`}
-            >
-              {s.type === 'R' ? "📦 반품" : "🚚 배송"} {s.shipmentId.slice(-4)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 2. 다이나믹 스테퍼 (가변 도트) */}
-      {stepperInfo && (
-        <div className="p-6 border-b bg-white">
-          <Steps
-            size="small"
-            current={stepperInfo.current}
-            orientation="horizontal"
-            className="custom-stepper"
-            items={stepperInfo.steps.map((s: any, idx: number) => ({
-              title: <span className="text-[10px] font-bold">{s.title}</span>,
-              status: idx < stepperInfo.current ? 'finish' : (idx === stepperInfo.current ? 'process' : 'wait')
-            }))}
-          />
-        </div>
-      )}
-
-      {/* 3. 상세 정보 카드 */}
-      <div className="p-5">
-        <div className="flex justify-between items-end mb-4">
-          <div>
-            <Tag color="blue" className="text-[9px] font-bold border-none px-2 rounded-md mb-1">{data.carrier}</Tag>
-            <h3 className="text-sm font-black text-text">{data.trackingNumber}</h3>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] font-bold text-text-muted block">현재 위치</span>
-            <span className="text-xs font-bold text-primary">📍 {data.lastLocation}</span>
-          </div>
-        </div>
-
-        {/* 관리자 도구 */}
-        {isAdmin && activeTrackingNumber?.startsWith("MOCK-") && (
-          <AntdButton
-            type="primary"
-            block
-            size="small"
-            loading={skipping}
-            onClick={handleSkip}
-            className="mb-4 bg-gradient-to-r from-blue-600 to-indigo-600 border-none rounded-lg font-bold text-[11px] h-9"
-          >
-            {rawShipment?.status === 'delivered' || rawShipment?.status === 'returned' 
-              ? "✅ 처리 완료된 송장" 
-              : "⏩ 다음 단계로 시뮬레이션 (관리자)"}
-          </AntdButton>
-        )}
-
-        {/* 4. 타임라인 리스트 */}
-        <div className="space-y-4 mt-6">
-          {[...data.history].reverse().map((item, idx) => (
-            <div key={idx} className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className={`w-2 h-2 rounded-full mt-1.5 ${idx === 0 ? 'bg-primary ring-4 ring-primary/10' : 'bg-gray-200'}`} />
-                {idx !== data.history.length - 1 && <div className="w-px flex-1 bg-gray-100 my-1" />}
-              </div>
-              <div className="flex-1 pb-4 border-b border-gray-50 last:border-none">
-                <div className="flex justify-between items-start">
-                  <span className={`text-[12px] font-bold ${idx === 0 ? 'text-primary' : 'text-text'}`}>{item.status}</span>
-                  <span className="text-[9px] text-text-muted">{item.time}</span>
-                </div>
-                <p className="text-[10px] text-text-secondary mt-0.5">{item.location}</p>
-                {item.description && <p className="text-[10px] text-text-muted mt-1 leading-relaxed">{item.description}</p>}
-              </div>
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap ${colorClass}`}>
+              <span>{type === "배송" ? "🚚" : "📦"}</span> {type} {shipmentHistory.filter(sh => sh.shipmentId.includes(s.shipmentId.split('-')[2])).length > 1 ? `#${idx + 1}` : ""}
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      <style jsx global>{`
-        .custom-stepper .ant-steps-item-title { font-size: 10px !important; }
-        .custom-stepper .ant-steps-item-process .ant-steps-item-icon { background: #000; border-color: #000; }
-        .custom-stepper .ant-steps-item-finish .ant-steps-item-icon { border-color: #000; }
-        .custom-stepper .ant-steps-item-finish .ant-steps-item-icon > .ant-steps-icon { color: #000; }
-        .custom-stepper .ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-tail::after { background-color: #000; }
-      `}</style>
+      {loading ? (
+        <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-12 text-center shadow-sm">
+          <Spin indicator={<SyncOutlined spin className="text-[#3699FF]" />} />
+          <p className="mt-4 text-[10px] font-bold text-[#A1A5B7]">실시간 데이터를 동기화 중입니다...</p>
+        </div>
+      ) : data ? (
+        <>
+          {/* 2. 메인 인포 카드 (Spotlight 디자인) */}
+          <div className="relative rounded-[20px] bg-white border border-[#E4E6EF] p-6 shadow-sm overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#3699FF]/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+            <div className="flex justify-between items-start relative z-10">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-1">Carrier</span>
+                <h2 className="text-[17px] font-black text-[#3699FF] tracking-tighter leading-none">CODE 로지스틱스</h2>
+              </div>
+              <div className="text-right flex flex-col items-end">
+                <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-2">Tracking No.</span>
+                <span className="text-[11px] font-black text-[#181C32]">{activeTrackingNumber}</span>
+              </div>
+            </div>
+            <div className="mt-8 pt-5 border-t border-dashed border-[#E4E6EF]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-[#7E8299]">현재 위치</span>
+                <div className="flex-1 h-[1px] bg-gradient-to-r from-[#E4E6EF] to-transparent ml-2" />
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-sm">📍</span>
+                <span className="text-sm font-black text-[#181C32]">{data.lastLocation}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 시각적 타임라인 */}
+          <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-6 shadow-sm">
+            <div className="relative space-y-7">
+              <div className="absolute left-[3px] top-2 bottom-2 w-[1px] bg-[#F3F6F9]" />
+              {[...data.history].reverse().map((item, idx) => (
+                <div key={idx} className="relative pl-7 group">
+                  <div className={`absolute left-0 top-1.5 h-2 w-2 rounded-full border-2 bg-white z-10 transition-all ${
+                    idx === 0 ? "border-[#3699FF] ring-4 ring-blue-50" : "border-[#E4E6EF]"
+                  }`} />
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className={`text-[13px] font-black leading-none tracking-tight ${idx === 0 ? "text-[#3699FF]" : "text-[#181C32]"}`}>{item.status}</p>
+                      <p className="mt-1.5 text-[10px] font-bold text-[#7E8299] opacity-80">{item.location}</p>
+                      {item.description && <p className="mt-1.5 text-[10px] text-[#A1A5B7] leading-relaxed italic opacity-70">{item.description}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[9px] font-black text-[#D1D3E0] tabular-nums tracking-tighter">{item.time}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. [v10.1 하이브리드] 상세 이력(Detail Layer) 토글 영역 */}
+          <div className="mt-1 text-center">
+            <AntdButton 
+              type="text" 
+              onClick={fetchDetailedLogs} 
+              loading={loadingDetails}
+              className="text-[#A1A5B7] font-bold text-[11px] hover:text-[#3699FF]"
+            >
+              {showDetails ? "▲ 상세 기록 닫기" : "▼ 전체 배송 상세 기록 보기 (Audit Trail)"}
+            </AntdButton>
+          </div>
+
+          {showDetails && detailedLogs.length > 0 && (
+            <div className="rounded-[20px] bg-[#F9F9F9] border border-[#E4E6EF] p-5 shadow-inner mt-2 max-h-80 overflow-y-auto animate-in slide-in-from-top-2">
+              <h4 className="text-[11px] font-black text-[#A1A5B7] mb-4 uppercase tracking-widest">Detail Logs</h4>
+              <div className="relative space-y-5">
+                <div className="absolute left-[3px] top-2 bottom-2 w-[1px] bg-[#E4E6EF]" />
+                {detailedLogs.map((item, idx) => (
+                  <div key={idx} className="relative pl-6">
+                    <div className="absolute left-0 top-1 h-1.5 w-1.5 rounded-full bg-[#A1A5B7] z-10" />
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-[11px] font-bold text-[#3F4254]">{item.status}</p>
+                        <p className="text-[10px] text-[#A1A5B7] mt-0.5 leading-snug">{item.location} {item.description && `| ${item.description}`}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[9px] text-[#A1A5B7] tabular-nums">{item.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {/* [관리자 전용] 시뮬레이션 섹션 */}
+      {isAdmin && activeTrackingNumber?.startsWith("MOCK-") && (
+        <div className="mt-2 flex gap-2">
+          <AntdButton
+            type="default"
+            size="large"
+            loading={skipping}
+            onClick={handleRevert}
+            className="flex-1 h-12 rounded-xl bg-[#F3F6F9] hover:bg-[#E4E6EF] border-[#E4E6EF] font-black text-[11px] text-[#7E8299] transition-all"
+            disabled={rawShipment?.currentStep === 0}
+          >
+            ⏪ 후진 (UNDO)
+          </AntdButton>
+          <AntdButton
+            type="primary"
+            size="large"
+            loading={skipping}
+            onClick={handleSkip}
+            className="flex-[2] h-12 rounded-xl bg-[#181C32] border-none font-black text-[11px] shadow-lg shadow-gray-200 hover:scale-[1.02] active:scale-95 transition-all"
+            icon={<SyncOutlined spin={skipping} />}
+          >
+            {rawShipment?.status === 'delivered' || rawShipment?.status === 'returned' || rawShipment?.status === 'exchange_completed' ? "✅ 처리 완료" : "NEXT PHASE SIMULATION"}
+          </AntdButton>
+        </div>
+      )}
     </div>
   );
 }

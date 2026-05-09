@@ -107,6 +107,22 @@ export function useUpdateOrderStatus() {
   });
 }
 
+export function useExecuteOrderAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; action: any; trackingNumber?: string; carrierCode?: string }) => {
+      const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+      return CodeFulfillmentEngine.executeAction(params.id, params.action, {
+        trackingNumber: params.trackingNumber,
+        carrierCode: params.carrierCode
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
 export function useCreateExchange() {
   const queryClient = useQueryClient();
   return useMutation({

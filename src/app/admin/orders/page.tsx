@@ -13,7 +13,7 @@ import {
   UnlockOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useAllOrders, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useAllOrders, useUpdateOrderStatus, useExecuteOrderAction } from "@/hooks/useOrders";
 import { useAllProducts } from "@/hooks/useProducts";
 import type { Order, OrderStatus } from "@/types";
 import {
@@ -125,6 +125,7 @@ function AdminOrders() {
       0
     );
   const updateStatus = useUpdateOrderStatus();
+  const executeAction = useExecuteOrderAction();
 
   const filteredOrders = orders.filter((o) => {
     if (activeTab === "all") return true;
@@ -163,9 +164,9 @@ function AdminOrders() {
 
   const handlePrepare = async (order: Order) => {
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "preparing",
+        action: "PREPARE",
       });
       message.success("상품 준비중으로 변경되었습니다.");
     } catch (err: any) {
@@ -175,11 +176,9 @@ function AdminOrders() {
 
   const handleShip = async (order: Order) => {
     try {
-      // [v9.1] 배송 문서 생성은 이제 서비스 엔진(updateOrderStatus)에서 자동으로 관리합니다.
-      // 관리자는 오직 '출고'라는 상태 변경 명령만 내립니다.
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "shipping",
+        action: "DISPATCH",
       });
       message.success("출고 처리 완료");
     } catch (err: any) {
@@ -190,9 +189,9 @@ function AdminOrders() {
 
   const handleDeliver = async (order: Order) => {
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "delivered",
+        action: "DELIVER",
       });
       message.success("배송 완료 처리되었습니다.");
     } catch (err: any) {
@@ -201,12 +200,16 @@ function AdminOrders() {
   };
 
   const handleReturnPickUp = async (order: Order) => {
-    const returnTracking = generateMOCKTrackingNumber("R");
+    const claimType = getActiveClaimType(order);
+    const prefix = claimType === "exchange" ? "E" : "R";
+    const returnTracking = generateMOCKTrackingNumber(prefix);
+    
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "returning",
+        action: "RETURN_PICKUP",
         trackingNumber: returnTracking,
+        carrierCode: "MOCK"
       });
       message.success(`수거 지시가 완료되었습니다. (송장: ${returnTracking})`);
     } catch (err: any) {
@@ -216,9 +219,9 @@ function AdminOrders() {
 
   const handleReturnReceived = async (order: Order) => {
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "returned",
+        action: "RECEIVE_ITEM",
       });
       message.success("입고 확인 완료");
     } catch (err: any) {
@@ -240,9 +243,9 @@ function AdminOrders() {
 
   const handleExchangeComplete = async (order: Order) => {
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "exchange_completed",
+        action: "EXCHANGE_DONE",
       });
       message.success("교환 완료 처리되었습니다.");
     } catch (err: any) {
@@ -252,9 +255,9 @@ function AdminOrders() {
 
   const handleReturnComplete = async (order: Order) => {
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "return_completed",
+        action: "DELIVER", // 반품 경로에서 DELIVER는 return_completed로 번역됨
       });
       message.success("반품 완료 처리되었습니다.");
     } catch (err: any) {
