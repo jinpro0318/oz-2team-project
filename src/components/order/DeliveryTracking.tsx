@@ -216,7 +216,7 @@ export default function DeliveryTracking({ orderId, carrierCode, trackingNumber,
       {/* 1. 다중 송장 스택 탭 (Infinite Loop 지원) */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {shipmentHistory.map((s, idx) => {
-          const type = s.shipmentId.includes("-R") ? "반품" : (s.shipmentId.includes("-E") ? "교환" : "배송");
+          const type = s.shipmentId.startsWith("MOCK-R") ? "반품" : (s.shipmentId.startsWith("MOCK-E") ? "교환" : "배송");
           const isActive = activeTrackingNumber === s.shipmentId;
           const colorClass = type === "배송" ? (isActive ? "bg-[#3699FF] text-white" : "bg-white text-gray-400 border") 
                                             : (isActive ? "bg-[#FFA800] text-white" : "bg-white text-gray-400 border");

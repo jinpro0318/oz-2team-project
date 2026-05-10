@@ -64,8 +64,8 @@ export const MOCK_RETURN_PATH: PathStep[] = [
 ];
 
 export function getShipmentTypeFromTracking(trackingNumber: string): "S" | "R" | "E" {
-  if (trackingNumber.includes("-R")) return "R";
-  if (trackingNumber.includes("-E")) return "E";
+  if (trackingNumber.startsWith("MOCK-R")) return "R";
+  if (trackingNumber.startsWith("MOCK-E")) return "E";
   return "S";
 }
 
