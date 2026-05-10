@@ -71,8 +71,8 @@ export default function DeliveryTracking({
       .then((list) => {
         // 비즈니스 가중치 및 시간순 정렬 (최신 클레임 우선)
         const sorted = [...list].sort((a, b) => {
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
           return timeB - timeA;
         });
         setShipmentHistory(sorted);
@@ -273,35 +273,32 @@ export default function DeliveryTracking({
 
   return (
     <div className="flex flex-col gap-5 p-2 animate-in fade-in duration-500">
-      {/* 1. 다중 송장 스택 탭 (Infinite Loop 지원) */}
+      {/* 1. 송장 타입 인디케이터 (배송/교환/반품) */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {shipmentHistory.map((s, idx) => {
-          const type = s.shipmentId.startsWith("MOCK-R")
-            ? "반품"
-            : s.shipmentId.startsWith("MOCK-E")
-              ? "교환"
-              : "배송";
-          const isActive = activeTrackingNumber === s.shipmentId;
-          const colorClass =
-            type === "배송"
-              ? isActive
-                ? "bg-[#3699FF] text-white"
-                : "bg-white text-gray-400 border"
-              : isActive
-                ? "bg-[#FFA800] text-white"
-                : "bg-white text-gray-400 border";
+        {[
+          { type: '배송', icon: '🚚', match: ['MOCK-S'] },
+          { type: '교환', icon: '🔄', match: ['MOCK-EQ', 'MOCK-ES', 'MOCK-E'] },
+          { type: '반품', icon: '📦', match: ['MOCK-R'] }
+        ].map(tab => {
+          let isActive = false;
+          const claimType = rawShipment?.claimType || "";
+          if (claimType.includes("exchange") || orderStatus?.includes("exchange")) {
+             isActive = tab.type === '교환';
+          } else if (claimType.includes("return") || orderStatus?.includes("return")) {
+             isActive = tab.type === '반품';
+          } else {
+             isActive = tab.match.some(m => activeTrackingNumber?.startsWith(m));
+          }
+
+          const colorClass = isActive 
+            ? "bg-[#3699FF] text-white border-none shadow-sm" 
+            : "bg-[#F3F6F9] text-[#A1A5B7] border-none";
           return (
             <div
-              key={s.shipmentId}
-              onClick={() => setActiveTrackingNumber(s.shipmentId)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap ${colorClass}`}
+              key={tab.type}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-bold transition-all whitespace-nowrap ${colorClass}`}
             >
-              <span>{type === "배송" ? "🚚" : "📦"}</span> {type}{" "}
-              {shipmentHistory.filter((sh) =>
-                sh.shipmentId.includes(s.shipmentId.split("-")[2]),
-              ).length > 1
-                ? `#${idx + 1}`
-                : ""}
+              <span>{tab.icon}</span> {tab.type}
             </div>
           );
         })}
@@ -343,9 +340,30 @@ export default function DeliveryTracking({
                   <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-2">
                     Tracking No.
                   </span>
-                  <span className="text-[11px] font-black text-[#181C32]">
-                    {activeTrackingNumber}
-                  </span>
+                  <div className="flex flex-col gap-0.5 items-end">
+                    {shipmentHistory.length > 0 ? (
+                      shipmentHistory.map((s) => {
+                        const isActive = activeTrackingNumber === s.shipmentId;
+                        return (
+                          <span
+                            key={s.shipmentId}
+                            onClick={() => setActiveTrackingNumber(s.shipmentId)}
+                            className={`cursor-pointer transition-all ${
+                              isActive 
+                                ? "text-[14px] font-black text-[#181C32]" 
+                                : "text-[11px] font-bold text-[#A1A5B7] hover:text-[#7E8299]"
+                            }`}
+                          >
+                            {s.shipmentId}
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[14px] font-black text-[#181C32]">
+                        {activeTrackingNumber}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-8 pt-5 border-t border-dashed border-[#E4E6EF]">
@@ -367,101 +385,51 @@ export default function DeliveryTracking({
 
           {/* 3. 시각적 타임라인 (Reveal Engine 적용) */}
           <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-6 shadow-sm">
-            <div className="relative space-y-7">
-              <div className="absolute left-[3px] top-2 bottom-2 w-[1px] bg-[#F3F6F9]" />
+            <div className="relative">
               {[...data.history].reverse().map((item: any, idx) => {
                 const isLast = idx === data.history.length - 1;
-                // 역순 배열이므로, item이 isRevealed가 true인 첫 번째 요소가 바로 현재 Active 상태
-                const isCurrentActive =
-                  item.isRevealed &&
-                  idx ===
-                    [...data.history].reverse().findIndex((h) => h.isRevealed);
-
-                let dotColor = "border-[#E4E6EF] bg-white";
-                let textColor = "text-[#A1A5B7]";
-                let lineClass = "";
-                let opacityClass = item.isRevealed
+                const opacityClass = item.isRevealed
                   ? "opacity-100"
                   : "opacity-40 blur-[1px]";
 
-                if (item.isRevealed) {
-                  if (item.condition === "delayed") {
-                    dotColor = "border-[#FFA800] bg-[#FFF4DE]";
-                    textColor = "text-[#FFA800]";
-                    lineClass = "border-dashed border-[#FFA800]";
-                  } else if (item.condition === "issue") {
-                    dotColor = "border-[#F1416C] bg-[#FFF5F8]";
-                    textColor = "text-[#F1416C]";
-                    lineClass = "border-solid border-[#F1416C]";
-                  } else {
-                    dotColor = isCurrentActive
-                      ? "border-[#3699FF] ring-4 ring-blue-50 bg-white"
-                      : "border-[#3699FF] bg-[#3699FF]";
-                    textColor = isCurrentActive
-                      ? "text-[#3699FF]"
-                      : "text-[#181C32]";
-                    lineClass = "border-solid border-[#3699FF]";
-                  }
-                } else {
-                  lineClass = "border-dashed border-[#E4E6EF]";
-                }
+                const dotBorderColor = item.isRevealed ? "border-[#181C32]" : "border-[#E4E6EF]";
+                const textColor = item.isRevealed ? "text-[#181C32]" : "text-[#A1A5B7]";
 
                 return (
                   <div
                     key={idx}
-                    className={`relative pl-7 group transition-all duration-700 ${opacityClass}`}
+                    className={`relative pl-8 group transition-all duration-700 ${opacityClass} mb-7 last:mb-0`}
                   >
+                    {/* Circle Indicator (Screenshot style: hollow circle with bold border) */}
                     <div
-                      className={`absolute left-0 top-1.5 h-2 w-2 rounded-full border-2 z-10 ${dotColor}`}
+                      className={`absolute left-[2.5px] top-[3px] h-[11px] w-[11px] rounded-full border-[2.5px] bg-white z-10 ${dotBorderColor}`}
                     />
 
-                    {/* 진행 선 (마지막 요소 제외, 아래 방향으로 연결) */}
+                    {/* 진행 선 */}
                     {!isLast && (
                       <div
-                        className={`absolute left-[3px] top-3 h-[calc(100%+16px)] w-[1px] ${lineClass} z-0`}
+                        className={`absolute left-[7px] top-[14px] h-[calc(100%+14px)] w-[1px] bg-[#E4E6EF] z-0`}
                       />
                     )}
 
-                    {/* 진행 중인 트럭 인디케이터 (현재 활성 노드 위로 이동 중) */}
-                    {isCurrentActive &&
-                      idx > 0 &&
-                      item.condition === "normal" && (
-                        <div className="absolute left-[-5px] top-[-16px] z-20 text-[14px] animate-bounce">
-                          🚚
-                        </div>
-                      )}
-
                     <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2">
-                          <p
-                            className={`text-[13px] font-black leading-none tracking-tight ${textColor}`}
-                          >
-                            {item.status}
-                          </p>
-                          {!item.isRevealed && (
-                            <span className="text-[8px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                              예정
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={`mt-1.5 text-[10px] font-bold ${item.isRevealed ? "text-[#7E8299]" : "text-[#A1A5B7]"} opacity-80`}
-                        >
+                      <div className="flex flex-col">
+                        <span className={`text-[13px] font-black tracking-tight ${textColor}`}>
+                          {item.status}
+                        </span>
+                        <span className="text-[11px] text-[#7E8299] mt-0.5 font-medium">
                           {item.location}
-                        </p>
+                        </span>
                         {item.description && (
-                          <p
-                            className={`mt-1.5 text-[10px] leading-relaxed italic ${item.isRevealed ? "text-[#A1A5B7]" : "text-[#D1D3E0]"}`}
-                          >
+                          <span className="text-[11px] text-[#A1A5B7] italic mt-1.5 leading-snug">
                             {item.description}
-                          </p>
+                          </span>
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-[9px] font-black text-[#D1D3E0] tabular-nums tracking-tighter">
+                        <span className="text-[10px] text-[#A1A5B7] tabular-nums font-medium tracking-wide">
                           {item.time}
-                        </p>
+                        </span>
                       </div>
                     </div>
                   </div>

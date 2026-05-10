@@ -26,7 +26,7 @@ export interface Shipment {
   carrierCode: string;
   trackingNumber: string;
   status: string;
-  type: "S" | "R" | "E";
+  type: "S" | "R" | "EQ" | "ES";
   currentStep: number;
   path: PathStep[];
   senderAddress: string;
@@ -63,9 +63,10 @@ export const MOCK_RETURN_PATH: PathStep[] = [
   { location: "판매처", status: "return_completed", statusLabel: "반품완료", message: "판매처 입고 확인 후 반품이 완료되었습니다.", estimatedTime: "", condition: "normal" }
 ];
 
-export function getShipmentTypeFromTracking(trackingNumber: string): "S" | "R" | "E" {
+export function getShipmentTypeFromTracking(trackingNumber: string): "S" | "R" | "EQ" | "ES" {
+  if (trackingNumber.startsWith("MOCK-EQ")) return "EQ";
+  if (trackingNumber.startsWith("MOCK-ES")) return "ES";
   if (trackingNumber.startsWith("MOCK-R")) return "R";
-  if (trackingNumber.startsWith("MOCK-E")) return "E";
   return "S";
 }
 
@@ -161,7 +162,11 @@ export async function getShipmentsByOrder(orderId: string): Promise<Shipment[]> 
   const snap = await getDocs(q);
   const list: Shipment[] = [];
   snap.forEach(d => list.push({ shipmentId: d.id, ...d.data() } as Shipment));
-  return list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return list.sort((a, b) => {
+    const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+    const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+    return timeA - timeB;
+  });
 }
 
 export function applyRevealFilter(path: PathStep[]) {
@@ -178,14 +183,14 @@ export async function createMockShipment(params: {
   senderAddress: string;
   receiverAddress: string;
   targetStep: number;
-  shipmentType?: "S" | "R" | "E";
+  shipmentType?: "S" | "R" | "EQ" | "ES";
 }): Promise<Shipment> {
   const now = new Date();
   const type = params.shipmentType || getShipmentTypeFromTracking(params.trackingNumber);
   
   let basePath = MOCK_STANDARD_PATH;
   if (type === "R") basePath = MOCK_RETURN_PATH;
-  if (type === "E") basePath = MOCK_EXCHANGE_PATH;
+  if (type === "EQ" || type === "ES") basePath = MOCK_EXCHANGE_PATH;
 
   const { LogisticsStatusResolver } = await import("./LogisticsStatusResolver");
   const initialStatus = LogisticsStatusResolver.getShipmentStatusForIndex(params.targetStep, type);

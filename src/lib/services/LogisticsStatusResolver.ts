@@ -25,7 +25,7 @@ export interface ResolvedAction {
   status?: string;
   step?: number;
   shouldUpdateShipment: boolean;
-  requiresNewShipment?: "E" | "none"; // 👈 추가: 교환용 새 송장 발급 필요 여부
+  requiresNewShipment?: "ES" | "EQ" | "none"; // 👈 추가: 교환용 새 송장 발급 필요 여부
 }
 
 export class LogisticsStatusResolver {
@@ -95,7 +95,7 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return this.ORDER_TO_RETURN_INDEX[orderStatus] ?? 0;
     }
-    if (shipmentType === "E") {
+    if (shipmentType === "EQ" || shipmentType === "ES") {
       return this.ORDER_TO_EXCHANGE_INDEX[orderStatus] ?? 0;
     }
     return 0;
@@ -111,7 +111,7 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return MOCK_RETURN_PATH.map((p) => ({ title: p.statusLabel }));
     }
-    if (shipmentType === "E") {
+    if (shipmentType === "EQ" || shipmentType === "ES") {
       return MOCK_EXCHANGE_PATH.map((p) => ({ title: p.statusLabel }));
     }
     // 기본(Standard) 및 'none'
@@ -138,7 +138,7 @@ export class LogisticsStatusResolver {
   ): string {
     let path: PathStep[] = MOCK_STANDARD_PATH;
     if (shipmentType === "R") path = MOCK_RETURN_PATH;
-    if (shipmentType === "E") path = MOCK_EXCHANGE_PATH;
+    if (shipmentType === "EQ" || shipmentType === "ES") path = MOCK_EXCHANGE_PATH;
 
     return path[index]?.status || "shipping";
   }
@@ -149,7 +149,7 @@ export class LogisticsStatusResolver {
   static resolveAction(
     intent: OrderActionIntent,
     currentStep: number,
-    shipmentType: "S" | "R" | "E",
+    shipmentType: "S" | "R" | "EQ" | "ES",
   ): ResolvedAction {
     switch (intent) {
       case "PAYMENT_DONE":
@@ -165,11 +165,11 @@ export class LogisticsStatusResolver {
       case "PREPARE":
         return { status: "preparing", step: 1, shouldUpdateShipment: true };
       case "DISPATCH":
-        if (shipmentType === "E")
+        if (shipmentType === "ES" || shipmentType === "EQ")
           return { status: "reshipping", step: 4, shouldUpdateShipment: true };
         return { status: "shipping", step: 2, shouldUpdateShipment: true };
       case "DELIVER":
-        if (shipmentType === "E")
+        if (shipmentType === "ES" || shipmentType === "EQ")
           return {
             status: "exchange_completed",
             step: 5,
@@ -191,7 +191,7 @@ export class LogisticsStatusResolver {
           status: "reshipping",
           step: 4,
           shouldUpdateShipment: true,
-          requiresNewShipment: "E", // 👈 수거 완료 후 재발송 시 송장 교체
+          requiresNewShipment: "ES", // 👈 수거 완료 후 재발송 시 송장 교체
         };
       case "EXCHANGE_DONE":
         return {
@@ -201,7 +201,7 @@ export class LogisticsStatusResolver {
         };
       case "PURCHASE_CONFIRM":
         // [v12.5] 구매 확정 시 타임라인의 마지막 노드(구매확정)까지 모두 활성화하도록 강제 동기화
-        const lastStep = shipmentType === "E" ? 6 : (shipmentType === "R" ? 3 : 4);
+        const lastStep = (shipmentType === "EQ" || shipmentType === "ES") ? 6 : (shipmentType === "R" ? 3 : 4);
         return {
           status: "purchase_confirmed",
           step: lastStep,
@@ -214,9 +214,8 @@ export class LogisticsStatusResolver {
         const nextStep = currentStep + 1;
         const nextStatus = this.getStatusFromIndex(nextStep, shipmentType);
         
-        // [v10.8] 교환 프로세스 중 4단계(재발송) 진입 시에만 송장 교환 신호 발생
-        // 단, 이미 교환 송장(E)인 경우는 중복 발급하지 않음
-        const requiresNewShipment = (shipmentType === "E" && nextStep === 4) ? "E" : "none";
+        // 단, 이미 재발송 송장(ES)인 경우는 중복 발급하지 않음
+        const requiresNewShipment = ((shipmentType === "EQ" || shipmentType === "ES") && nextStep === 4) ? "ES" : "none";
         
         return {
           status: nextStatus,
@@ -248,11 +247,11 @@ export class LogisticsStatusResolver {
    */
   static getStatusFromIndex(
     index: number,
-    shipmentType: "S" | "R" | "E",
+    shipmentType: "S" | "R" | "EQ" | "ES",
   ): string | undefined {
     let mapping: Record<string, number>;
     if (shipmentType === "R") mapping = this.ORDER_TO_RETURN_INDEX;
-    else if (shipmentType === "E") mapping = this.ORDER_TO_EXCHANGE_INDEX;
+    else if (shipmentType === "EQ" || shipmentType === "ES") mapping = this.ORDER_TO_EXCHANGE_INDEX;
     else mapping = this.ORDER_TO_STANDARD_INDEX;
 
     // value(index)를 통해 key(status)를 찾습니다.

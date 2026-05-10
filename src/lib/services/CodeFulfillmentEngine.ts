@@ -73,13 +73,23 @@ export class CodeFulfillmentEngine {
 
       // --- [STAGE 2: LOGIC] 비즈니스 로직 처리 ---
 
-      // 배송 타입 결정 (S: 일반, R: 반품, E: 교환)
-      // [수정] 주문 상태(Context)가 송장 접두어(R/E)보다 우선시 되어야 교환 수거 시 교환 라벨이 올바르게 출력됩니다.
-      let shipmentType: "S" | "R" | "E" = "S";
-      if (orderData.status.includes("exchange")) shipmentType = "E";
-      else if (orderData.status.includes("return")) shipmentType = "R";
-      else if (trackingNumber.startsWith("MOCK-R")) shipmentType = "R";
-      else if (trackingNumber.startsWith("MOCK-E")) shipmentType = "E";
+      // 배송 타입 결정 (S: 일반, R: 반품, EQ: 교환수거, ES: 교환재배송)
+      // [수정] 주문 상태(Context) 및 claimType을 최우선으로 판단하여 올바른 라벨을 유지합니다.
+      let shipmentType: "S" | "R" | "EQ" | "ES" = "S";
+      const dbClaimType = shipmentSnap?.exists() ? shipmentSnap.data().claimType : orderData.claimType;
+
+      if (dbClaimType?.includes("exchange") || orderData.status.includes("exchange")) {
+        if (trackingNumber.startsWith("MOCK-ES")) shipmentType = "ES";
+        else shipmentType = "EQ";
+      } else if (dbClaimType?.includes("return") || orderData.status.includes("return")) {
+        shipmentType = "R";
+      } else if (trackingNumber.startsWith("MOCK-EQ")) {
+        shipmentType = "EQ";
+      } else if (trackingNumber.startsWith("MOCK-ES")) {
+        shipmentType = "ES";
+      } else if (trackingNumber.startsWith("MOCK-R")) {
+        shipmentType = "R";
+      }
 
       // 정책 모듈에 해석 의뢰
       const resolved = LogisticsStatusResolver.resolveAction(
@@ -125,14 +135,15 @@ export class CodeFulfillmentEngine {
       let finalIsNewShipment = !shipmentSnap || !shipmentSnap.exists();
 
       if (
-        resolved.requiresNewShipment === "E" &&
-        !trackingNumber.startsWith("MOCK-E")
+        resolved.requiresNewShipment &&
+        resolved.requiresNewShipment !== "none"
       ) {
-        finalTrackingNumber = generateMOCKTrackingNumber("E");
+        // [수정] 무한 루프를 위해, 기존 송장 접두어 방어 로직 제거. (새 송장 지시가 오면 무조건 발급)
+        finalTrackingNumber = generateMOCKTrackingNumber(resolved.requiresNewShipment);
         orderUpdates.trackingNumber = finalTrackingNumber;
         
         // [v10.6] 송장 교체 시 타입과 이력 배열도 즉시 동기화
-        shipmentType = "E"; 
+        shipmentType = resolved.requiresNewShipment; 
         const oldHistory = Array.isArray(orderData.trackingNumbers) ? orderData.trackingNumbers : (orderData.trackingNumber ? [orderData.trackingNumber] : []);
         if (!oldHistory.includes(finalTrackingNumber)) {
           orderUpdates.trackingNumbers = [...oldHistory, finalTrackingNumber];
@@ -141,14 +152,14 @@ export class CodeFulfillmentEngine {
         finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
         finalIsNewShipment = true; 
         console.log(
-          `[CodeFulfillmentEngine] 정책 모듈 지시에 의한 송장 교체: ${trackingNumber} -> ${finalTrackingNumber} (Type: E)`,
+          `[CodeFulfillmentEngine] 정책 모듈 지시에 의한 송장 교체: ${trackingNumber} -> ${finalTrackingNumber} (Type: ${shipmentType})`,
         );
       }
 
       // [v11.11] 송장 수동/자동 부여 처리 (UI에서 엔진으로 이관)
       if (intent === "ASSIGN_TRACKING") {
         if (extraData?.carrierCode === "MOCK") {
-          finalTrackingNumber = generateMOCKTrackingNumber("S");
+          finalTrackingNumber = generateMOCKTrackingNumber(shipmentType);
           orderUpdates.carrierCode = "MOCK";
           orderUpdates.trackingNumber = finalTrackingNumber;
           finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
@@ -282,32 +293,7 @@ export class CodeFulfillmentEngine {
         };
 
         const koreanStatus = statusToKorean(shipmentStatus);
-        const shipmentTypeName = shipmentType === "S" ? "일반 발송" : shipmentType === "R" ? "반품 회수" : "교환품 발송";
-
-        // [v12.5] 송장 신규 생성 시, 주문의 원래 결제 시점을 소급해서 로그로 주입 (Audit Trail 연속성)
-        if (finalIsNewShipment) {
-          const paymentLogRef = doc(
-            collection(finalShipmentRef, "logs"),
-            `step-0-${Date.now() - 1000}`, // 순서를 위해 1초 전으로 설정
-          );
-          
-          let paymentTime: any = serverTimestamp();
-          if (orderData.createdAt) {
-            const dateObj = new Date(orderData.createdAt);
-            if (!isNaN(dateObj.getTime())) {
-              paymentTime = Timestamp.fromDate(dateObj);
-            }
-          }
-
-          transaction.set(paymentLogRef, {
-            logId: `step-0`,
-            status: statusToKorean("payment_complete"),
-            location: "결제 시스템",
-            message: "결제가 정상적으로 완료되었습니다.",
-            timestamp: paymentTime,
-            isSystem: true,
-          });
-        }
+        const shipmentTypeName = shipmentType === "S" ? "일반 발송" : shipmentType === "R" ? "반품 회수" : (shipmentType === "EQ" ? "교환 수거" : "교환품 발송");
 
         const logRef = doc(
           collection(finalShipmentRef, "logs"),

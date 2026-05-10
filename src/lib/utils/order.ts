@@ -32,14 +32,14 @@ export const isClaimInProgress = (order: Order): boolean => {
 
 /**
  * ──────────────────────────────────────────────────────────────
- * [v9.0 §7] 통합 스마트 송장 엔진 (Smart Tracking Engine)
+ * [v13.0 §7] 통합 스마트 송장 엔진 (Smart Tracking Engine)
  * ──────────────────────────────────────────────────────────────
  * 포맷: MOCK-{Type}{YYMMDD}-{Random4}
  *
- * @param type - 'S' (Standard 최초출고) | 'R' (Return 반품수거) | 'E' (Exchange 교환재배송)
- * @returns 고유한 MOCK 송장 번호 (예: MOCK-S260507-A1B2)
+ * @param type - 'S' (Standard 최초출고) | 'R' (Return 반품수거) | 'EQ' (Exchange 수거) | 'ES' (Exchange 재배송)
+ * @returns 고유한 MOCK 송장 번호 (예: MOCK-EQ260507-A1B2)
  */
-export type MOCKShipmentType = 'S' | 'R' | 'E';
+export type MOCKShipmentType = 'S' | 'R' | 'EQ' | 'ES';
 
 export const generateMOCKTrackingNumber = (type: MOCKShipmentType): string => {
   const now = new Date();
