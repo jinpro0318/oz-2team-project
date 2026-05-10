@@ -53,8 +53,9 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   cancelled: { label: "주문취소", color: "red" },
   exchange_requested: { label: "교환요청", color: "purple" },
   return_requested: { label: "반품요청", color: "purple" },
-  returning: { label: "반송중", color: "volcano" },
-  returned: { label: "반송완료", color: "magenta" },
+  returning: { label: "수거중", color: "volcano" },
+  returned: { label: "수거완료", color: "magenta" },
+  inspecting: { label: "검수중", color: "gold" },
   exchange_completed: { label: "교환완료", color: "geekblue" },
   return_completed: { label: "반품완료", color: "gray" },
   purchase_confirmed: { label: "구매확정", color: "green" },
@@ -237,8 +238,10 @@ function AdminOrders() {
   };
 
   const handleReturnPickUp = async (order: Order) => {
-    // [논리 수정] 수거 단계는 교환/반품 관계없이 무조건 Return(R) 송장을 사용합니다.
-    const returnTracking = generateMOCKTrackingNumber("R");
+    // [v13.0] 교환과 반품을 구분하여 올바른 접두어(EQ/R)를 부여합니다.
+    const claimType = getActiveClaimType(order);
+    const prefix = claimType === "exchange" ? "EQ" : "R";
+    const returnTracking = generateMOCKTrackingNumber(prefix);
     
     try {
       await executeAction.mutateAsync({
@@ -247,7 +250,7 @@ function AdminOrders() {
         trackingNumber: returnTracking,
         carrierCode: "MOCK"
       });
-      message.success(`수거 지시가 완료되었습니다. (송장: ${returnTracking})`);
+      message.success(`${claimType === "exchange" ? "교환 수거" : "반품 수거"} 지시가 완료되었습니다. (송장: ${returnTracking})`);
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -259,9 +262,33 @@ function AdminOrders() {
         id: order.id,
         action: "RECEIVE_ITEM",
       });
-      message.success("입고 확인 완료");
+      message.success("수거 완료 처리되었습니다.");
     } catch (err: any) {
-      message.error("입고 확인 실패");
+      message.error("수거 완료 실패");
+    }
+  };
+
+  const handleStartInspection = async (order: Order) => {
+    try {
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "START_INSPECTION" as any,
+      });
+      message.success("검수 단계로 진입했습니다.");
+    } catch (err: any) {
+      message.error("검수 시작 실패");
+    }
+  };
+
+  const handleReshipItem = async (order: Order) => {
+    try {
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "RESHIP_ITEM",
+      });
+      message.success("교환 상품이 재발송 처리되었습니다. (새 송장 발급됨)");
+    } catch (err: any) {
+      message.error("재발송 처리 실패");
     }
   };
 
@@ -679,23 +706,33 @@ function AdminOrders() {
           {r.status === "returning" && (
             <Button
               size="small"
-              icon={<DownloadOutlined />}
-              loading={updateStatus.isPending}
-              onClick={() => handleReturnReceived(r)}
-              className="bg-magenta-50 text-magenta-600 border-magenta-200"
+              icon={<CheckOutlined />}
+              disabled={true}
+              title="실시간 배송 조회가 '수거완료'가 되면 활성화됩니다"
             >
-              입고확인
+              수거 확인 대기중
             </Button>
           )}
           {r.status === "returned" && (
             <Button
               size="small"
-              type="primary"
-              icon={<EditOutlined />}
+              icon={r.timeline?.some(t => t.status === "exchange_requested") ? <DownloadOutlined /> : <CheckOutlined />}
               loading={updateStatus.isPending}
-              onClick={() => handlePrepare(r)}
+              onClick={() => r.timeline?.some(t => t.status === "exchange_requested") ? handleStartInspection(r) : handleDeliver(r)}
+              className="bg-blue-50 text-blue-600 border-blue-200"
             >
-              교환준비
+              {r.timeline?.some(t => t.status === "exchange_requested") ? "입고/검수 시작" : "반품 완료 처리"}
+            </Button>
+          )}
+          {r.status === "inspecting" && (
+            <Button
+              size="small"
+              type="primary"
+              icon={<SendOutlined />}
+              loading={updateStatus.isPending}
+              onClick={() => handleReshipItem(r)}
+            >
+              교환품 발송
             </Button>
           )}
           {r.status === "cancelled" && (
@@ -865,23 +902,34 @@ function AdminOrders() {
               {drawerOrder.status === "returning" && (
                 <Button
                   block
-                  icon={<DownloadOutlined />}
-                  loading={updateStatus.isPending}
-                  onClick={() => handleReturnReceived(drawerOrder)}
-                  className="bg-magenta-50 text-magenta-600 border-magenta-200"
+                  icon={<CheckOutlined />}
+                  disabled={true}
+                  className="bg-gray-50 text-gray-400 border-gray-200"
+                  title="실시간 배송 조회가 '수거완료'가 되면 활성화됩니다"
                 >
-                  입고 확인
+                  수거 확인 대기중
                 </Button>
               )}
               {drawerOrder.status === "returned" && (
                 <Button
+                  block
+                  icon={drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? <DownloadOutlined /> : <CheckOutlined />}
+                  loading={updateStatus.isPending}
+                  onClick={() => drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? handleStartInspection(drawerOrder) : handleDeliver(drawerOrder)}
+                  className="bg-blue-50 text-blue-600 border-blue-200"
+                >
+                  {drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? "입고 확인 / 검수 시작" : "반품 완료 처리"}
+                </Button>
+              )}
+              {drawerOrder.status === "inspecting" && (
+                <Button
                   type="primary"
                   block
-                  icon={<EditOutlined />}
+                  icon={<SendOutlined />}
                   loading={updateStatus.isPending}
-                  onClick={() => handlePrepare(drawerOrder)}
+                  onClick={() => handleReshipItem(drawerOrder)}
                 >
-                  교환 상품 준비
+                  교환 상품 재발송
                 </Button>
               )}
             </Space>

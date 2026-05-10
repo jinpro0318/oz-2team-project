@@ -110,11 +110,13 @@ export function useUpdateOrderStatus() {
 export function useExecuteOrderAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { id: string; action: any; trackingNumber?: string; carrierCode?: string }) => {
+    mutationFn: async (params: { id: string; action: any; trackingNumber?: string; carrierCode?: string; claimType?: string; reason?: string }) => {
       const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
       return CodeFulfillmentEngine.executeAction(params.id, params.action, {
         trackingNumber: params.trackingNumber,
-        carrierCode: params.carrierCode
+        carrierCode: params.carrierCode,
+        claimType: params.claimType,
+        reason: params.reason
       });
     },
     onSuccess: () => {

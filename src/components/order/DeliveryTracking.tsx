@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import { deliveryService } from "@/lib/services/delivery";
 import { getShipmentsByOrder } from "@/lib/services/logistics";
 import { useExecuteOrderAction } from "@/hooks/useOrders";
+import { LogisticsStatusResolver } from "@/lib/services/LogisticsStatusResolver";
 
 interface TrackingResult {
   carrier: string;
@@ -126,7 +127,12 @@ export default function DeliveryTracking({
           );
 
           // 최종적으로 노출될 스텝은 엔진이 지정한 currentStep과 시간 기반 computedStep 중 큰 값
-          const effectiveStep = Math.max(currentStep, computedStep);
+          let effectiveStep = Math.max(currentStep, computedStep);
+
+          // [v13.0] 가상화 확장: S송장에 클레임이 걸린 경우, 강제로 0단계(요청)로 고정하여 UI 플리커 방지
+          if (shipData.claimType && activeTrackingNumber.startsWith("MOCK-S")) {
+            effectiveStep = 0;
+          }
 
           let finalHistory = path.map((p: any, idx: number) => {
             const isRevealed = idx <= effectiveStep;
@@ -191,9 +197,15 @@ export default function DeliveryTracking({
             lastReportedStatus.current = result.status;
             lastReportedStep.current = effectiveStep;
 
+            // [v13.0] 정책 모듈을 통해 정확한 가상 경로 획득
+            const isExchange = shipData.claimType?.includes("exchange");
+            const isReturn = shipData.claimType?.includes("return");
+            const virtualType = isExchange ? "EQ" : (isReturn ? "R" : (shipData.type || "S"));
+            const uiSteps = LogisticsStatusResolver.getUISteps(virtualType);
+
             onStatusChange(result.status, {
               current: effectiveStep,
-              steps: path.map((p: any) => ({ title: p.statusLabel })),
+              steps: uiSteps,
             });
           }
           setLoading(false);
@@ -282,9 +294,12 @@ export default function DeliveryTracking({
         ].map(tab => {
           let isActive = false;
           const claimType = rawShipment?.claimType || "";
-          if (claimType.includes("exchange") || orderStatus?.includes("exchange")) {
+          const isExchange = claimType === "exchange" || claimType === "exchange_requested" || orderStatus?.includes("exchange") || activeTrackingNumber?.startsWith("MOCK-EQ") || activeTrackingNumber?.startsWith("MOCK-ES");
+          const isReturn = claimType === "return" || claimType === "return_requested" || orderStatus === "return_requested" || orderStatus === "return_completed" || activeTrackingNumber?.startsWith("MOCK-R");
+
+          if (isExchange) {
              isActive = tab.type === '교환';
-          } else if (claimType.includes("return") || orderStatus?.includes("return")) {
+          } else if (isReturn) {
              isActive = tab.type === '반품';
           } else {
              isActive = tab.match.some(m => activeTrackingNumber?.startsWith(m));

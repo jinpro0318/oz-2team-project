@@ -7,7 +7,6 @@ import {
   query, 
   where 
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 const SHIPMENTS_COL = "shipments";
 
@@ -46,11 +45,11 @@ export const MOCK_STANDARD_PATH: PathStep[] = [
 
 // [v9.30] 마스터 교환 배송 경로 (7단계 정석)
 export const MOCK_EXCHANGE_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "exchange_requested", statusLabel: "교환접수", message: "교환을 위한 반품 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
-  { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 상품 수거를 위해 방문 예정입니다.", estimatedTime: "", condition: "normal" },
-  { location: "수거지", status: "returned", statusLabel: "수거완료", message: "판매처로 상품 수거가 완료되었습니다.", estimatedTime: "", condition: "normal" },
-  { location: "검수 센터", status: "inspecting", statusLabel: "검수중", message: "반품 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "", condition: "normal" },
-  { location: "분류 센터", status: "reshipping", statusLabel: "교환배송", message: "새 상품이 고객님께 재발송되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "고객님 자택", status: "exchange_requested", statusLabel: "교환접수", message: "교환을 위한 상품 회수 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 교환 상품 수거를 위해 방문 예정입니다.", estimatedTime: "", condition: "normal" },
+  { location: "수거지", status: "returned", statusLabel: "수거완료", message: "회수 상품의 수거가 완료되어 검수 센터로 입고 중입니다.", estimatedTime: "", condition: "normal" },
+  { location: "검수 센터", status: "inspecting", statusLabel: "검수중", message: "회수된 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "", condition: "normal" },
+  { location: "분류 센터", status: "reshipping", statusLabel: "교환배송", message: "검수 완료 후 새 상품이 고객님께 재발송되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "고객님 댁", status: "exchange_completed", statusLabel: "배송완료", message: "교환 상품 배송이 최종 완료되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "주문 종료", status: "purchase_confirmed", statusLabel: "구매확정", message: "교환 거래가 최종 종료되었습니다. 이용해주셔서 감사합니다.", estimatedTime: "", condition: "normal" }
 ];
@@ -58,9 +57,9 @@ export const MOCK_EXCHANGE_PATH: PathStep[] = [
 // [v9.30] 마스터 반품 수거 경로 (4단계)
 export const MOCK_RETURN_PATH: PathStep[] = [
   { location: "고객님 자택", status: "return_requested", statusLabel: "반품접수", message: "반품 접수가 정상적으로 완료되었습니다.", estimatedTime: "", condition: "normal" },
-  { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 수거를 위해 이동 중입니다.", estimatedTime: "", condition: "normal" },
-  { location: "수거지", status: "returned", statusLabel: "수거완료", message: "상품 수거가 완료되었습니다.", estimatedTime: "", condition: "normal" },
-  { location: "판매처", status: "return_completed", statusLabel: "반품완료", message: "판매처 입고 확인 후 반품이 완료되었습니다.", estimatedTime: "", condition: "normal" }
+  { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 상품 수거를 위해 이동 중입니다.", estimatedTime: "", condition: "normal" },
+  { location: "수거지", status: "returned", statusLabel: "수거완료", message: "상품 수거가 완료되어 허브로 이동 중입니다.", estimatedTime: "", condition: "normal" },
+  { location: "판매처", status: "return_completed", statusLabel: "반품완료", message: "판매처 입고 확인 후 반품 처리가 최종 완료되었습니다.", estimatedTime: "", condition: "normal" }
 ];
 
 export function getShipmentTypeFromTracking(trackingNumber: string): "S" | "R" | "EQ" | "ES" {
@@ -153,11 +152,13 @@ export function generateDeterministicInfo(trackingNumber: string) {
 }
 
 export async function getShipment(shipmentId: string): Promise<Shipment | null> {
+  const { db } = await import("@/lib/firebase");
   const snap = await getDoc(doc(db, SHIPMENTS_COL, shipmentId));
   return snap.exists() ? ({ shipmentId: snap.id, ...snap.data() } as Shipment) : null;
 }
 
 export async function getShipmentsByOrder(orderId: string): Promise<Shipment[]> {
+  const { db } = await import("@/lib/firebase");
   const q = query(collection(db, SHIPMENTS_COL), where("orderId", "==", orderId));
   const snap = await getDocs(q);
   const list: Shipment[] = [];
@@ -185,6 +186,7 @@ export async function createMockShipment(params: {
   targetStep: number;
   shipmentType?: "S" | "R" | "EQ" | "ES";
 }): Promise<Shipment> {
+  const { db } = await import("@/lib/firebase");
   const now = new Date();
   const type = params.shipmentType || getShipmentTypeFromTracking(params.trackingNumber);
   

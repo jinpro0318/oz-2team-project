@@ -19,7 +19,9 @@ export type OrderActionIntent =
   | "PURCHASE_CONFIRM"
   | "CLAIM_REJECT"
   | "SIMULATE_NEXT"
-  | "REVERT_PHASE";
+  | "REVERT_PHASE"
+  | "CLAIM_REQUEST"
+  | "START_INSPECTION";
 
 export interface ResolvedAction {
   status?: string;
@@ -87,7 +89,7 @@ export class LogisticsStatusResolver {
    */
   static getTargetIndex(
     orderStatus: string,
-    shipmentType: "S" | "R" | "E",
+    shipmentType: "S" | "R" | "E" | "EQ" | "ES",
   ): number {
     if (shipmentType === "S") {
       return this.ORDER_TO_STANDARD_INDEX[orderStatus] ?? 0;
@@ -95,7 +97,7 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return this.ORDER_TO_RETURN_INDEX[orderStatus] ?? 0;
     }
-    if (shipmentType === "EQ" || shipmentType === "ES") {
+    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") {
       return this.ORDER_TO_EXCHANGE_INDEX[orderStatus] ?? 0;
     }
     return 0;
@@ -106,12 +108,12 @@ export class LogisticsStatusResolver {
    * 부모/자식 컴포넌트가 모두 동일한 라벨을 참조할 수 있도록 합니다.
    */
   static getUISteps(
-    shipmentType: "S" | "R" | "E" | "none" | null,
+    shipmentType: "S" | "R" | "E" | "EQ" | "ES" | "none" | null,
   ): { title: string }[] {
     if (shipmentType === "R") {
       return MOCK_RETURN_PATH.map((p) => ({ title: p.statusLabel }));
     }
-    if (shipmentType === "EQ" || shipmentType === "ES") {
+    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") {
       return MOCK_EXCHANGE_PATH.map((p) => ({ title: p.statusLabel }));
     }
     // 기본(Standard) 및 'none'
@@ -134,11 +136,11 @@ export class LogisticsStatusResolver {
    */
   static getShipmentStatusForIndex(
     index: number,
-    shipmentType: "S" | "R" | "E",
+    shipmentType: "S" | "R" | "E" | "EQ" | "ES",
   ): string {
     let path: PathStep[] = MOCK_STANDARD_PATH;
     if (shipmentType === "R") path = MOCK_RETURN_PATH;
-    if (shipmentType === "EQ" || shipmentType === "ES") path = MOCK_EXCHANGE_PATH;
+    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") path = MOCK_EXCHANGE_PATH;
 
     return path[index]?.status || "shipping";
   }
@@ -159,6 +161,9 @@ export class LogisticsStatusResolver {
         // [v11.8] 송장 삭제 시 상태는 건드리지 않고(null), 송장 업데이트를 막습니다.
         // 삭제 로직의 본체는 엔진에서 intent를 확인하여 수행합니다.
         return { status: null, step: undefined, shouldUpdateShipment: false };
+      case "CLAIM_REQUEST":
+        // [v13.0] 클레임 요청: 송장은 업데이트하지만 진행 단계는 초기화하지 않음 (기존 단계를 따르거나 VIRTUAL STEP 사용)
+        return { status: null, step: undefined, shouldUpdateShipment: true };
       case "ASSIGN_TRACKING":
         // [v11.11] 송장 수동/자동 부여 시. 상태는 건드리지 않지만 배송 문서는 확실히 생성합니다.
         return { status: null, step: undefined, shouldUpdateShipment: true };
@@ -186,6 +191,8 @@ export class LogisticsStatusResolver {
         return { status: "returning", step: 1, shouldUpdateShipment: true };
       case "RECEIVE_ITEM":
         return { status: "returned", step: 2, shouldUpdateShipment: true };
+      case "START_INSPECTION":
+        return { status: "inspecting", step: 3, shouldUpdateShipment: true };
       case "RESHIP_ITEM":
         return {
           status: "reshipping",

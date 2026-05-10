@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { App } from "antd";
 import { useAuthStore } from "@/stores/authStore";
-import { updateDocument } from "@/lib/firestore";
+import { updateUserProfile } from "@/lib/services/user";
 import { deleteAccount } from "@/lib/auth";
 import EmailProtector from "@/components/mypage/EmailProtector";
 import EmailProtectionToggle from "@/components/mypage/EmailProtectionToggle";
@@ -43,7 +43,7 @@ export default function ProfileEditPage() {
 
   const handleSave = async () => {
     try {
-      await updateDocument("users", user.id, {
+      await updateUserProfile(user.id, {
         nickname,
         phone,
       });
@@ -85,7 +85,7 @@ export default function ProfileEditPage() {
       const otherAddrs = updatedAddresses.filter(a => !a.isDefault);
       const finalAddresses = defaultAddr ? [defaultAddr, ...otherAddrs] : updatedAddresses;
 
-      await updateDocument("users", user.id, { addresses: finalAddresses });
+      await updateUserProfile(user.id, { addresses: finalAddresses });
       setUser({ ...user, addresses: finalAddresses });
       message.success("기본 배송지가 변경되었습니다.");
     } catch (error) {
@@ -108,7 +108,7 @@ export default function ProfileEditPage() {
         updatedAddresses[0].isDefault = true;
       }
 
-      await updateDocument("users", user.id, { addresses: updatedAddresses });
+      await updateUserProfile(user.id, { addresses: updatedAddresses });
       setUser({ ...user, addresses: updatedAddresses });
       message.success("배송지가 삭제되었습니다.");
     } catch (error) {

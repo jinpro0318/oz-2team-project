@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Input, App, Spin } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useOrder, useCreateExchange, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useOrder, useCreateExchange, useExecuteOrderAction } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { buildProductPriceMap } from "@/lib/utils/price";
 import type { ExchangeType } from "@/types";
@@ -30,7 +30,7 @@ export default function ExchangePage() {
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
   const createExchangeMutation = useCreateExchange();
-  const updateStatusMutation = useUpdateOrderStatus();
+  const executeActionMutation = useExecuteOrderAction();
 
   const [type, setType] = useState<ExchangeType>("exchange");
   const [reason, setReason] = useState("");
@@ -88,31 +88,18 @@ export default function ExchangePage() {
 
       const exchange = await createExchangeMutation.mutateAsync(input);
 
-      const newStatus: any = type === "exchange" ? "exchange_requested" : "return_requested";
-      const statusLabel = type === "exchange" ? "교환 요청" : "반품 요청";
+      const newStatus = type === "exchange" ? "exchange_requested" : "return_requested";
+      const finalReason = reason === "기타" ? `${reason} - ${reasonDetail}` : reason;
 
-      await updateStatusMutation.mutateAsync({
+      // [v13.0] 중앙 집중식 물류 엔진을 통한 클레임 요청 처리 (Server-Centric)
+      await executeActionMutation.mutateAsync({
         id: order.id,
-        status: newStatus,
-        timelineEntry: {
-          status: newStatus,
-          label: `${statusLabel} 접수됨`,
-          date: new Date().toISOString()
-        }
-      });
+        action: "CLAIM_REQUEST",
+        claimType: newStatus,
+        reason: finalReason
+      } as any); // 타입 우회 (extraData의 claimType과 reason 지원)
 
-      // [v10.5] 기존 배송(MOCK-S) 송장 문서에 클레임 상태(claimType) 마킹
-      if (order.trackingNumber) {
-        try {
-          const { updateDocument } = await import("@/lib/firestore");
-          await updateDocument("shipments", order.trackingNumber, { 
-            claimType: newStatus 
-          });
-          console.log(`[ExchangePage] 송장(${order.trackingNumber}) 문서에 claimType(${newStatus}) 마킹 완료`);
-        } catch (e) {
-          console.warn("송장 클레임 상태 업데이트 실패 (송장이 없거나 권한 오류일 수 있음):", e);
-        }
-      }
+      console.log(`[ExchangePage] 중앙 엔진을 통해 클레임(${newStatus}) 처리가 완료되었습니다.`);
 
       setTicketNumber(exchange.ticketNumber);
       setView("complete");

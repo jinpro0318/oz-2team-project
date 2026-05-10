@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { updateDocument } from "@/lib/firestore";
+import { updateUserProfile } from "@/lib/services/user";
 import { useAuthStore } from "@/stores/authStore";
 import { App } from "antd";
 import PasswordVerifyInput from "@/components/common/PasswordVerifyInput";
@@ -26,7 +26,7 @@ export default function EmailProtectionToggle({ mode }: Props) {
   const handleSuccess = async () => {
     const newStatus = !isProtected;
     
-    await updateDocument("users", user.id, {
+    await updateUserProfile(user.id, {
       isEmailProtected: newStatus
     });
     setUser({ ...user, isEmailProtected: newStatus });

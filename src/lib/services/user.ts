@@ -10,6 +10,13 @@ export async function updateUserLastChecked(
 }
 
 /**
+ * 사용자의 일반 프로필 정보나 보안 설정 등을 업데이트합니다.
+ */
+export async function updateUserProfile(userId: string, data: Record<string, any>): Promise<void> {
+  await updateDocument("users", userId, data);
+}
+
+/**
  * 사용자의 포인트를 추가 적립합니다.
  */
 export async function addUserPoints(userId: string, pointsToAdd: number): Promise<number> {

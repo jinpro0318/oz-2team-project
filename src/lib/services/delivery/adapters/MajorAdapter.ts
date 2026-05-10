@@ -19,19 +19,25 @@ export class MajorAdapter {
     }
 
     try {
-      const { db } = await import("@/lib/firebase");
-      const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+      const isServer = typeof window === "undefined";
+      let cacheMinutes = 60;
+      let shipmentSnap: any = null;
 
-      // 1. 전역 캐싱 설정 읽기
-      const settingsRef = doc(db, "settings", "logistics");
-      const settingsSnap = await getDoc(settingsRef);
-      const cacheMinutes = settingsSnap.exists() ? settingsSnap.data().sweetTrackerCacheInterval : 60;
+      if (!isServer) {
+        const { db } = await import("@/lib/firebase");
+        const { doc, getDoc } = await import("firebase/firestore");
 
-      // 2. DB 캐시 확인 (forceUpdate가 아닐 때만)
-      const shipmentRef = doc(db, "shipments", trackingNumber);
-      const shipmentSnap = await getDoc(shipmentRef);
+        // 1. 전역 캐싱 설정 읽기
+        const settingsRef = doc(db, "settings", "logistics");
+        const settingsSnap = await getDoc(settingsRef);
+        cacheMinutes = settingsSnap.exists() ? settingsSnap.data().sweetTrackerCacheInterval : 60;
 
-      if (shipmentSnap.exists() && !forceUpdate) {
+        // 2. DB 캐시 확인 (forceUpdate가 아닐 때만)
+        const shipmentRef = doc(db, "shipments", trackingNumber);
+        shipmentSnap = await getDoc(shipmentRef);
+      }
+
+      if (shipmentSnap && shipmentSnap.exists() && !forceUpdate) {
         const cachedData = shipmentSnap.data();
         // [v10.1] lastSyncedAt 필드로 캐시 체크 통일
         const lastSynced = cachedData.lastSyncedAt?.toDate?.() || cachedData.lastSyncedAt;
@@ -74,7 +80,7 @@ export class MajorAdapter {
       // 스윗트래커 오류 응답 처리
       if (data.status === false || data.result === "N") {
         // API 오류 시, 만약 기존 캐시 데이터가 있다면 그거라도 반환 (Fail-safe)
-        if (shipmentSnap.exists()) {
+        if (shipmentSnap && shipmentSnap.exists()) {
           const cachedData = shipmentSnap.data();
           return {
             ...cachedData.lastTrackingResult,
@@ -107,7 +113,7 @@ export class MajorAdapter {
       };
 
       // 4. DB 캐시 저장 및 주문 상태 동기화 (v10.1 통합 엔진 위임)
-      const orderId = shipmentSnap.exists() ? shipmentSnap.data().orderId : "";
+      const orderId = (shipmentSnap && shipmentSnap.exists()) ? shipmentSnap.data().orderId : "";
       
       await LogisticsMasterService.syncExternalDelivery({
         trackingNumber,

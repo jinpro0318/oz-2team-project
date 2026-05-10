@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { App, Input, Checkbox } from "antd";
 import { useDaumPostcode } from "@/hooks/useDaumPostcode";
-import { updateDocument } from "@/lib/firestore";
+import { updateUserProfile } from "@/lib/services/user";
 import { useAuthStore } from "@/stores/authStore";
 import type { ShippingAddress } from "@/types";
 
@@ -68,7 +68,7 @@ export default function AddressAddSheet({ onClose }: Props) {
 
       updatedAddresses.push(newAddress);
 
-      await updateDocument("users", user.id, {
+      await updateUserProfile(user.id, {
         addresses: updatedAddresses,
       });
 

@@ -31,7 +31,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
         Inner: 최대 너비 390px, 중앙 정렬, 하얀 바탕, 그림자 효과를 적용합니다.
       */}
       <div 
-        className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-2xl relative flex flex-col border-x border-border-light"
+        className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-2xl relative flex flex-col border-x border-border-light overflow-x-hidden"
       >
         {children}
         {/* 하단 바 공간 확보를 위한 물리적 스페이서 */}

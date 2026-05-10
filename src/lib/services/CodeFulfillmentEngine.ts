@@ -20,7 +20,7 @@ export class CodeFulfillmentEngine {
   static async executeAction(
     orderId: string,
     intent: OrderActionIntent,
-    extraData?: { trackingNumber?: string; carrierCode?: string },
+    extraData?: { trackingNumber?: string; carrierCode?: string; claimType?: string; reason?: string },
   ): Promise<void> {
     if (!orderId || !intent)
       throw new Error("orderId와 intent는 필수 파라미터입니다.");
@@ -75,13 +75,16 @@ export class CodeFulfillmentEngine {
 
       // 배송 타입 결정 (S: 일반, R: 반품, EQ: 교환수거, ES: 교환재배송)
       // [수정] 주문 상태(Context) 및 claimType을 최우선으로 판단하여 올바른 라벨을 유지합니다.
+      // [v13.1] 탐욕적 매칭 방지: "returning" 상태가 "return"을 포함하므로 단순 includes를 사용하면 안 됨.
       let shipmentType: "S" | "R" | "EQ" | "ES" = "S";
       const dbClaimType = shipmentSnap?.exists() ? shipmentSnap.data().claimType : orderData.claimType;
+      const isExchange = dbClaimType === "exchange" || dbClaimType === "exchange_requested" || orderData.status.includes("exchange");
+      const isReturn = dbClaimType === "return" || dbClaimType === "return_requested" || orderData.status === "return_requested" || orderData.status === "return_completed";
 
-      if (dbClaimType?.includes("exchange") || orderData.status.includes("exchange")) {
+      if (isExchange) {
         if (trackingNumber.startsWith("MOCK-ES")) shipmentType = "ES";
         else shipmentType = "EQ";
-      } else if (dbClaimType?.includes("return") || orderData.status.includes("return")) {
+      } else if (isReturn) {
         shipmentType = "R";
       } else if (trackingNumber.startsWith("MOCK-EQ")) {
         shipmentType = "EQ";
@@ -208,19 +211,53 @@ export class CodeFulfillmentEngine {
         orderUpdates.timeline = timeline;
       }
 
+      // [v13.0] 클레임 요청(CLAIM_REQUEST) 시 특별 처리
+      if (intent === "CLAIM_REQUEST" && extraData?.claimType) {
+        orderUpdates.status = extraData.claimType as OrderStatus;
+        // orderData에 claimType 저장 (exchange 또는 return)
+        orderUpdates.claimType = extraData.claimType.includes("exchange") ? "exchange" : "return";
+        
+        const timeline = orderData.timeline || [];
+        timeline.push({
+          status: extraData.claimType,
+          label: extraData.claimType.includes("exchange") ? "교환 요청 접수됨" : "반품 요청 접수됨",
+          date: new Date().toISOString(),
+          description: `구매자 클레임 접수 (사유: ${extraData.reason || "기타"})`,
+        });
+        orderUpdates.timeline = timeline;
+      }
+
       transaction.update(orderRef, orderUpdates);
 
       // 4. 배송(shipments) 컬렉션 업데이트
       if (
         resolved.shouldUpdateShipment &&
-        finalShipmentRef &&
-        resolved.step !== undefined
+        finalShipmentRef
       ) {
-        const shipmentStatus =
-          LogisticsStatusResolver.getShipmentStatusForIndex(
-            resolved.step,
-            shipmentType,
-          );
+        // [v13.0] 클레임 요청 시에는 단계 이동 없이 송장에 클레임 타입 마킹 및 접수 로그만 기록
+        if (intent === "CLAIM_REQUEST" && extraData?.claimType) {
+          transaction.set(finalShipmentRef, { 
+            claimType: extraData.claimType,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          const isExchange = extraData.claimType.includes("exchange");
+          const logRef = doc(collection(finalShipmentRef, "logs"), `step-0-claim-${Date.now()}`);
+          
+          transaction.set(logRef, {
+            logId: "step-0-claim",
+            status: isExchange ? "교환접수" : "반품접수",
+            location: "고객님 댁",
+            message: `${isExchange ? "교환" : "반품"} 요청이 정상적으로 접수되었습니다. (사유: ${extraData.reason || "없음"})`,
+            timestamp: serverTimestamp(),
+            isSystem: true,
+          });
+        } else if (resolved.step !== undefined) {
+          const shipmentStatus =
+            LogisticsStatusResolver.getShipmentStatusForIndex(
+              resolved.step,
+              shipmentType,
+            );
 
         const shipmentData: any = {
           currentStep: resolved.step,
@@ -285,6 +322,7 @@ export class CodeFulfillmentEngine {
             case "delivered": return "배송완료";
             case "returning": return "수거중";
             case "returned": return "수거완료";
+            case "inspecting": return "검수중";
             case "reshipping": return "교환배송";
             case "exchange_completed": return "배송완료";
             case "purchase_confirmed": return "구매확정";
@@ -310,6 +348,7 @@ export class CodeFulfillmentEngine {
           timestamp: serverTimestamp(),
           isSystem: true,
         });
+        }
       }
     });
 

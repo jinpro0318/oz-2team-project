@@ -101,7 +101,7 @@ export default function OrderDetailPage() {
   )?.description;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[490px] flex-col bg-bg pb-[60px]">
+    <div className="mx-auto flex min-h-dvh w-full flex-col bg-bg pb-[60px]">
       <BackTopBar title="주문 상세" backUrl="/orders" />
 
       <div className="flex items-center justify-between bg-surface px-3 py-3 border-b border-border">

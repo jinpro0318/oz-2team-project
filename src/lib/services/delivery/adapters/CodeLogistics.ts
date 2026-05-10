@@ -7,16 +7,24 @@ import {
   applyRevealFilter
 } from "../../logistics";
 import { TrackingResult, TrackingHistory } from "../types";
-import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+
 
 export class CodeLogistics {
-  async track(carrierCode: string, trackingNumber: string, createdAt?: string): Promise<TrackingResult> {
+  async track(carrierCode: string, trackingNumber: string, createdAt?: string, preFetchedShipment?: any): Promise<TrackingResult> {
+    const isServer = typeof window === "undefined";
+    
     // 1. DB 데이터 확보 (SSOT)
-    let shipment = await getShipment(trackingNumber);
+    let shipment = preFetchedShipment;
+    
+    if (!shipment && !isServer) {
+      shipment = await getShipment(trackingNumber);
+    }
 
-    // 2. 데이터가 없으면 자동 생성 (Self-Healing)
-    if (!shipment) {
+    // 2. 데이터가 없으면 자동 생성 (Self-Healing) - 클라이언트 환경에서만
+    if (!shipment && !isServer) {
+      const { db } = await import("@/lib/firebase");
+      const { doc, getDoc } = await import("firebase/firestore");
+      
       // 주문 정보에서 주소지 추출 시도
       const orderId = trackingNumber.split('-')[1] || "";
       const orderSnap = await getDoc(doc(db, "orders", orderId));
@@ -32,6 +40,16 @@ export class CodeLogistics {
         receiverAddress,
         orderStatus: orderData?.status || "payment_complete"
       });
+    }
+
+    if (!shipment) {
+      // 서버 환경이거나 모의 생성 실패 시 더미 데이터 반환
+      shipment = {
+        trackingNumber,
+        receiverAddress: "서울 강남구 테헤란로",
+        path: MOCK_STANDARD_PATH(createdAt || new Date().toISOString()),
+        currentStep: 0
+      };
     }
 
     // 3. [지능형 지역명 치환 엔진]
