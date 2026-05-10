@@ -3,6 +3,7 @@ import {
   runTransaction,
   collection,
   serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Order, OrderStatus } from "@/types";
@@ -58,14 +59,27 @@ export class CodeFulfillmentEngine {
         }
       }
 
+      // [v12.5] 전역 설정에서 쇼핑몰 출발지 주소 로드 (반드시 모든 Write 전에 수행되어야 함)
+      let senderAddress = "경기도 고양시 일산동구";
+      try {
+        const settingsRef = doc(db, "settings", "system");
+        const settingsSnap = await transaction.get(settingsRef);
+        if (settingsSnap.exists() && settingsSnap.data().mallAddress) {
+          senderAddress = settingsSnap.data().mallAddress;
+        }
+      } catch (e) {
+        console.error("발송지 로드 실패, 기본값 사용:", e);
+      }
+
       // --- [STAGE 2: LOGIC] 비즈니스 로직 처리 ---
 
       // 배송 타입 결정 (S: 일반, R: 반품, E: 교환)
+      // [수정] 주문 상태(Context)가 송장 접두어(R/E)보다 우선시 되어야 교환 수거 시 교환 라벨이 올바르게 출력됩니다.
       let shipmentType: "S" | "R" | "E" = "S";
-      if (trackingNumber.startsWith("MOCK-R")) shipmentType = "R";
-      else if (trackingNumber.startsWith("MOCK-E")) shipmentType = "E";
+      if (orderData.status.includes("exchange")) shipmentType = "E";
       else if (orderData.status.includes("return")) shipmentType = "R";
-      else if (orderData.status.includes("exchange")) shipmentType = "E";
+      else if (trackingNumber.startsWith("MOCK-R")) shipmentType = "R";
+      else if (trackingNumber.startsWith("MOCK-E")) shipmentType = "E";
 
       // 정책 모듈에 해석 의뢰
       const resolved = LogisticsStatusResolver.resolveAction(
@@ -211,14 +225,15 @@ export class CodeFulfillmentEngine {
           
           // [v10.7] 이전 송장(MOCK-R 등)의 과거 기억(Path Timestamp)을 새 송장에 이식
           const oldPath = shipmentSnap?.exists() ? shipmentSnap.data().path : [];
-          
+
           const mockShipment = await createMockShipment({
             trackingNumber: finalTrackingNumber,
             carrierCode,
             orderId: orderId,
-            senderAddress: "경기 성남시 분당구 판교역로",
+            senderAddress,
             receiverAddress: orderData.shippingAddress.address,
             targetStep: resolved.step!, // 👈 [v11.10] 정책 모듈이 하달한 단계를 직접 주입
+            shipmentType: shipmentType, // 👈 [수정] 결정된 배송 타입을 명시적으로 전달
           });
 
           // 과거 단계의 시간을 현재 시각 혹은 이전 기록으로 채움 (연속성 확보)
@@ -249,17 +264,60 @@ export class CodeFulfillmentEngine {
         transaction.set(finalShipmentRef, shipmentData, { merge: true });
 
         // 5. 배송 상세 로그 남기기
+        const statusToKorean = (s: string) => {
+          switch (s) {
+            case "preparing": return "상품준비중";
+            case "shipping": return "배송중";
+            case "delivered": return "배송완료";
+            case "returning": return "수거중";
+            case "returned": return "수거완료";
+            case "reshipping": return "교환배송";
+            case "exchange_completed": return "배송완료";
+            case "purchase_confirmed": return "구매확정";
+            default: return s;
+          }
+        };
+
+        const koreanStatus = statusToKorean(shipmentStatus);
+        const shipmentTypeName = shipmentType === "S" ? "일반 발송" : shipmentType === "R" ? "반품 회수" : "교환품 발송";
+
+        // [v12.5] 송장 신규 생성 시, 주문의 원래 결제 시점을 소급해서 로그로 주입 (Audit Trail 연속성)
+        if (finalIsNewShipment) {
+          const paymentLogRef = doc(
+            collection(finalShipmentRef, "logs"),
+            `step-0-${Date.now() - 1000}`, // 순서를 위해 1초 전으로 설정
+          );
+          
+          let paymentTime: any = serverTimestamp();
+          if (orderData.createdAt) {
+            const dateObj = new Date(orderData.createdAt);
+            if (!isNaN(dateObj.getTime())) {
+              paymentTime = Timestamp.fromDate(dateObj);
+            }
+          }
+
+          transaction.set(paymentLogRef, {
+            logId: `step-0`,
+            status: "payment_complete",
+            location: "결제 시스템",
+            message: "결제가 정상적으로 완료되었습니다.",
+            timestamp: paymentTime,
+            isSystem: true,
+          });
+        }
+
         const logRef = doc(
           collection(finalShipmentRef, "logs"),
           `step-${resolved.step}-${Date.now()}`,
         );
+
         transaction.set(logRef, {
           logId: `step-${resolved.step}`,
           status: shipmentStatus,
-          location: "CodeFulfillmentEngine",
+          location: "DIAMOND 물류 엔진",
           message: finalIsNewShipment
-            ? `신규 배송 세션(${shipmentType} - 교환품 발송)이 시작되었습니다.`
-            : `관리자/시스템(${intent})에 의해 배송 상태가 [${shipmentStatus}](으)로 업데이트 되었습니다.`,
+            ? `신규 배송 세션(${shipmentType} - ${shipmentTypeName})이 시작되었습니다.`
+            : `관리자/시스템(${intent})에 의해 배송 상태가 [${koreanStatus}](으)로 업데이트 되었습니다.`,
           timestamp: serverTimestamp(),
           isSystem: true,
         });

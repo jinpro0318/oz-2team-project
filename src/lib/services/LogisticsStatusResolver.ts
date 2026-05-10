@@ -198,6 +198,14 @@ export class LogisticsStatusResolver {
           step: 5,
           shouldUpdateShipment: true,
         };
+      case "PURCHASE_CONFIRM":
+        // [v12.5] 구매 확정 시 타임라인의 마지막 노드(구매확정)까지 모두 활성화하도록 강제 동기화
+        const lastStep = shipmentType === "E" ? 6 : (shipmentType === "R" ? 3 : 4);
+        return {
+          status: "purchase_confirmed",
+          step: lastStep,
+          shouldUpdateShipment: true,
+        };
       case "CLAIM_REJECT":
         return { status: "claim_rejected", shouldUpdateShipment: false };
 

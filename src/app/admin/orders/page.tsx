@@ -11,6 +11,7 @@ import {
   EditOutlined,
   LockOutlined,
   UnlockOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useAllOrders, useUpdateOrderStatus, useExecuteOrderAction } from "@/hooks/useOrders";
@@ -724,18 +725,16 @@ function AdminOrders() {
 
   return (
     <div>
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-6 flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">주문 관리</h1>
           <p className="text-sm text-gray-500 mt-1">총 {orders.length}건의 주문이 있습니다.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2">
           <Button icon={<DownloadOutlined />} size="small" className="text-xs font-medium">
             엑셀 다운로드
           </Button>
         </div>
-
-
       </div>
 
       <Card size="small" className="border-[#E4E6EF]">

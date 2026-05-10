@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, App, Spin } from "antd";
 import { CheckCircleFilled, GiftOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useOrder, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useOrder, useExecuteOrderAction } from "@/hooks/useOrders";
 import { addUserPoints } from "@/lib/services/user";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -18,7 +18,7 @@ export default function PurchaseConfirmPage() {
   const router = useRouter();
   const { message } = App.useApp();
   const { data: order, isLoading } = useOrder(id);
-  const updateStatusMutation = useUpdateOrderStatus();
+  const executeActionMutation = useExecuteOrderAction();
 
   const [isComplete, setIsComplete] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
@@ -50,16 +50,10 @@ export default function PurchaseConfirmPage() {
     try {
       const points = Math.floor(order.totalAmount * 0.01);
       
-      // 1. 주문 상태 업데이트
-      await updateStatusMutation.mutateAsync({
+      // 1. [v12.5] 물류 엔진을 통한 지능형 상태 동기화 (주문+배송 통합 업데이트)
+      await executeActionMutation.mutateAsync({
         id: order.id,
-        status: "purchase_confirmed",
-        timelineEntry: {
-          status: "purchase_confirmed",
-          label: "구매 확정",
-          date: new Date().toISOString(),
-          description: `구매가 확정되었습니다. ${formatPrice(points)}포인트가 적립되었습니다.`,
-        },
+        action: "PURCHASE_CONFIRM",
       });
 
       // 2. 포인트 적립 (로그인 유저인 경우)
@@ -168,7 +162,7 @@ export default function PurchaseConfirmPage() {
           block
           size="large"
           className="font-bold h-12"
-          loading={updateStatusMutation.isPending}
+          loading={executeActionMutation.isPending}
           onClick={handleConfirm}
           style={{ background: "#262626", border: "none" }}
         >
