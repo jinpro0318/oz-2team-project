@@ -37,7 +37,7 @@ export interface Shipment {
 
 // [v9.30] 마스터 표준 배송 경로 (5단계 정석)
 export const MOCK_STANDARD_PATH: PathStep[] = [
-  { location: "결제 시스템", status: "preparing", statusLabel: "결제완료", message: "결제가 정상적으로 완료되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "결제 시스템", status: "payment_complete", statusLabel: "결제완료", message: "결제가 정상적으로 완료되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "판매처 창고", status: "preparing", statusLabel: "상품준비", message: "판매자가 상품을 검수하고 발송을 준비 중입니다.", estimatedTime: "", condition: "normal" },
   { location: "지역 터미널", status: "shipping", statusLabel: "배송중", message: "상품이 지역 터미널로 이동 중입니다.", estimatedTime: "", condition: "normal" },
   { location: "고객님 댁", status: "delivered", statusLabel: "배송완료", message: "배송이 완료되었습니다. 이용해주셔서 감사합니다.", estimatedTime: "", condition: "normal" },

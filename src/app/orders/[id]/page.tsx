@@ -83,15 +83,17 @@ export default function OrderDetailPage() {
   // [v10.1] 공용 정책 모듈(LogisticsStatusResolver)을 통한 단일 진실의 샘 로직
   const shipmentType = claimType === "return" ? "R" : (claimType === "exchange" ? "E" : "S");
   
-  // 1. 주문 상태 기반 기본 인덱스
-  let currentStep = LogisticsStatusResolver.getTargetIndex(order.status, shipmentType);
+  // 1. [v12.5 복원] 하단 물류 엔진의 실시간 계산 결과(stepperData)를 1순위로 반영하여 "순간이동" 등 지능형 복구를 수용합니다.
+  let currentStep = stepperData?.current ?? LogisticsStatusResolver.getTargetIndex(order.status, shipmentType);
   
   // 2. UI용 스텝 리스트 
   const displaySteps = LogisticsStatusResolver.getUISteps(shipmentType);
 
-  // [v10.5 No-Trick] 배송 DB의 raw 인덱스를 직접 대입하지 않습니다.
-  // 이제 스테퍼 단계는 100% 정책 모듈(LogisticsStatusResolver)이 order.status를 기반으로 결정합니다.
-  // 이로써 주문 내역과 상세 페이지의 로직이 하나로 통합되어 상태 역전 현상이 해결됩니다.
+  // 3. [v12.8] 모듈 상태 동기화: 하단 버튼들도 DB의 정적 상태(order.status)가 아닌, 실시간 통합 엔진 상태(currentStep)를 따르도록 역산출
+  // (단, claim_rejected 같은 특수 상태는 원본 order.status를 보존합니다)
+  const engineStatus = order.status === "claim_rejected" 
+    ? "claim_rejected" 
+    : (LogisticsStatusResolver.getStatusFromIndex(currentStep, shipmentType) || order.status);
 
   // [추가] 반려 사유 추출
   const rejectionReason = order.timeline?.find(
@@ -99,7 +101,7 @@ export default function OrderDetailPage() {
   )?.description;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg pb-[60px]">
+    <div className="mx-auto flex min-h-dvh max-w-[490px] flex-col bg-bg pb-[60px]">
       <BackTopBar title="주문 상세" backUrl="/orders" />
 
       <div className="flex items-center justify-between bg-surface px-3 py-3 border-b border-border">
@@ -246,8 +248,8 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">
-        {(order.status === "payment_complete" ||
-          order.status === "preparing") && (
+        {(engineStatus === "payment_complete" ||
+          engineStatus === "preparing") && (
           <Button
             block
             danger
@@ -256,9 +258,9 @@ export default function OrderDetailPage() {
             주문 취소 신청
           </Button>
         )}
-        {(order.status === "delivered" ||
-          order.status === "exchange_completed" ||
-          order.status === "claim_rejected") && (
+        {(engineStatus === "delivered" ||
+          engineStatus === "exchange_completed" ||
+          engineStatus === "claim_rejected") && (
           <Button
             block
             type="primary"
@@ -268,8 +270,8 @@ export default function OrderDetailPage() {
             구매 결정하기
           </Button>
         )}
-        {(order.status === "delivered" ||
-          order.status === "exchange_completed") && (
+        {(engineStatus === "delivered" ||
+          engineStatus === "exchange_completed") && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청
           </Button>

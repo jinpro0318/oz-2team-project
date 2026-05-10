@@ -16,6 +16,7 @@ export type OrderActionIntent =
   | "RECEIVE_ITEM"
   | "RESHIP_ITEM"
   | "EXCHANGE_DONE"
+  | "PURCHASE_CONFIRM"
   | "CLAIM_REJECT"
   | "SIMULATE_NEXT"
   | "REVERT_PHASE";

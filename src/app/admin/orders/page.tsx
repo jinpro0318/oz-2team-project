@@ -802,7 +802,7 @@ function AdminOrders() {
         }
         open={!!drawerOrder}
         onClose={() => setDrawerOrder(null)}
-        size="default"
+        styles={{ wrapper: { width: 490 } }}
         extra={
           drawerOrder && (
             <Space>
@@ -811,10 +811,10 @@ function AdminOrders() {
                   block
                   icon={<CheckOutlined />}
                   loading={updateStatus.isPending}
-                  disabled={drawerOrder.status === "delivered" || drawerOrder.trackingNumber?.startsWith("MOCK-")}
+                  disabled={drawerOrder.status === "delivered"}
                   onClick={() => handleDeliver(drawerOrder)}
-                  className={(drawerOrder.status === "delivered" || drawerOrder.trackingNumber?.startsWith("MOCK-")) ? "" : "bg-green-50 text-green-600 border-green-200"}
-                  title={drawerOrder.status === "delivered" ? "이미 완료된 주문입니다" : (drawerOrder.trackingNumber?.startsWith("MOCK-") ? "MOCK 송장은 자동 처리됩니다" : "")}
+                  className={drawerOrder.status === "delivered" ? "" : "bg-green-50 text-green-600 border-green-200"}
+                  title={drawerOrder.status === "delivered" ? "이미 완료된 주문입니다" : ""}
                 >
                   배송완료 처리
                 </Button>

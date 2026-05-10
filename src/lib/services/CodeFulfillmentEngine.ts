@@ -237,10 +237,12 @@ export class CodeFulfillmentEngine {
           });
 
           // 과거 단계의 시간을 현재 시각 혹은 이전 기록으로 채움 (연속성 확보)
-          const nowIso = new Date().toISOString();
+          const nowMs = Date.now();
+          const nowIso = new Date(nowMs).toISOString();
           shipmentData.path = mockShipment.path.map((p: any, idx: number) => {
             if (idx < resolved.step!) {
-              return { ...p, estimatedTime: oldPath[idx]?.estimatedTime || nowIso };
+              const pastMs = nowMs - ((resolved.step! - idx) * 5 * 60000); // 5분씩 과거로 소급
+              return { ...p, estimatedTime: oldPath[idx]?.estimatedTime || new Date(pastMs).toISOString() };
             }
             if (idx === resolved.step) {
               return { ...p, estimatedTime: nowIso };
@@ -266,6 +268,7 @@ export class CodeFulfillmentEngine {
         // 5. 배송 상세 로그 남기기
         const statusToKorean = (s: string) => {
           switch (s) {
+            case "payment_complete": return "결제완료";
             case "preparing": return "상품준비중";
             case "shipping": return "배송중";
             case "delivered": return "배송완료";
@@ -298,7 +301,7 @@ export class CodeFulfillmentEngine {
 
           transaction.set(paymentLogRef, {
             logId: `step-0`,
-            status: "payment_complete",
+            status: statusToKorean("payment_complete"),
             location: "결제 시스템",
             message: "결제가 정상적으로 완료되었습니다.",
             timestamp: paymentTime,
@@ -313,7 +316,7 @@ export class CodeFulfillmentEngine {
 
         transaction.set(logRef, {
           logId: `step-${resolved.step}`,
-          status: shipmentStatus,
+          status: koreanStatus,
           location: "DIAMOND 물류 엔진",
           message: finalIsNewShipment
             ? `신규 배송 세션(${shipmentType} - ${shipmentTypeName})이 시작되었습니다.`
@@ -340,6 +343,7 @@ export class CodeFulfillmentEngine {
       reshipping: "교환품 재발송",
       exchange_completed: "교환 완료",
       claim_rejected: "클레임 반려",
+      purchase_confirmed: "구매 확정",
     };
     return map[status] || "상태 변경";
   }
