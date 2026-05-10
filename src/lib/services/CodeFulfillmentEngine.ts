@@ -211,11 +211,14 @@ export class CodeFulfillmentEngine {
         orderUpdates.timeline = timeline;
       }
 
-      // [v13.0] 클레임 요청(CLAIM_REQUEST) 시 특별 처리
+      // [v13.5] 클레임 요청(CLAIM_REQUEST) 시 논리적 초기화 (정공법)
       if (intent === "CLAIM_REQUEST" && extraData?.claimType) {
         orderUpdates.status = extraData.claimType as OrderStatus;
-        // orderData에 claimType 저장 (exchange 또는 return)
         orderUpdates.claimType = extraData.claimType.includes("exchange") ? "exchange" : "return";
+        
+        // 기존 배송 정보를 히스토리로 밀어내고(이미 처리됨), 현재 활성 송장을 비워서 0단계 뷰 강제 유도
+        orderUpdates.trackingNumber = "";
+        orderUpdates.carrierCode = "";
         
         const timeline = orderData.timeline || [];
         timeline.push({
@@ -234,25 +237,8 @@ export class CodeFulfillmentEngine {
         resolved.shouldUpdateShipment &&
         finalShipmentRef
       ) {
-        // [v13.0] 클레임 요청 시에는 단계 이동 없이 송장에 클레임 타입 마킹 및 접수 로그만 기록
-        if (intent === "CLAIM_REQUEST" && extraData?.claimType) {
-          transaction.set(finalShipmentRef, { 
-            claimType: extraData.claimType,
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-
-          const isExchange = extraData.claimType.includes("exchange");
-          const logRef = doc(collection(finalShipmentRef, "logs"), `step-0-claim-${Date.now()}`);
-          
-          transaction.set(logRef, {
-            logId: "step-0-claim",
-            status: isExchange ? "교환접수" : "반품접수",
-            location: "고객님 댁",
-            message: `${isExchange ? "교환" : "반품"} 요청이 정상적으로 접수되었습니다. (사유: ${extraData.reason || "없음"})`,
-            timestamp: serverTimestamp(),
-            isSystem: true,
-          });
-        } else if (resolved.step !== undefined) {
+        // 클레임 요청은 이미 주문 단에서 송장을 파기했으므로 낡은 송장 문서에 덧씌우지 않습니다.
+        if (resolved.step !== undefined) {
           const shipmentStatus =
             LogisticsStatusResolver.getShipmentStatusForIndex(
               resolved.step,

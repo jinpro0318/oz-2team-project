@@ -162,8 +162,8 @@ export class LogisticsStatusResolver {
         // 삭제 로직의 본체는 엔진에서 intent를 확인하여 수행합니다.
         return { status: null, step: undefined, shouldUpdateShipment: false };
       case "CLAIM_REQUEST":
-        // [v13.0] 클레임 요청: 송장은 업데이트하지만 진행 단계는 초기화하지 않음 (기존 단계를 따르거나 VIRTUAL STEP 사용)
-        return { status: null, step: undefined, shouldUpdateShipment: true };
+        // [v13.5] 클레임 요청: 완전히 새로운 사이클의 시작을 알림. 엔진은 기존 송장을 아카이브하고 0단계 상태로 대기해야 함.
+        return { status: null, step: 0, shouldUpdateShipment: false };
       case "ASSIGN_TRACKING":
         // [v11.11] 송장 수동/자동 부여 시. 상태는 건드리지 않지만 배송 문서는 확실히 생성합니다.
         return { status: null, step: undefined, shouldUpdateShipment: true };
