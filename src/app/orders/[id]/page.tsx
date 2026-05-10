@@ -86,8 +86,10 @@ export default function OrderDetailPage() {
   // 1. [v12.5 복원] 하단 물류 엔진의 실시간 계산 결과(stepperData)를 1순위로 반영하여 "순간이동" 등 지능형 복구를 수용합니다.
   let currentStep = stepperData?.current ?? LogisticsStatusResolver.getTargetIndex(order.status, shipmentType);
   
-  // 2. UI용 스텝 리스트 
-  const displaySteps = LogisticsStatusResolver.getUISteps(shipmentType);
+  // 2. UI용 스텝 리스트 (물류 엔진 컴포넌트가 보내준 동적 스텝 우선 반영)
+  const displaySteps = stepperData?.steps && stepperData.steps.length > 0 
+    ? stepperData.steps 
+    : LogisticsStatusResolver.getUISteps(shipmentType);
 
   // 3. [v12.8] 모듈 상태 동기화: 하단 버튼들도 DB의 정적 상태(order.status)가 아닌, 실시간 통합 엔진 상태(currentStep)를 따르도록 역산출
   // (단, claim_rejected 같은 특수 상태는 원본 order.status를 보존합니다)
@@ -157,7 +159,8 @@ export default function OrderDetailPage() {
         <h3 className="mb-3 text-[15px] font-bold">실시간 배송 조회</h3>
         <DeliveryTracking
           key={order.trackingNumber}
-          orderId={order.id}
+          orderId={order.orderNumber}
+          documentId={order.id}
           carrierCode={order.carrierCode}
           trackingNumber={order.trackingNumber}
           onStatusChange={handleStatusChange}
@@ -248,8 +251,8 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">
-        {(engineStatus === "payment_complete" ||
-          engineStatus === "preparing") && (
+        {/* [v13.13] 주문 취소: 결제완료/준비중이면서 클레임이 없을 때만 가능 */}
+        {!claimType && (engineStatus === "payment_complete" || engineStatus === "preparing") && (
           <Button
             block
             danger
@@ -258,7 +261,9 @@ export default function OrderDetailPage() {
             주문 취소 신청
           </Button>
         )}
-        {(engineStatus === "delivered" ||
+
+        {/* [v13.13] 구매 결정: (배송완료 + 클레임없음) OR (교환완료) OR (반려됨) 일 때 노출 */}
+        {((engineStatus === "delivered" && !claimType) ||
           engineStatus === "exchange_completed" ||
           engineStatus === "claim_rejected") && (
           <Button
@@ -270,8 +275,9 @@ export default function OrderDetailPage() {
             구매 결정하기
           </Button>
         )}
-        {(engineStatus === "delivered" ||
-          engineStatus === "exchange_completed") && (
+
+        {/* [v13.16] 교환/반품 신청: 첫 배송완료(클레임없음) 또는 교환완료 상태일 때 노출 (재교환/재반품 허용) */}
+        {((engineStatus === "delivered" && !claimType) || engineStatus === "exchange_completed") && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청
           </Button>

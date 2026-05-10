@@ -45,7 +45,7 @@ export const MOCK_STANDARD_PATH: PathStep[] = [
 
 // [v9.30] 마스터 교환 배송 경로 (7단계 정석)
 export const MOCK_EXCHANGE_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "exchange_requested", statusLabel: "교환접수", message: "교환을 위한 상품 회수 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "고객님 자택", status: "pickup_pending", statusLabel: "교환접수", message: "교환을 위한 상품 회수 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 교환 상품 수거를 위해 방문 예정입니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지", status: "returned", statusLabel: "수거완료", message: "회수 상품의 수거가 완료되어 검수 센터로 입고 중입니다.", estimatedTime: "", condition: "normal" },
   { location: "검수 센터", status: "inspecting", statusLabel: "검수중", message: "회수된 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "", condition: "normal" },
@@ -56,7 +56,7 @@ export const MOCK_EXCHANGE_PATH: PathStep[] = [
 
 // [v9.30] 마스터 반품 수거 경로 (4단계)
 export const MOCK_RETURN_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "return_requested", statusLabel: "반품접수", message: "반품 접수가 정상적으로 완료되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "고객님 자택", status: "return_pending", statusLabel: "반품접수", message: "반품 접수가 정상적으로 완료되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 상품 수거를 위해 이동 중입니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지", status: "returned", statusLabel: "수거완료", message: "상품 수거가 완료되어 허브로 이동 중입니다.", estimatedTime: "", condition: "normal" },
   { location: "판매처", status: "return_completed", statusLabel: "반품완료", message: "판매처 입고 확인 후 반품 처리가 최종 완료되었습니다.", estimatedTime: "", condition: "normal" }

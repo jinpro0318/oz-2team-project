@@ -16,6 +16,24 @@ import { getShipmentsByOrder } from "@/lib/services/logistics";
 import { useExecuteOrderAction } from "@/hooks/useOrders";
 import { LogisticsStatusResolver } from "@/lib/services/LogisticsStatusResolver";
 
+// [v13.20] 상세 기록(Audit Trail)용 한글 번역 사전
+const AUDIT_STATUS_MAP: Record<string, string> = {
+  payment_pending: "결제 대기",
+  payment_complete: "결제 완료",
+  preparing: "상품 준비 중",
+  shipping: "배송 중",
+  delivered: "배송 완료",
+  pickup_pending: "수거 대기",
+  return_pending: "반품 접수",
+  pickup_in_transit: "수거 중",
+  pickup_completed: "수거 완료",
+  inspecting: "검수 중",
+  reshipping: "교환 재발송",
+  exchange_completed: "교환 완료",
+  return_completed: "반품 완료",
+  claim_rejected: "클레임 반려",
+};
+
 interface TrackingResult {
   carrier: string;
   carrierCode: string;
@@ -28,6 +46,8 @@ interface TrackingResult {
     status: string;
     description: string;
   }>;
+  isFromCache?: boolean;
+  lastSyncedAt?: string;
 }
 
 interface DeliveryTrackingProps {
@@ -37,6 +57,7 @@ interface DeliveryTrackingProps {
   onStatusChange?: (status: string, details?: any) => void;
   isAdmin?: boolean;
   orderStatus?: string;
+  documentId?: string;
 }
 
 export default function DeliveryTracking({
@@ -46,15 +67,40 @@ export default function DeliveryTracking({
   onStatusChange,
   isAdmin,
   orderStatus,
+  documentId,
 }: DeliveryTrackingProps) {
   const [activeTrackingNumber, setActiveTrackingNumber] =
     useState(trackingNumber);
+
+  // [v13.6] 부모 컴포넌트가 새로운 송장 번호를 주입하면 즉시 시선을 강제 이동 (Sticky State 방지)
+  useEffect(() => {
+    if (trackingNumber && trackingNumber !== activeTrackingNumber) {
+      setActiveTrackingNumber(trackingNumber);
+    }
+  }, [trackingNumber]);
+
   const [shipmentHistory, setShipmentHistory] = useState<any[]>([]);
   const [data, setData] = useState<TrackingResult | null>(null);
   const [rawShipment, setRawShipment] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skipping, setSkipping] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // [v13.23] 수동 동기화(갱신) 핸들러
+  const handleRefresh = async () => {
+    if (!activeTrackingNumber || activeTrackingNumber.startsWith("MOCK-"))
+      return;
+    setRefreshing(true);
+    try {
+      await deliveryService.track(carrierCode, activeTrackingNumber, true);
+      // DB가 업데이트되면 onSnapshot을 통해 자동으로 UI가 갱신됩니다.
+    } catch (e) {
+      console.error("수동 동기화 실패:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // [v10.1 하이브리드] 상세 로그 조회용 상태
   const [showDetails, setShowDetails] = useState(false);
@@ -70,20 +116,49 @@ export default function DeliveryTracking({
     if (!orderId) return;
     getShipmentsByOrder(orderId)
       .then((list) => {
-        // 비즈니스 가중치 및 시간순 정렬 (최신 클레임 우선)
+        // [v13.9] 비즈니스 가중치 및 시간순 정렬 (최신 클레임 우선)
         const sorted = [...list].sort((a, b) => {
-          const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-          const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          // 서버 타임스탬프 대기 중(null)일 경우 현재 시간으로 대체하여 배열 꼬임 방지
+          const timeA = a.createdAt?.toDate
+            ? a.createdAt.toDate().getTime()
+            : a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : Date.now();
+          const timeB = b.createdAt?.toDate
+            ? b.createdAt.toDate().getTime()
+            : b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : Date.now();
+
+          if (timeA === timeB) {
+            // 시간이 완벽히 동일하거나 둘 다 방금 생성되어 null인 경우, 클레임 송장(R, EQ, ES)을 무조건 위로 올립니다.
+            const aIsClaim =
+              a.shipmentId.startsWith("MOCK-R") ||
+              a.shipmentId.startsWith("MOCK-EQ") ||
+              a.shipmentId.startsWith("MOCK-ES");
+            const bIsClaim =
+              b.shipmentId.startsWith("MOCK-R") ||
+              b.shipmentId.startsWith("MOCK-EQ") ||
+              b.shipmentId.startsWith("MOCK-ES");
+            if (aIsClaim && !bIsClaim) return -1;
+            if (!aIsClaim && bIsClaim) return 1;
+          }
           return timeB - timeA;
         });
         setShipmentHistory(sorted);
 
-        // 초기 로드 시 가장 최신 송장(주로 클레임) 자동 선택
-        if (
-          sorted.length > 0 &&
-          (!activeTrackingNumber || !activeTrackingNumber.includes("-"))
-        ) {
-          setActiveTrackingNumber(sorted[0].shipmentId);
+        // [v13.6] 지능형 자동 선택: 리스트에서 가장 최신(sorted[0]) 송장을 우선시합니다.
+        // 현재 활성 송장이 없거나, 리스트의 첫 번째 송장이 현재 활성 송장과 다르면(신규 발급 상황) 강제 교체합니다.
+        if (sorted.length > 0) {
+          const newestId = sorted[0].shipmentId;
+          if (
+            !activeTrackingNumber ||
+            activeTrackingNumber.length < 5 ||
+            (activeTrackingNumber.startsWith("MOCK-S") &&
+              (newestId.startsWith("MOCK-R") || newestId.startsWith("MOCK-EQ")))
+          ) {
+            setActiveTrackingNumber(newestId);
+          }
         }
       })
       .catch(console.error);
@@ -129,24 +204,25 @@ export default function DeliveryTracking({
           // 최종적으로 노출될 스텝은 엔진이 지정한 currentStep과 시간 기반 computedStep 중 큰 값
           let effectiveStep = Math.max(currentStep, computedStep);
 
-          // [v13.0] 가상화 확장: S송장에 클레임이 걸린 경우, 강제로 0단계(요청)로 고정하여 UI 플리커 방지
-          if (shipData.claimType && activeTrackingNumber.startsWith("MOCK-S")) {
-            effectiveStep = 0;
-          }
+          // [v13.10] 기존 일반 송장(MOCK-S)의 가상화 로직 제거
+          // 사용자가 S 송장 탭을 명시적으로 눌렀다면, 원래의 '배송 완료' 이력을 그대로 보여주어야 합니다.
 
-          let finalHistory = path.map((p: any, idx: number) => {
-            const isRevealed = idx <= effectiveStep;
-            return {
-              time: p.estimatedTime
-                ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm")
-                : "",
-              location: p.location.replace("지역", region),
-              status: p.statusLabel,
-              description: p.message,
-              isRevealed,
-              condition: p.condition || "normal",
-            };
-          });
+          // [v13.14] UI 클린업: 아직 진행되지 않은 미래의 단계들은 리스트에서 제외합니다. (사용자 요청)
+          let finalHistory = path
+            .map((p: any, idx: number) => {
+              const isRevealed = idx <= effectiveStep;
+              return {
+                time: p.estimatedTime
+                  ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm")
+                  : "",
+                location: p.location.replace("지역", region),
+                status: p.statusLabel,
+                description: p.message,
+                isRevealed,
+                condition: p.condition || "normal",
+              };
+            })
+            .filter((item: any) => item.isRevealed); // 진행된 것만 남김
 
           // 현재 진행 중인 노드 찾기 (UI 인디케이터 용)
           let activeIdx = effectiveStep;
@@ -158,25 +234,6 @@ export default function DeliveryTracking({
             path[effectiveStep]?.location.replace("지역", region) ||
             "위치 정보 없음";
 
-          // 기존 일반 송장(MOCK-S)인데 클레임이 걸려있다면 과거 이력을 숨기고 가상 이력 1줄만 노출
-          if (shipData.claimType && activeTrackingNumber.startsWith("MOCK-S")) {
-            const isExchange = shipData.claimType.includes("exchange");
-            const virtualStatus = isExchange ? "교환접수" : "반품접수";
-
-            finalHistory = [
-              {
-                time: dayjs().format("YYYY-MM-DD HH:mm"),
-                location: "고객님 댁",
-                status: virtualStatus,
-                description: `${virtualStatus}가 완료되어 수거 대기 중입니다.`,
-                isRevealed: true,
-                condition: "normal",
-              },
-            ];
-            finalLocation = "고객님 댁";
-            activeIdx = 0;
-          }
-
           const result: TrackingResult = {
             carrier: "CODE 로지스틱스",
             carrierCode: "MOCK",
@@ -184,6 +241,8 @@ export default function DeliveryTracking({
             status: shipData.status,
             lastLocation: finalLocation,
             history: finalHistory,
+            isFromCache: shipData.isFromCache,
+            lastSyncedAt: shipData.lastSyncedAt,
           };
 
           setData(result);
@@ -197,11 +256,20 @@ export default function DeliveryTracking({
             lastReportedStatus.current = result.status;
             lastReportedStep.current = effectiveStep;
 
-            // [v13.0] 정책 모듈을 통해 정확한 가상 경로 획득
-            const isExchange = shipData.claimType?.includes("exchange");
-            const isReturn = shipData.claimType?.includes("return");
-            const virtualType = isExchange ? "EQ" : (isReturn ? "R" : (shipData.type || "S"));
-            const uiSteps = LogisticsStatusResolver.getUISteps(virtualType);
+            // [v13.11] 명시적인 탭(송장) 선택 존중: metadata(claimType)보다 현재 활성화된 송장의 접두어를 우선합니다.
+            let virtualType = shipData.type || "S";
+            if (activeTrackingNumber.startsWith("MOCK-R")) virtualType = "R";
+            else if (
+              activeTrackingNumber.startsWith("MOCK-EQ") ||
+              activeTrackingNumber.startsWith("MOCK-ES")
+            )
+              virtualType = "EQ";
+            else if (activeTrackingNumber.startsWith("MOCK-S"))
+              virtualType = "S"; // S탭이면 강제로 S 유지
+
+            const uiSteps = LogisticsStatusResolver.getUISteps(
+              virtualType as any,
+            );
 
             onStatusChange(result.status, {
               current: effectiveStep,
@@ -254,11 +322,11 @@ export default function DeliveryTracking({
   const executeAction = useExecuteOrderAction();
 
   const handleSkip = async () => {
-    if (!activeTrackingNumber || !orderId) return;
+    if (!activeTrackingNumber || !documentId) return;
     setSkipping(true);
     try {
       await executeAction.mutateAsync({
-        id: orderId,
+        id: documentId,
         action: "SIMULATE_NEXT",
       });
     } catch (err) {
@@ -269,11 +337,11 @@ export default function DeliveryTracking({
   };
 
   const handleRevert = async () => {
-    if (!activeTrackingNumber || !orderId) return;
+    if (!activeTrackingNumber || !documentId) return;
     setSkipping(true);
     try {
       await executeAction.mutateAsync({
-        id: orderId,
+        id: documentId,
         action: "REVERT_PHASE",
       });
     } catch (err) {
@@ -288,30 +356,42 @@ export default function DeliveryTracking({
       {/* 1. 송장 타입 인디케이터 (배송/교환/반품) */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {[
-          { type: '배송', icon: '🚚', match: ['MOCK-S'] },
-          { type: '교환', icon: '🔄', match: ['MOCK-EQ', 'MOCK-ES', 'MOCK-E'] },
-          { type: '반품', icon: '📦', match: ['MOCK-R'] }
-        ].map(tab => {
+          { type: "배송", icon: "🚚", match: ["MOCK-S"] },
+          { type: "교환", icon: "🔄", match: ["MOCK-EQ", "MOCK-ES", "MOCK-E"] },
+          { type: "반품", icon: "📦", match: ["MOCK-R"] },
+        ].map((tab) => {
           let isActive = false;
           const claimType = rawShipment?.claimType || "";
-          const isExchange = claimType === "exchange" || claimType === "exchange_requested" || orderStatus?.includes("exchange") || activeTrackingNumber?.startsWith("MOCK-EQ") || activeTrackingNumber?.startsWith("MOCK-ES");
-          const isReturn = claimType === "return" || claimType === "return_requested" || orderStatus === "return_requested" || orderStatus === "return_completed" || activeTrackingNumber?.startsWith("MOCK-R");
+          const isExchange =
+            claimType === "exchange" ||
+            claimType === "exchange_requested" ||
+            orderStatus?.includes("exchange") ||
+            activeTrackingNumber?.startsWith("MOCK-EQ") ||
+            activeTrackingNumber?.startsWith("MOCK-ES");
+          const isReturn =
+            claimType === "return" ||
+            claimType === "return_requested" ||
+            orderStatus === "return_requested" ||
+            orderStatus === "return_completed" ||
+            activeTrackingNumber?.startsWith("MOCK-R");
 
           if (isExchange) {
-             isActive = tab.type === '교환';
+            isActive = tab.type === "교환";
           } else if (isReturn) {
-             isActive = tab.type === '반품';
+            isActive = tab.type === "반품";
           } else {
-             isActive = tab.match.some(m => activeTrackingNumber?.startsWith(m));
+            isActive = tab.match.some((m) =>
+              activeTrackingNumber?.startsWith(m),
+            );
           }
 
-          const colorClass = isActive 
-            ? "bg-[#3699FF] text-white border-none shadow-sm" 
-            : "bg-[#F3F6F9] text-[#A1A5B7] border-none";
+          const colorClass = isActive
+            ? "bg-[#3699FF] text-white shadow-[0_4px_12px_rgba(54,153,255,0.25)]"
+            : "bg-[#F3F6F9] text-[#B5B5C3] hover:bg-[#E4E6EF]";
           return (
             <div
               key={tab.type}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-bold transition-all whitespace-nowrap ${colorClass}`}
+              className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all whitespace-nowrap cursor-default ${colorClass}`}
             >
               <span>{tab.icon}</span> {tab.type}
             </div>
@@ -337,11 +417,44 @@ export default function DeliveryTracking({
               <PendingStateCard
                 orderStatus={orderStatus}
                 currentStep={rawShipment?.currentStep}
+                claimType={rawShipment?.claimType || activeTrackingNumber} // [v13.8] 송장의 성격(claimType/Prefix)을 추가 전달
               />
             </div>
           ) : (
-            <div className="relative rounded-[20px] bg-white border border-[#E4E6EF] p-6 shadow-sm overflow-hidden mb-4">
+            <div className="relative rounded-[20px] bg-[#F8F9FA] border border-[#E4E6EF] p-6 shadow-sm overflow-hidden mb-4">
               <div className="absolute top-0 right-0 w-32 h-32 bg-[#3699FF]/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+
+              {/* [v13.23] 상단 동기화 상태 인디케이터 (LAST SYNC) - 스크린샷 동일 디자인 */}
+              <div className="flex justify-between items-start relative z-10 mb-5 pb-5 border-b border-dashed border-[#E4E6EF]">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-1.5">
+                    LAST SYNC
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="w-[7px] h-[7px] rounded-full bg-[#50CD89] animate-pulse" />
+                    <span className="text-[13px] font-bold text-[#50CD89] tracking-tight leading-none">
+                      {activeTrackingNumber?.startsWith("MOCK-")
+                        ? "실시간 동기화 중"
+                        : isAdmin && data.lastSyncedAt
+                          ? `${dayjs(data.lastSyncedAt).format("YYYY-MM-DD HH:mm")} (캐싱됨)`
+                          : "실시간 동기화 중"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  {isAdmin && (
+                    <AntdButton
+                      size="small"
+                      icon={<SyncOutlined spin={refreshing} />}
+                      onClick={handleRefresh}
+                      className="text-[12px] font-bold text-[#3F4254] border-[#E4E6EF] bg-white hover:text-[#3699FF] hover:border-[#3699FF] shadow-sm rounded flex items-center h-[26px] px-2.5"
+                    >
+                      갱신
+                    </AntdButton>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-between items-start relative z-10">
                 <div className="flex flex-col">
                   <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-1">
@@ -352,21 +465,23 @@ export default function DeliveryTracking({
                   </h2>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                  <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-2">
+                  <span className="text-[10px] font-bold text-[#B5B5C3] uppercase tracking-wider mb-1.5">
                     Tracking No.
                   </span>
-                  <div className="flex flex-col gap-0.5 items-end">
+                  <div className="flex flex-col items-end w-full">
                     {shipmentHistory.length > 0 ? (
-                      shipmentHistory.map((s) => {
+                      shipmentHistory.map((s, idx) => {
                         const isActive = activeTrackingNumber === s.shipmentId;
                         return (
                           <span
                             key={s.shipmentId}
-                            onClick={() => setActiveTrackingNumber(s.shipmentId)}
-                            className={`cursor-pointer transition-all ${
-                              isActive 
-                                ? "text-[14px] font-black text-[#181C32]" 
-                                : "text-[11px] font-bold text-[#A1A5B7] hover:text-[#7E8299]"
+                            onClick={() =>
+                              setActiveTrackingNumber(s.shipmentId)
+                            }
+                            className={`cursor-pointer transition-all leading-snug tracking-tight block ${
+                              isActive
+                                ? "text-[15px] font-bold text-[#181C32] mb-0.5"
+                                : `text-[12px] font-medium text-[#A1A5B7] hover:text-[#7E8299] ${idx > 0 ? "mt-0.5" : ""}`
                             }`}
                           >
                             {s.shipmentId}
@@ -374,7 +489,7 @@ export default function DeliveryTracking({
                         );
                       })
                     ) : (
-                      <span className="text-[14px] font-black text-[#181C32]">
+                      <span className="text-[15px] font-bold text-[#181C32] leading-snug tracking-tight">
                         {activeTrackingNumber}
                       </span>
                     )}
@@ -399,7 +514,7 @@ export default function DeliveryTracking({
           )}
 
           {/* 3. 시각적 타임라인 (Reveal Engine 적용) */}
-          <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-6 shadow-sm">
+          <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-7 shadow-sm">
             <div className="relative">
               {[...data.history].reverse().map((item: any, idx) => {
                 const isLast = idx === data.history.length - 1;
@@ -407,42 +522,53 @@ export default function DeliveryTracking({
                   ? "opacity-100"
                   : "opacity-40 blur-[1px]";
 
-                const dotBorderColor = item.isRevealed ? "border-[#181C32]" : "border-[#E4E6EF]";
-                const textColor = item.isRevealed ? "text-[#181C32]" : "text-[#A1A5B7]";
+                const isLatest = idx === 0; // 역순 정렬이므로 첫 번째 아이템이 현재 단계
+                const dotBorderColor = item.isRevealed
+                  ? "border-[#181C32]"
+                  : "border-[#E4E6EF]";
+                const textColor = item.isRevealed
+                  ? "text-[#181C32]"
+                  : "text-[#A1A5B7]";
 
                 return (
                   <div
                     key={idx}
-                    className={`relative pl-8 group transition-all duration-700 ${opacityClass} mb-7 last:mb-0`}
+                    className={`relative pl-9 group transition-all duration-700 ${opacityClass} mb-8 last:mb-0`}
                   >
-                    {/* Circle Indicator (Screenshot style: hollow circle with bold border) */}
+                    {/* Circle Indicator (Bullseye style: 1px gap for the latest dot) */}
                     <div
-                      className={`absolute left-[2.5px] top-[3px] h-[11px] w-[11px] rounded-full border-[2.5px] bg-white z-10 ${dotBorderColor}`}
-                    />
+                      className={`absolute left-[0.5px] top-[4px] h-[13px] w-[13px] rounded-full border-[3px] bg-white z-10 ${dotBorderColor} flex items-center justify-center`}
+                    >
+                      {isLatest && (
+                        <div className="h-[5px] w-[5px] rounded-full bg-[#181C32] animate-pulse" />
+                      )}
+                    </div>
 
                     {/* 진행 선 */}
                     {!isLast && (
                       <div
-                        className={`absolute left-[7px] top-[14px] h-[calc(100%+14px)] w-[1px] bg-[#E4E6EF] z-0`}
+                        className={`absolute left-[6.5px] top-[17px] h-[calc(100%+16px)] w-[1px] bg-[#E4E6EF] z-0`}
                       />
                     )}
 
                     <div className="flex justify-between items-start">
-                      <div className="flex flex-col">
-                        <span className={`text-[13px] font-black tracking-tight ${textColor}`}>
+                      <div className="flex flex-col pr-4">
+                        <span
+                          className={`text-[14px] font-bold tracking-tight leading-none ${textColor}`}
+                        >
                           {item.status}
                         </span>
-                        <span className="text-[11px] text-[#7E8299] mt-0.5 font-medium">
+                        <span className="text-[12px] text-[#7E8299] mt-1.5 font-medium leading-none">
                           {item.location}
                         </span>
                         {item.description && (
-                          <span className="text-[11px] text-[#A1A5B7] italic mt-1.5 leading-snug">
+                          <span className="text-[12px] text-[#B5B5C3] italic mt-1.5 leading-snug">
                             {item.description}
                           </span>
                         )}
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] text-[#A1A5B7] tabular-nums font-medium tracking-wide">
+                      <div className="text-right shrink-0 pt-0.5">
+                        <span className="text-[11px] text-[#B5B5C3] font-medium tracking-wide">
                           {item.time}
                         </span>
                       </div>
@@ -453,7 +579,47 @@ export default function DeliveryTracking({
             </div>
           </div>
 
-          {/* 4. [v10.1 하이브리드] 상세 이력(Detail Layer) - 관리자 전용 노출 (Option A) */}
+          {/* [v13.18] 4. 시뮬레이션 섹션 (위로 이동) */}
+          {isAdmin &&
+            activeTrackingNumber?.startsWith("MOCK-") &&
+            (() => {
+              const pathLength = rawShipment?.path?.length || 0;
+              const currentStep = rawShipment?.currentStep || 0;
+              const isAtStart = currentStep === 0;
+              const isAtEnd = pathLength > 0 && currentStep >= pathLength - 1;
+              const isTerminal =
+                isAtEnd || rawShipment?.status === "purchase_confirmed";
+
+              return (
+                <div className="mt-4 flex justify-center gap-3 pb-2 w-full">
+                  <AntdButton
+                    type="default"
+                    size="large"
+                    loading={skipping}
+                    onClick={handleRevert}
+                    className="w-[160px] h-12 rounded-xl bg-[#F3F6F9] hover:bg-[#E4E6EF] border-[#E4E6EF] font-black text-[11px] text-[#7E8299] transition-all px-0"
+                    disabled={isAtStart}
+                  >
+                    ⏪ 후진 (UNDO)
+                  </AntdButton>
+                  <AntdButton
+                    type="primary"
+                    size="large"
+                    loading={skipping}
+                    onClick={handleSkip}
+                    className="w-[240px] h-12 rounded-xl bg-[#181C32] border-none font-black text-[11px] shadow-lg shadow-gray-200 hover:scale-[1.02] active:scale-95 transition-all px-0"
+                    icon={<SyncOutlined spin={skipping} />}
+                    disabled={isTerminal}
+                  >
+                    {isTerminal
+                      ? "✅ 처리 완료"
+                      : "다음 단계 시뮬레이션 (NEXT)"}
+                  </AntdButton>
+                </div>
+              );
+            })()}
+
+          {/* [v13.18] 5. 상세 이력 토글 (아래로 이동) */}
           {isAdmin && (
             <>
               <div className="mt-1 text-center">
@@ -482,7 +648,7 @@ export default function DeliveryTracking({
                         <div className="flex justify-between items-start">
                           <div className="flex-1 min-w-0 pr-4">
                             <p className="text-[11px] font-bold text-[#3F4254]">
-                              {item.status}
+                              {AUDIT_STATUS_MAP[item.status] || item.status}
                             </p>
                             <p className="text-[10px] text-[#A1A5B7] mt-0.5 leading-snug">
                               {item.location}{" "}
@@ -506,45 +672,6 @@ export default function DeliveryTracking({
       ) : (
         <PendingStateCard orderStatus={orderStatus} />
       )}
-
-      {/* [관리자 전용] 시뮬레이션 섹션 */}
-      {isAdmin &&
-        activeTrackingNumber?.startsWith("MOCK-") &&
-        (() => {
-          const pathLength = rawShipment?.path?.length || 0;
-          const currentStep = rawShipment?.currentStep || 0;
-          const isAtStart = currentStep === 0;
-          const isAtEnd = pathLength > 0 && currentStep >= pathLength - 1;
-          // 구매확정(종료) 등 최종 상태에 도달하면 모든 시뮬레이션을 잠급니다.
-          const isTerminal =
-            isAtEnd || rawShipment?.status === "purchase_confirmed";
-
-          return (
-            <div className="mt-4 flex justify-center gap-3 pb-2 w-full">
-              <AntdButton
-                type="default"
-                size="large"
-                loading={skipping}
-                onClick={handleRevert}
-                className="w-[160px] h-12 rounded-xl bg-[#F3F6F9] hover:bg-[#E4E6EF] border-[#E4E6EF] font-black text-[11px] text-[#7E8299] transition-all px-0"
-                disabled={isAtStart}
-              >
-                ⏪ 후진 (UNDO)
-              </AntdButton>
-              <AntdButton
-                type="primary"
-                size="large"
-                loading={skipping}
-                onClick={handleSkip}
-                className="w-[240px] h-12 rounded-xl bg-[#181C32] border-none font-black text-[11px] shadow-lg shadow-gray-200 hover:scale-[1.02] active:scale-95 transition-all px-0"
-                icon={<SyncOutlined spin={skipping} />}
-                disabled={isTerminal}
-              >
-                {isTerminal ? "✅ 처리 완료" : "다음 단계 시뮬레이션 (NEXT)"}
-              </AntdButton>
-            </div>
-          );
-        })()}
     </div>
   );
 }
@@ -554,15 +681,25 @@ export default function DeliveryTracking({
 function PendingStateCard({
   orderStatus,
   currentStep,
+  claimType,
 }: {
   orderStatus?: string;
   currentStep?: number;
+  claimType?: string;
 }) {
-  const isClaim = orderStatus?.includes("requested");
+  // [v13.8] 지능형 상태 판별: 단계(Step)뿐만 아니라 송장의 실제 성격(Prefix/Type)을 우선 확인
+  const isClaim =
+    orderStatus?.includes("requested") ||
+    claimType?.includes("return") ||
+    claimType?.includes("exchange") ||
+    claimType?.startsWith("MOCK-R") ||
+    claimType?.startsWith("MOCK-EQ");
+
   const isPreparing =
-    orderStatus === "payment_complete" ||
-    orderStatus === "preparing" ||
-    currentStep === 0;
+    !isClaim &&
+    (orderStatus === "payment_complete" ||
+      orderStatus === "preparing" ||
+      currentStep === 0);
 
   let config;
 

@@ -60,6 +60,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   return_completed: { label: "반품완료", color: "gray" },
   purchase_confirmed: { label: "구매확정", color: "green" },
   claim_rejected: { label: "클레임반려", color: "red" },
+  reshipping: { label: "교환재발송", color: "geekblue" }, // [v13.12] 영어 원문 노출 버그 픽스
 };
 
 
@@ -238,19 +239,14 @@ function AdminOrders() {
   };
 
   const handleReturnPickUp = async (order: Order) => {
-    // [v13.0] 교환과 반품을 구분하여 올바른 접두어(EQ/R)를 부여합니다.
+    // [v13.9] CLAIM_REQUEST 시점에 이미 수거용 송장(R/EQ)이 발급되었으므로, 여기서 강제 재생성하지 않습니다.
     const claimType = getActiveClaimType(order);
-    const prefix = claimType === "exchange" ? "EQ" : "R";
-    const returnTracking = generateMOCKTrackingNumber(prefix);
-    
     try {
       await executeAction.mutateAsync({
         id: order.id,
         action: "RETURN_PICKUP",
-        trackingNumber: returnTracking,
-        carrierCode: "MOCK"
       });
-      message.success(`${claimType === "exchange" ? "교환 수거" : "반품 수거"} 지시가 완료되었습니다. (송장: ${returnTracking})`);
+      message.success(`${claimType === "exchange" ? "교환 수거" : "반품 수거"} 지시가 완료되었습니다.`);
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -1011,7 +1007,8 @@ function AdminOrders() {
                 <div className="rounded-lg border border-[#E4E6EF] p-1">
                   <DeliveryTracking 
                     key={drawerOrder.trackingNumber || 'initial'}
-                    orderId={drawerOrder.id}
+                    orderId={drawerOrder.orderNumber}
+                    documentId={drawerOrder.id}
                     carrierCode={drawerOrder.carrierCode || 'MOCK'} 
                     trackingNumber={drawerOrder.trackingNumber || ''}
                     isAdmin={true}
@@ -1021,25 +1018,7 @@ function AdminOrders() {
               </div>
             ) : null}
 
-            {/* 타임라인 */}
-            <div>
-              <p className="mb-3 text-xs font-semibold text-[#181C32]">주문 이력</p>
-              <Timeline
-                items={drawerOrder.timeline?.map((t) => ({
-                  content: (
-                    <div>
-                      <p className="text-xs font-semibold text-[#181C32]">{t.label}</p>
-                      {t.description && (
-                        <p className="text-[11px] text-[#7E8299]">{t.description}</p>
-                      )}
-                      <p className="text-[10px] text-[#A8A8A8]">
-                        {dayjs(t.date).format("YYYY-MM-DD HH:mm")}
-                      </p>
-                    </div>
-                  ),
-                })) ?? []}
-              />
-            </div>
+            {/* [v13.17] 주문 이력 섹션 삭제: DeliveryTracking의 상세 로그와 중복되므로 제거 (UX 개선) */}
 
             {/* 취소 버튼 */}
             {(drawerOrder.status === "payment_complete" || drawerOrder.status === "preparing") && (

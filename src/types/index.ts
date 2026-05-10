@@ -118,7 +118,9 @@ export type OrderStatus =
   | "return_completed"
   | "purchase_confirmed"
   | "payment_pending"
-  | "claim_rejected"; // [효진] 추가
+  | "claim_rejected"
+  | "inspecting"
+  | "reshipping";
 
 
 

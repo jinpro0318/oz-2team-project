@@ -70,7 +70,7 @@ export class LogisticsStatusResolver {
     { title: "수거중" },
     { title: "수거완료" },
     { title: "검수중" },
-    { title: "반품완료" },
+    { title: "배송완료" },
   ];
 
   static readonly EXCHANGE_STEPS = [
@@ -97,7 +97,11 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return this.ORDER_TO_RETURN_INDEX[orderStatus] ?? 0;
     }
-    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") {
+    if (
+      shipmentType === "EQ" ||
+      shipmentType === "ES" ||
+      shipmentType === "E"
+    ) {
       return this.ORDER_TO_EXCHANGE_INDEX[orderStatus] ?? 0;
     }
     return 0;
@@ -113,7 +117,11 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return MOCK_RETURN_PATH.map((p) => ({ title: p.statusLabel }));
     }
-    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") {
+    if (
+      shipmentType === "EQ" ||
+      shipmentType === "ES" ||
+      shipmentType === "E"
+    ) {
       return MOCK_EXCHANGE_PATH.map((p) => ({ title: p.statusLabel }));
     }
     // 기본(Standard) 및 'none'
@@ -140,7 +148,8 @@ export class LogisticsStatusResolver {
   ): string {
     let path: PathStep[] = MOCK_STANDARD_PATH;
     if (shipmentType === "R") path = MOCK_RETURN_PATH;
-    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E") path = MOCK_EXCHANGE_PATH;
+    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E")
+      path = MOCK_EXCHANGE_PATH;
 
     return path[index]?.status || "shipping";
   }
@@ -156,7 +165,11 @@ export class LogisticsStatusResolver {
     switch (intent) {
       case "PAYMENT_DONE":
         // [v11.1] 결제 완료 시 0단계로 초기화하되, 송장은 굽지 않음(shouldUpdateShipment: false)
-        return { status: "payment_complete", step: 0, shouldUpdateShipment: false };
+        return {
+          status: "payment_complete",
+          step: 0,
+          shouldUpdateShipment: false,
+        };
       case "DELETE_LOGISTICS":
         // [v11.8] 송장 삭제 시 상태는 건드리지 않고(null), 송장 업데이트를 막습니다.
         // 삭제 로직의 본체는 엔진에서 intent를 확인하여 수행합니다.
@@ -174,10 +187,16 @@ export class LogisticsStatusResolver {
           return { status: "reshipping", step: 4, shouldUpdateShipment: true };
         return { status: "shipping", step: 2, shouldUpdateShipment: true };
       case "DELIVER":
-        if (shipmentType === "ES" || shipmentType === "EQ")
+        if (shipmentType === "ES")
           return {
             status: "exchange_completed",
             step: 5,
+            shouldUpdateShipment: true,
+          };
+        if (shipmentType === "EQ")
+          return {
+            status: "returned", // EQ 송장은 배송완료 불가 (수거완료에서 정지)
+            step: 2,
             shouldUpdateShipment: true,
           };
         if (shipmentType === "R")
@@ -198,7 +217,8 @@ export class LogisticsStatusResolver {
           status: "reshipping",
           step: 4,
           shouldUpdateShipment: true,
-          requiresNewShipment: "ES", // 👈 수거 완료 후 재발송 시 송장 교체
+          // [v13.7] 현재 타입이 수거(EQ)인 경우에만 새 송장 발급 트리거
+          requiresNewShipment: shipmentType === "EQ" ? "ES" : "none",
         };
       case "EXCHANGE_DONE":
         return {
@@ -208,7 +228,12 @@ export class LogisticsStatusResolver {
         };
       case "PURCHASE_CONFIRM":
         // [v12.5] 구매 확정 시 타임라인의 마지막 노드(구매확정)까지 모두 활성화하도록 강제 동기화
-        const lastStep = (shipmentType === "EQ" || shipmentType === "ES") ? 6 : (shipmentType === "R" ? 3 : 4);
+        const lastStep =
+          shipmentType === "EQ" || shipmentType === "ES"
+            ? 6
+            : shipmentType === "R"
+              ? 3
+              : 4;
         return {
           status: "purchase_confirmed",
           step: lastStep,
@@ -220,10 +245,12 @@ export class LogisticsStatusResolver {
       case "SIMULATE_NEXT": {
         const nextStep = currentStep + 1;
         const nextStatus = this.getStatusFromIndex(nextStep, shipmentType);
-        
-        // 단, 이미 재발송 송장(ES)인 경우는 중복 발급하지 않음
-        const requiresNewShipment = ((shipmentType === "EQ" || shipmentType === "ES") && nextStep === 4) ? "ES" : "none";
-        
+
+        // [v13.7] 정밀 제어: 수거 송장(EQ)일 때만 재발송 송장(ES) 발급을 허용합니다.
+        // 반품(R)이나 일반 배송(S) 완료 단계에서 송장이 새로 발급되는 심각한 오류를 방지합니다.
+        const requiresNewShipment =
+          shipmentType === "EQ" && nextStep === 4 ? "ES" : "none";
+
         return {
           status: nextStatus,
           step: nextStep,
@@ -258,7 +285,8 @@ export class LogisticsStatusResolver {
   ): string | undefined {
     let mapping: Record<string, number>;
     if (shipmentType === "R") mapping = this.ORDER_TO_RETURN_INDEX;
-    else if (shipmentType === "EQ" || shipmentType === "ES") mapping = this.ORDER_TO_EXCHANGE_INDEX;
+    else if (shipmentType === "EQ" || shipmentType === "ES")
+      mapping = this.ORDER_TO_EXCHANGE_INDEX;
     else mapping = this.ORDER_TO_STANDARD_INDEX;
 
     // value(index)를 통해 key(status)를 찾습니다.

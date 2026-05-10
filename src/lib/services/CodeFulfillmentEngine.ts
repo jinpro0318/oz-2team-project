@@ -211,23 +211,47 @@ export class CodeFulfillmentEngine {
         orderUpdates.timeline = timeline;
       }
 
-      // [v13.5] 클레임 요청(CLAIM_REQUEST) 시 논리적 초기화 (정공법)
+      // [v13.5] 클레임 요청(CLAIM_REQUEST) 시 즉시 신규 송장 발급 (정석 로직)
       if (intent === "CLAIM_REQUEST" && extraData?.claimType) {
         orderUpdates.status = extraData.claimType as OrderStatus;
-        orderUpdates.claimType = extraData.claimType.includes("exchange") ? "exchange" : "return";
+        const isExchange = extraData.claimType.includes("exchange");
+        orderUpdates.claimType = isExchange ? "exchange" : "return";
         
-        // 기존 배송 정보를 히스토리로 밀어내고(이미 처리됨), 현재 활성 송장을 비워서 0단계 뷰 강제 유도
-        orderUpdates.trackingNumber = "";
-        orderUpdates.carrierCode = "";
+        // 1. 신규 수거용 송장 번호 즉시 생성 (EQ 또는 R)
+        shipmentType = isExchange ? "EQ" : "R";
+        finalTrackingNumber = generateMOCKTrackingNumber(shipmentType);
         
+        // 2. 주문 정보 업데이트 (기존 송장은 trackingNumbers 배열에 이미 아카이브됨)
+        orderUpdates.trackingNumber = finalTrackingNumber;
+        orderUpdates.carrierCode = "MOCK";
+        
+        const oldHistory = Array.isArray(orderData.trackingNumbers) ? orderData.trackingNumbers : (orderData.trackingNumber ? [orderData.trackingNumber] : []);
+        if (!oldHistory.includes(finalTrackingNumber)) {
+          orderUpdates.trackingNumbers = [...oldHistory, finalTrackingNumber];
+        }
+
         const timeline = orderData.timeline || [];
         timeline.push({
           status: extraData.claimType,
-          label: extraData.claimType.includes("exchange") ? "교환 요청 접수됨" : "반품 요청 접수됨",
+          label: isExchange ? "교환 요청 접수됨" : "반품 요청 접수됨",
           date: new Date().toISOString(),
           description: `구매자 클레임 접수 (사유: ${extraData.reason || "기타"})`,
         });
         orderUpdates.timeline = timeline;
+
+        // 3. 신규 배송 문서 생성 지시
+        resolved.shouldUpdateShipment = true;
+        resolved.step = 0;
+        finalIsNewShipment = true;
+        finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
+
+        // 4. [v13.6] 기존 송장(S송장 등)에도 클레임이 걸렸음을 각인 (DB 아카이브)
+        if (shipmentRef && shipmentSnap?.exists()) {
+          transaction.update(shipmentRef, { 
+            claimType: isExchange ? "exchange" : "return",
+            updatedAt: serverTimestamp() 
+          });
+        }
       }
 
       transaction.update(orderRef, orderUpdates);
@@ -249,6 +273,7 @@ export class CodeFulfillmentEngine {
           currentStep: resolved.step,
           status: shipmentStatus,
           updatedAt: serverTimestamp(),
+          claimType: orderUpdates.claimType || orderData.claimType || "", // [v13.6] 송장 문서에 claimType 필수 저장
         };
 
         if (finalIsNewShipment) {
@@ -260,12 +285,17 @@ export class CodeFulfillmentEngine {
           // [v10.7] 이전 송장(MOCK-R 등)의 과거 기억(Path Timestamp)을 새 송장에 이식
           const oldPath = shipmentSnap?.exists() ? shipmentSnap.data().path : [];
 
+          // [v13.6] 수거(EQ, R) 시 출발지/도착지 반전 (고객 -> 판매처)
+          const isCollection = shipmentType === "EQ" || shipmentType === "R";
+          const finalSender = isCollection ? orderData.shippingAddress.address : senderAddress;
+          const finalReceiver = isCollection ? senderAddress : orderData.shippingAddress.address;
+
           const mockShipment = await createMockShipment({
             trackingNumber: finalTrackingNumber,
             carrierCode,
             orderId: orderId,
-            senderAddress,
-            receiverAddress: orderData.shippingAddress.address,
+            senderAddress: finalSender,
+            receiverAddress: finalReceiver,
             targetStep: resolved.step!, // 👈 [v11.10] 정책 모듈이 하달한 단계를 직접 주입
             shipmentType: shipmentType, // 👈 [수정] 결정된 배송 타입을 명시적으로 전달
           });
