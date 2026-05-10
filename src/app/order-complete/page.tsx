@@ -51,12 +51,9 @@ function OrderCompleteContent() {
           if (orderNumber) {
             const orderDoc = await getOrderByNumber(orderNumber);
             if (orderDoc) {
-              await updateOrderStatus(orderDoc.id, "payment_complete", {
-                status: "payment_complete",
-                label: "결제 완료",
-                date: new Date().toISOString(),
-                description: "결제가 정상적으로 완료되었습니다",
-              });
+              // [v11.2] 단순 상태 업데이트를 버리고 물류 엔진을 공식 가동 (PAYMENT_DONE)
+              const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+              await CodeFulfillmentEngine.executeAction(orderDoc.id, "PAYMENT_DONE");
             }
           }
           clearCart();

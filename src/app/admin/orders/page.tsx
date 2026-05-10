@@ -163,10 +163,46 @@ function AdminOrders() {
   }, [orders]);
 
   const handlePrepare = async (order: Order) => {
+    // [v11.0] 사용자 요청에 의한 강력한 검증(Validation) 로직 추가
+    const hasCarrier = !!order.carrierCode;
+    const hasTracking = !!order.trackingNumber;
+
+    if (!hasCarrier && !hasTracking) {
+      modal.warning({
+        title: "배송 정보 누락",
+        content: "택배사, 송장번호를 입력해 주세요.",
+        centered: true,
+        okText: "확인"
+      });
+      return;
+    }
+
+    if (!hasCarrier) {
+      modal.warning({
+        title: "택배사 미선택",
+        content: "택배사를 선택하세요.",
+        centered: true,
+        okText: "확인"
+      });
+      return;
+    }
+
+    if (!hasTracking) {
+      modal.warning({
+        title: "송장번호 미입력",
+        content: "송장번호를 입력하세요.",
+        centered: true,
+        okText: "확인"
+      });
+      return;
+    }
+
     try {
       await executeAction.mutateAsync({
         id: order.id,
         action: "PREPARE",
+        trackingNumber: order.trackingNumber,
+        carrierCode: order.carrierCode
       });
       message.success("상품 준비중으로 변경되었습니다.");
     } catch (err: any) {
@@ -316,40 +352,41 @@ function AdminOrders() {
                   style={{ width: '145px' }}
                   value={r.carrierCode || undefined}
                   disabled={isOrderLocked}
-                  onChange={(val) => {
-                    if (val === "MOCK") {
-                      const autoTracking = generateMOCKTrackingNumber('S');
-                      modal.confirm({
-                        title: <div className="text-center w-full font-bold">서비스 안내</div>,
-                        content: (
-                          <div className="text-center py-2">
-                            <p className="font-bold text-[#111] mb-2">CODE 로지스틱스는 스마트 물류 시뮬레이션 서비스입니다.</p>
-                            <p className="text-sm text-text-secondary">사용하시겠습니까?</p>
-                          </div>
-                        ),
-                        okText: "예",
-                        cancelText: "아니요",
-                        centered: true,
-                        className: "premium-modal",
-                        onOk: () => {
-                          const autoTracking = generateMOCKTrackingNumber('S');
-                          updateStatus.mutate({
-                            id: r.id,
-                            status: "preparing", // [v9.1] 송장 발송 시 자동으로 '준비중'으로 격상
-                            carrierCode: "MOCK",
-                            trackingNumber: autoTracking,
-                          });
-                          message.success({ content: "CODE 로지스틱스 송장이 발급되어 '배송 준비중'으로 변경되었습니다.", style: { marginTop: '20vh' } });
-                        },
+                  onChange={async (val) => {
+                    try {
+                      const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+                      
+                      if (val === "MOCK") {
+                        // [v11.11] 엔진에게 CODE 로지스틱스 송장 자동 발급 및 문서 생성 의뢰
+                        await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { carrierCode: "MOCK" });
+                        
+                        modal.info({
+                          title: <div className="text-center w-full font-bold">시뮬레이션 송장 할당</div>,
+                          content: (
+                            <div className="py-4 text-center">
+                              <p className="font-bold text-[#3699FF] text-lg mb-2">MOCK 송장이 생성되었습니다.</p>
+                              <p className="text-sm text-gray-500">
+                                CODE 로지스틱스 시뮬레이션 송장이 임시 할당되었습니다.<br/>
+                                오른쪽의 <b className="text-[#181C32]">['준비중']</b> 버튼을 눌러 물류 엔진을 가동해 주세요.
+                              </p>
+                            </div>
+                          ),
+                          centered: true,
+                          okText: "확인",
+                        });
+                        return;
+                      }
+
+                      // 일반 택배사 수동 선택 시
+                      await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { 
+                        carrierCode: val, 
+                        trackingNumber: r.trackingNumber 
                       });
-                      return;
+                      message.success("택배사가 지정되었습니다.");
+                    } catch (err) {
+                      console.error("송장 부여 실패:", err);
+                      message.error("송장 정보 갱신 중 오류가 발생했습니다.");
                     }
-                    updateStatus.mutate({
-                      id: r.id,
-                      status: r.status,
-                      carrierCode: val,
-                      trackingNumber: r.trackingNumber,
-                    });
                   }}
                   options={CARRIERS}
                 />
@@ -380,14 +417,16 @@ function AdminOrders() {
                       cancelButtonProps: { className: "rounded-md" },
                       centered: true,
                       className: "premium-modal",
-                      onOk: () => {
-                        updateStatus.mutate({
-                          id: r.id,
-                          status: r.status,
-                          carrierCode: "",
-                          trackingNumber: "",
-                        });
-                        message.success("배송 정보가 초기화되었습니다.");
+                      onOk: async () => {
+                        try {
+                          // [v11.8] 어드민 UI가 DB를 직접 지우는 월권을 멈추고, 엔진에게 리셋 명령 하달
+                          const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+                          await CodeFulfillmentEngine.executeAction(r.id, "DELETE_LOGISTICS");
+                          message.success("물류 엔진: 배송 정보 및 DB 문서가 완벽하게 초기화되었습니다.");
+                        } catch (e) {
+                          console.error("물류 리셋 엔진 가동 실패:", e);
+                          message.error("물류 초기화 중 오류가 발생했습니다.");
+                        }
                       },
                     });
                   }}
@@ -405,13 +444,18 @@ function AdminOrders() {
                   editable={isOrderLocked ? false : {
                     icon: <EditOutlined />,
                     tooltip: "송장번호 수정",
-                    onChange: (val) => {
-                      updateStatus.mutate({
-                        id: r.id,
-                        status: r.status,
-                        carrierCode: r.carrierCode || "04",
-                        trackingNumber: val,
-                      });
+                    onChange: async (val) => {
+                      try {
+                        const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+                        await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { 
+                          carrierCode: r.carrierCode || "04", 
+                          trackingNumber: val 
+                        });
+                        message.success("송장번호가 수동으로 입력되었습니다.");
+                      } catch (err) {
+                        console.error("수동 송장 입력 실패:", err);
+                        message.error("송장 번호 저장 중 오류가 발생했습니다.");
+                      }
                     },
                   }}
                   className="font-mono"
@@ -551,10 +595,8 @@ function AdminOrders() {
               size="small"
               icon={<EditOutlined />}
               loading={updateStatus.isPending}
-              disabled={!r.carrierCode || !r.trackingNumber}
               onClick={() => handlePrepare(r)}
-              className={!r.carrierCode || !r.trackingNumber ? "" : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"}
-              title={!r.carrierCode || !r.trackingNumber ? "택배사와 송장번호를 먼저 입력해주세요" : ""}
+              className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
             >
               준비중
             </Button>
@@ -915,16 +957,16 @@ function AdminOrders() {
               </div>
             </div>
 
-            {/* 실시간 배송 조회 (관리자용) - 모든 유효 상태에서 노출 */}
-            {(drawerOrder.trackingNumber && drawerOrder.trackingNumber !== "") ? (
+            {/* 실시간 배송 조회 (관리자용) - 결제완료 이후 모든 유효 상태에서 노출 */}
+            {(drawerOrder.trackingNumber || drawerOrder.status === "payment_complete") ? (
               <div>
                 <p className="mb-2 text-xs font-semibold text-[#181C32]">실시간 배송 현황</p>
                 <div className="rounded-lg border border-[#E4E6EF] p-1">
                   <DeliveryTracking 
-                    key={drawerOrder.trackingNumber}
+                    key={drawerOrder.trackingNumber || 'initial'}
                     orderId={drawerOrder.id}
-                    carrierCode={drawerOrder.carrierCode} 
-                    trackingNumber={drawerOrder.trackingNumber}
+                    carrierCode={drawerOrder.carrierCode || 'MOCK'} 
+                    trackingNumber={drawerOrder.trackingNumber || ''}
                     isAdmin={true}
                     orderStatus={drawerOrder.status}
                   />

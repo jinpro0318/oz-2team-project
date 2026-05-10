@@ -29,7 +29,8 @@ export class CodeLogistics {
         carrierCode: "MOCK",
         orderId: orderId,
         senderAddress: "경기 성남시 분당구 판교역로",
-        receiverAddress
+        receiverAddress,
+        orderStatus: orderData?.status || "payment_complete"
       });
     }
 

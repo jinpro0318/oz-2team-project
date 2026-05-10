@@ -89,21 +89,9 @@ export default function OrderDetailPage() {
   // 2. UI용 스텝 리스트 
   const displaySteps = LogisticsStatusResolver.getUISteps(shipmentType);
 
-  // 3. 실시간 배송 데이터(stepperData)가 존재하면 배송 DB를 절대적인 기준으로 삼음 (SSOT)
-  // [v10.2] MOCK 송장 타입(S/R/E)이 현재 주문 컨텍스트(shipmentType)와 일치할 때만 실시간 데이터 동기화 (믹스업 방지)
-  if (stepperData && order.trackingNumber) {
-    const tn = order.trackingNumber;
-    const isMock = tn.startsWith("MOCK-");
-    if (isMock) {
-      const mockType = tn.startsWith("MOCK-R") ? "R" : (tn.startsWith("MOCK-E") ? "E" : "S");
-      if (mockType === shipmentType) {
-        currentStep = stepperData.current;
-      }
-      // 타입이 다르면(예: 교환요청 중인데 이전 일반 배송 데이터가 오는 경우) 무시하고 주문 상태 기반(0) 유지
-    } else {
-      currentStep = stepperData.current;
-    }
-  }
+  // [v10.5 No-Trick] 배송 DB의 raw 인덱스를 직접 대입하지 않습니다.
+  // 이제 스테퍼 단계는 100% 정책 모듈(LogisticsStatusResolver)이 order.status를 기반으로 결정합니다.
+  // 이로써 주문 내역과 상세 페이지의 로직이 하나로 통합되어 상태 역전 현상이 해결됩니다.
 
   // [추가] 반려 사유 추출
   const rejectionReason = order.timeline?.find(
