@@ -79,6 +79,8 @@ export interface User {
   id: string;
   email: string;
   nickname: string;
+  name?: string; // [v13.36] 실제 본명 필드 추가
+  photoUrl?: string; // [v13.41] 프로필 사진 필드 추가
   phone: string;
   addresses: Address[];
   createdAt: string;

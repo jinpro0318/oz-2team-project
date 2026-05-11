@@ -113,7 +113,7 @@ export default function PasswordChangePage() {
           type="primary"
           block
           size="large"
-          className="mt-8 h-12 font-bold"
+          className={`mt-8 h-12 font-bold ${(!isPasswordValid || currentStatus !== "success") ? '!text-[#888888]' : '!text-white'}`}
           style={{ background: "#262626" }}
           loading={loading || isCheckingCurrent}
           disabled={!isPasswordValid || currentStatus !== "success"}

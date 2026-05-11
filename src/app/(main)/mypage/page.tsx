@@ -6,7 +6,9 @@ import { useAuthStore } from "@/stores/authStore";
 import { logoutUser } from "@/lib/auth";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useOrders } from "@/hooks/useOrders";
+import OrderStatusBoard from "@/components/mypage/OrderStatusBoard";
 import EmailProtector from "@/components/mypage/EmailProtector";
+import Avatar from "@/components/common/Avatar";
 import AdminLinkButtons from "@/components/common/AdminLinkButtons";
 
 
@@ -78,11 +80,8 @@ export default function MyPage() {
               "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
           }}
         >
-          <div
-            className="flex h-full w-full items-center justify-center rounded-full border-[2.5px] border-white text-[26px] font-bold text-white/90"
-            style={{ background: "linear-gradient(145deg,#D4C5B0,#CCB8B8)" }}
-          >
-            {user?.nickname?.[0] ?? "게"}
+          <div className="flex h-full w-full items-center justify-center rounded-full border-[2.5px] border-white bg-white overflow-hidden">
+            {user ? <Avatar user={user} size={62} /> : null}
           </div>
         </div>
 
@@ -102,7 +101,7 @@ export default function MyPage() {
       {/* Bio (pbio) */}
       <div className="border-b border-border px-3 pb-3 pt-2.5">
         <div className="text-[14px] font-bold text-text">
-          {user?.nickname ?? "게스트"}
+          {user?.nickname || "게스트"}
         </div>
         <EmailProtector user={user} />
       </div>

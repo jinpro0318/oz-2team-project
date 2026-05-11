@@ -9,20 +9,23 @@ import type { ShippingAddress } from "@/types";
 
 interface Props {
   onClose: () => void;
+  editData?: ShippingAddress; // [v13.34] 수정 모드를 위한 프로필 데이터 추가
 }
 
-export default function AddressAddSheet({ onClose }: Props) {
+export default function AddressAddSheet({ onClose, editData }: Props) {
   const { user, setUser } = useAuthStore();
   const { message } = App.useApp();
   const { embedPostcode } = useDaumPostcode();
 
-  const [label, setLabel] = useState("");
-  const [recipient, setRecipient] = useState(user?.nickname || "");
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [zipCode, setZipCode] = useState("");
-  const [address, setAddress] = useState("");
-  const [addressDetail, setAddressDetail] = useState("");
-  const [isDefault, setIsDefault] = useState(false);
+  const isEdit = !!editData;
+
+  const [label, setLabel] = useState(editData?.label || "");
+  const [recipient, setRecipient] = useState(editData?.recipient || user?.nickname || "");
+  const [phone, setPhone] = useState(editData?.phone || user?.phone || "");
+  const [zipCode, setZipCode] = useState(editData?.zipCode || "");
+  const [address, setAddress] = useState(editData?.address || "");
+  const [addressDetail, setAddressDetail] = useState(editData?.addressDetail || "");
+  const [isDefault, setIsDefault] = useState(editData?.isDefault || false);
   const [isSaving, setIsSaving] = useState(false);
 
   // 주소 검색 레이어 표시 여부
@@ -49,8 +52,8 @@ export default function AddressAddSheet({ onClose }: Props) {
 
     setIsSaving(true);
     try {
-      const newAddress: ShippingAddress = {
-        id: `addr_${Date.now()}`,
+      const targetAddress: ShippingAddress = {
+        id: editData?.id || `addr_${Date.now()}`,
         label,
         recipient,
         phone,
@@ -62,22 +65,37 @@ export default function AddressAddSheet({ onClose }: Props) {
 
       let updatedAddresses = [...(user.addresses || [])];
 
-      if (newAddress.isDefault) {
+      // 기본 배송지 설정 처리
+      if (targetAddress.isDefault) {
         updatedAddresses = updatedAddresses.map(addr => ({ ...addr, isDefault: false }));
       }
 
-      updatedAddresses.push(newAddress);
+      if (isEdit) {
+        // 수정 모드: ID가 같은 항목을 교체
+        updatedAddresses = updatedAddresses.map(addr => 
+          addr.id === targetAddress.id ? targetAddress : addr
+        );
+      } else {
+        // 추가 모드: 배열 끝에 추가
+        updatedAddresses.push(targetAddress);
+      }
+
+      // [v13.34] 기본 배송지를 항상 맨 앞으로 정렬
+      const finalAddresses = [
+        ...updatedAddresses.filter(a => a.isDefault),
+        ...updatedAddresses.filter(a => !a.isDefault)
+      ];
 
       await updateUserProfile(user.id, {
-        addresses: updatedAddresses,
+        addresses: finalAddresses,
       });
 
-      setUser({ ...user, addresses: updatedAddresses });
-      message.success("배송지가 추가되었습니다.");
+      setUser({ ...user, addresses: finalAddresses });
+      message.success(isEdit ? "배송지가 수정되었습니다." : "배송지가 추가되었습니다.");
       onClose();
     } catch (error) {
       console.error(error);
-      message.error("배송지 추가 중 오류가 발생했습니다.");
+      message.error("배송지 저장 중 오류가 발생했습니다.");
     } finally {
       setIsSaving(false);
     }
@@ -96,7 +114,7 @@ export default function AddressAddSheet({ onClose }: Props) {
         </div>
         
         <div className="px-5 pb-4 shrink-0 border-b border-border">
-          <h2 className="text-[18px] font-bold text-text">배송지 추가</h2>
+          <h2 className="text-[18px] font-bold text-text">배송지 {isEdit ? "수정" : "추가"}</h2>
         </div>
 
         <div className="relative overflow-y-auto px-5 py-5 space-y-4">

@@ -9,7 +9,9 @@ import { deleteAccount } from "@/lib/auth";
 import EmailProtector from "@/components/mypage/EmailProtector";
 import EmailProtectionToggle from "@/components/mypage/EmailProtectionToggle";
 import AddressAddSheet from "@/components/mypage/AddressAddSheet";
+import Avatar from "@/components/common/Avatar";
 import { useUIStore } from "@/stores/uiStore";
+import { uploadImage } from "@/lib/services/upload";
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -18,15 +20,18 @@ export default function ProfileEditPage() {
   const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
 
   const [nickname, setNickname] = useState(user?.nickname ?? "");
+  const [realName, setRealName] = useState(user?.name ?? user?.nickname ?? ""); // [v13.36] 실제 이름 상태 추가
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [mounted, setMounted] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   
   // 계정 탈퇴 바텀시트 관련
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   
-  // 배송지 추가 바텀시트 관련
+  // 배송지 추가/수정 바텀시트 관련
   const [showAddressSheet, setShowAddressSheet] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<any>(null); // [v13.34] 수정할 주소 데이터 저장
 
   useEffect(() => {
     setMounted(true);
@@ -39,15 +44,79 @@ export default function ProfileEditPage() {
     setBottomNavVisible(!showDeleteSheet);
   }, [showDeleteSheet, setBottomNavVisible]);
 
+  // [v13.45 긴급 복구] 날아간 기본 정보(별명, 이름) 자동 복구
+  useEffect(() => {
+    if (user && !user.nickname && user.id === "GLq93WrA9fO5whdISv1HvQbUeKa2") {
+      updateUserProfile(user.id, { nickname: "test", name: "테스트" }).then(() => {
+        setUser({ ...user, nickname: "test", name: "테스트" });
+        setNickname("test");
+        setRealName("테스트");
+      });
+    }
+  }, [user, setUser]);
+
   if (!mounted || !user) return null;
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingPhoto(true);
+      message.loading({ content: "사진 업로드 중...", key: "photoUpload" });
+      
+      const folderPath = `user_profiles/${user.id}`;
+      const url = await uploadImage(file, folderPath);
+      
+      await updateUserProfile(user.id, { photoUrl: url });
+      setUser({ ...user, photoUrl: url });
+      
+      message.success({ content: "프로필 사진이 변경되었습니다.", key: "photoUpload" });
+    } catch (error) {
+      console.error("Photo upload failed:", error);
+      message.error({ content: "사진 업로드에 실패했습니다.", key: "photoUpload" });
+    } finally {
+      setIsUploadingPhoto(false);
+      const fileInput = document.getElementById("profile-upload") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!user.photoUrl) return;
+    
+    try {
+      setIsUploadingPhoto(true);
+      message.loading({ content: "사진 삭제 중...", key: "photoUpload" });
+      
+      // DB에서 URL 제거 (실제 Storage 삭제는 배치 작업으로 처리 권장)
+      await updateUserProfile(user.id, { photoUrl: "" });
+      setUser({ ...user, photoUrl: undefined });
+      
+      message.success({ content: "기본 이미지로 변경되었습니다.", key: "photoUpload" });
+    } catch (error) {
+      console.error("Photo delete failed:", error);
+      message.error({ content: "사진 삭제에 실패했습니다.", key: "photoUpload" });
+    } finally {
+      setIsUploadingPhoto(false);
+      const fileInput = document.getElementById("profile-upload") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    }
+  };
+
   const handleSave = async () => {
+    if (!nickname.trim()) {
+      message.warning("별명을 입력해주세요");
+      return;
+    }
+    
     try {
       await updateUserProfile(user.id, {
         nickname,
+        name: realName, // [v13.36] 이름 필드 별도 저장
         phone,
       });
-      setUser({ ...user, nickname, phone });
+      setUser({ ...user, nickname, name: realName, phone });
       message.success("프로필이 저장되었습니다");
       router.back();
     } catch (error) {
@@ -142,11 +211,42 @@ export default function ProfileEditPage() {
 
       {/* Avatar Section */}
       <div className="flex flex-col items-center border-b border-border bg-surface py-6 px-5">
-        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-gradient-to-br from-[#D4C5B0] to-[#CCB8B8] text-[28px] font-bold text-white/90">
-          {user.nickname ? user.nickname[0] : user.email[0].toUpperCase()}
+        <div className="relative">
+          <label 
+            htmlFor="profile-upload" 
+            className={`cursor-pointer block ${isUploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            <Avatar user={user} size={72} />
+            <div className="absolute bottom-0 right-0 rounded-full bg-text border border-surface p-1 shadow-sm">
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-white stroke-[2.5px]">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
+          </label>
+          <input 
+            id="profile-upload"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+            disabled={isUploadingPhoto}
+          />
         </div>
+        
         <div className="mt-2.5 text-[13px] font-bold text-text">{user.nickname}</div>
-        <div className="mt-0.5 text-[12px] text-text-muted">{username}</div>
+        
+        {user.photoUrl ? (
+          <button 
+            className="mt-1.5 text-[11px] font-bold text-[#ED4956] hover:opacity-70 transition-opacity"
+            onClick={handlePhotoDelete}
+            disabled={isUploadingPhoto}
+          >
+            기본 이미지로 변경
+          </button>
+        ) : (
+          <div className="mt-0.5 text-[12px] text-text-muted">{username}</div>
+        )}
       </div>
 
       {/* Basic Info */}
@@ -166,9 +266,13 @@ export default function ProfileEditPage() {
 
         <div className="flex flex-col gap-1.5">
           <label className="text-[12px] font-semibold text-text-secondary">이름</label>
-          <div className="flex h-[42px] w-full items-center rounded border border-border bg-bg px-3 text-[14px] text-text opacity-70">
-            {user.nickname}
-          </div>
+          <input
+            type="text"
+            className="h-[42px] w-full rounded border border-border bg-bg px-3 text-[14px] text-text opacity-70 outline-none cursor-not-allowed"
+            value={realName}
+            readOnly
+            placeholder="실명이 등록되지 않았습니다"
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -203,7 +307,10 @@ export default function ProfileEditPage() {
           <div className="text-[11px] font-bold tracking-[0.06em] text-text-muted uppercase">배송지 관리</div>
           <button 
             className="h-[26px] rounded-full border border-border bg-bg px-2.5 text-[11px] font-bold text-text transition-colors hover:bg-border-light"
-            onClick={() => setShowAddressSheet(true)}
+            onClick={() => {
+              setEditingAddress(null);
+              setShowAddressSheet(true);
+            }}
           >
             + 추가
           </button>
@@ -226,7 +333,15 @@ export default function ProfileEditPage() {
                   우편번호 {addr.zipCode}
                 </div>
                 <div className="mt-2.5 flex gap-2">
-                  <button className="flex-1 h-[30px] rounded border border-border bg-surface text-[12px] font-bold text-text hover:bg-bg transition-colors">수정</button>
+                  <button 
+                    onClick={() => {
+                      setEditingAddress(addr);
+                      setShowAddressSheet(true);
+                    }}
+                    className="flex-1 h-[30px] rounded border border-border bg-surface text-[12px] font-bold text-text hover:bg-bg transition-colors"
+                  >
+                    수정
+                  </button>
                   <button 
                     onClick={() => handleDeleteAddress(addr.id)}
                     className="flex-1 h-[30px] rounded border border-border bg-surface text-[12px] font-bold text-text-secondary hover:bg-bg transition-colors"
@@ -363,9 +478,15 @@ export default function ProfileEditPage() {
         </div>
       )}
 
-      {/* Address Add Bottom Sheet */}
+      {/* Address Add/Edit Bottom Sheet */}
       {showAddressSheet && (
-        <AddressAddSheet onClose={() => setShowAddressSheet(false)} />
+        <AddressAddSheet 
+          editData={editingAddress}
+          onClose={() => {
+            setShowAddressSheet(false);
+            setEditingAddress(null);
+          }} 
+        />
       )}
     </div>
   );

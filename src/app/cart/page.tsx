@@ -27,8 +27,7 @@ export default function CartPage() {
 
   useEffect(() => {
     setMounted(true);
-    setBottomNavVisible(false);
-    return () => setBottomNavVisible(true);
+    setBottomNavVisible(true);
   }, [setBottomNavVisible]);
 
   const getUnitPrice = (item: (typeof items)[number]) =>
@@ -50,7 +49,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface">
+    <div className="flex flex-col min-h-screen bg-surface pb-[60px]">
       <BackTopBar title="장바구니" />
 
       <div className="flex-1 overflow-y-auto">

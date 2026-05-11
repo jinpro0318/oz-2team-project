@@ -47,9 +47,6 @@ async function compressImage(file: File): Promise<File> {
   });
 }
 
-/**
- * 이미지 업로드 메인 함수
- */
 export async function uploadImage(file: File, path: string): Promise<string> {
   let compressedFile: File | null = null;
   
@@ -58,38 +55,39 @@ export async function uploadImage(file: File, path: string): Promise<string> {
     console.log("[효진] 이미지 압축 중...");
     compressedFile = await compressImage(file);
     
-    console.log(`[효진] 서버 API 업로드 시도: ${path}/${compressedFile.name}`);
+    console.log(`[시스템] Firebase Storage 직접 업로드 시도: ${path}/${compressedFile.name}`);
     
-    const formData = new FormData();
-    formData.append("file", compressedFile);
-    formData.append("folder", path);
+    // 파일명 중복 방지를 위한 타임스탬프 추가
+    const fileName = `${Date.now()}_${compressedFile.name}`;
+    const storageRef = ref(storage, `${path}/${fileName}`);
 
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
+    // 클라이언트 SDK를 통해 직접 업로드 (사용자 인증 정보 자동 포함)
+    // CORS나 규칙으로 인해 무한 재시도(hang)에 빠지는 것을 방지하기 위해 5초 타임아웃 적용
+    const uploadTask = async () => {
+      const snapshot = await uploadBytes(storageRef, compressedFile!);
+      return await getDownloadURL(snapshot.ref);
+    };
+
+    const timeoutTask = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error("Firebase Storage Upload Timeout (CORS/Rules Issue)")), 5000);
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "서버 업로드 실패");
-    }
+    const downloadURL = await Promise.race([uploadTask(), timeoutTask]);
 
-    const data = await response.json();
-    console.log("[효진] 서버 API 업로드 성공:", data.url);
-    return data.url;
+    console.log("[시스템] Firebase Storage 직접 업로드 성공:", downloadURL);
+    return downloadURL;
+
   } catch (error: any) {
-    console.warn("[효진] 서버 업로드 실패, 압축된 로컬 폴백 진행:", error);
+    console.error("[시스템] Firebase Storage 업로드 상세 에러:", error);
     
-    // [효진] 업로드 실패 시, '압축된' 파일을 Base64로 변환하여 반환 (Firestore 1MB 제한 대응)
+    // [효진] 기존의 업로드 실패 시 로컬 폴백 (Base64) 로직 유지
+    console.warn("[시스템] 서버 업로드 실패, 압축된 로컬 폴백 진행");
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        console.log("[효진] 압축된 로컬 모드 전환 완료");
         resolve(reader.result as string);
       };
       reader.onerror = reject;
-      
-      // [효진] 원본 대신 압축된 파일 사용
       reader.readAsDataURL(compressedFile || file);
     });
   }

@@ -37,13 +37,15 @@ export default function EmailProtectionToggle({ mode }: Props) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5">
+      <div 
+        className="flex w-fit cursor-pointer items-center gap-1.5 group"
+        onClick={() => setShowPasswordInput(!showPasswordInput)}
+      >
         <span className="font-brush text-[18px] font-bold tracking-normal text-transparent bg-clip-text bg-gradient-to-r from-text via-text-secondary to-gray-400 drop-shadow-sm">
           {mode === "set" ? "[ 이메일 보호 설정 ]" : "[ 이메일 보호 해제 ]"}
         </span>
         <div
-          className="flex h-4 cursor-pointer items-center justify-center rounded-full bg-[#ED4956] px-1.5 text-[9px] font-bold text-white shadow-sm active:scale-95 transition-all"
-          onClick={() => setShowPasswordInput(!showPasswordInput)}
+          className="flex h-4 items-center justify-center rounded-full bg-[#ED4956] px-1.5 text-[9px] font-bold text-white shadow-sm transition-all group-active:scale-95"
         >
           {showPasswordInput ? "Close" : "Tap here"}
         </div>
