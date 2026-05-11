@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Spin } from "antd";
 import TopBar from "@/components/common/TopBar";
 import StoryStrip from "@/components/feed/StoryStrip";
-import PostCard from "@/components/feed/PostCard";
-import BottomNav from "@/components/common/BottomNav";
+import PostCarousel from "@/components/feed/PostCarousel";
+import EventBanner from "@/components/event/EventBanner";
+
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { usePosts } from "@/hooks/usePosts";
 
@@ -40,14 +41,12 @@ export default function FeedPage() {
       <TopBar />
       <StoryStrip
         celebrities={sortedCelebrities}
-
         activeCelebId={activeCelebId}
         onSelect={setActiveCelebId}
       />
-      <main className="flex flex-col">
-        {filteredPosts.map((post) => (
-          <PostCard key={post.id} post={post} celebrity={celeb!} />
-        ))}
+      <EventBanner />
+      <main>
+        {celeb && <PostCarousel posts={filteredPosts} celebrity={celeb} />}
       </main>
       
       <div className="h-4 bg-bg" />

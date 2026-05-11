@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { MoreHorizontal } from "lucide-react";
 import HotspotImage from "./HotspotImage";
 import { InstagramBar } from "./InstagramBar";
 import type { Post, Celebrity } from "@/types";
-import { useRequireAuth } from "@/hooks/useAuth";
 
 interface PostCardProps {
   post: Post;
@@ -28,13 +26,6 @@ function getPostLocation(post: Post, celebrity: Celebrity): string {
 }
 
 export default function PostCard({ post, celebrity }: PostCardProps) {
-  const { requireAuth } = useRequireAuth();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
     <article className="bg-white mb-0.5 border-b border-border-light pb-2">
       {/* Header */}
@@ -98,42 +89,18 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
 
 
 
-      {/* Actions & Likes */}
-      <InstagramBar likes={post.likes} onLike={() => {}} />
+      {/* Actions */}
+      <InstagramBar post={post} celebrity={celebrity} />
 
-      {/* Caption & Comments */}
+      {/* Caption */}
       <div className="px-3">
         <p className="text-[13.5px] leading-[1.5] text-text">
-          {/* [효진] 캡션 부분은 쇼핑몰 공식 계정 느낌을 주기 위해 작성자를 'C.O.D.E'로 고정했습니다. */}
           <span className="font-bold mr-1.5">C.O.D.E</span>
           <span className="whitespace-pre-wrap">{post.caption}</span>
         </p>
-
-        {post.comments > 0 && (
-          <button
-            className="text-[13px] mt-1 text-text-secondary hover:text-text transition-colors"
-            onClick={() => requireAuth()}
-          >
-            댓글 {mounted ? post.comments.toLocaleString() : post.comments}개 모두 보기
-          </button>
-        )}
-        <p className="text-[10px] mt-1 uppercase tracking-wide text-text-muted">
+        <p className="text-[10px] mt-1.5 uppercase tracking-wide text-text-muted">
           12시간 전
         </p>
-      </div>
-
-      {/* Comment Input (Figma Match) */}
-      <div className="px-3 mt-3 flex items-center gap-2.5 border-t border-[#efefef] pt-3">
-        <div
-          className="w-7 h-7 rounded-full flex-shrink-0"
-          style={{ background: "#E8E2D8" }}
-        />
-        <input
-          type="text"
-          placeholder="댓글 달기..."
-          className="flex-1 text-[13px] outline-none bg-transparent text-text-muted"
-          onClick={() => requireAuth()}
-        />
       </div>
     </article>
   );

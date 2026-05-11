@@ -1,82 +1,103 @@
 "use client";
 
-import { Home, Search, PlusSquare, Film, User } from "lucide-react";
+import { Home, Search, Star, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRequireAuth } from "@/hooks/useAuth";
-
 import { useUIStore } from "@/stores/uiStore";
+import { useAuthStore } from "@/stores/authStore";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, requireAuth } = useRequireAuth();
+  const { user: authUser } = useAuthStore();
   const isBottomNavVisible = useUIStore((s) => s.isBottomNavVisible);
-  
-  // 관리자/구매확정/취소 흐름에서는 글로벌 하단 내비게이션 바를 숨김
+  const hasNewWishlistItem = useUIStore((s) => s.hasNewWishlistItem);
+
   if (
     pathname?.startsWith("/admin") ||
     pathname?.endsWith("/confirm") ||
     pathname?.endsWith("/cancel") ||
     !isBottomNavVisible
-  ) return null;
+  )
+    return null;
 
   const isActive = (path: string) => pathname === path;
 
   return (
-    <nav 
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-white border-t z-50 flex items-center h-[49px]" 
+    <nav
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-white border-t z-50 flex items-center h-[49px]"
       style={{ borderColor: "#DBDBDB" }}
     >
+      {/* 홈 */}
       <Link
         href="/feed"
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity"
+        aria-label="홈"
       >
         <Home
           className="w-[23px] h-[23px] text-text"
           strokeWidth={isActive("/feed") ? 2.5 : 1.8}
         />
       </Link>
+
+      {/* 검색 */}
       <Link
         href="/search"
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity"
+        aria-label="검색"
       >
-        <Search 
-          className="w-[23px] h-[23px] text-text" 
-          strokeWidth={isActive("/search") ? 2.5 : 1.8} 
+        <Search
+          className="w-[23px] h-[23px] text-text"
+          strokeWidth={isActive("/search") ? 2.5 : 1.8}
         />
       </Link>
-      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
-        <PlusSquare className="w-[23px] h-[23px] text-text" strokeWidth={1.8} />
+
+      {/* 찜 */}
+      <button
+        onClick={() => requireAuth(() => router.push("/wishlist"))}
+        className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity relative"
+        aria-label="찜목록"
+      >
+        <Star
+          className="w-[23px] h-[23px] text-text"
+          fill={isActive("/wishlist") ? "currentColor" : "none"}
+          strokeWidth={isActive("/wishlist") ? 2.5 : 1.8}
+        />
+        {hasNewWishlistItem && (
+          <span className="absolute top-2.5 right-[calc(50%-10px)] w-[7px] h-[7px] rounded-full bg-red border-[1.5px] border-white" />
+        )}
       </button>
-      <button className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity">
-        <Film className="w-[23px] h-[23px] text-text" strokeWidth={1.8} />
-      </button>
-      <button 
+
+      {/* 마이페이지 */}
+      <button
         onClick={() => requireAuth(() => router.push("/mypage"))}
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity"
+        aria-label="마이페이지"
       >
-        {user ? (
-          <div 
-            className={`w-[26px] h-[26px] rounded-full flex items-center justify-center ${
-              isActive("/mypage") ? "border-[1.5px] border-text" : ""
+        {authUser ? (
+          <div
+            className={`w-[26px] h-[26px] rounded-full overflow-hidden flex items-center justify-center ${
+              isActive("/mypage") ? "ring-[1.5px] ring-text" : ""
             }`}
           >
-            <div 
-              className="w-[22px] h-[22px] rounded-full instagram-gradient" 
-              style={{ padding: "1.5px" }}
-            >
-              <div className="w-full h-full rounded-full bg-white p-[0.5px]">
-                 <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-200 to-gray-400 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">
-                    {user.nickname?.[0] ?? "U"}
-                 </div>
+            {authUser.photoUrl ? (
+              <img
+                src={authUser.photoUrl}
+                alt={authUser.nickname}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-200 to-gray-400 flex items-center justify-center text-[10px] font-bold text-white">
+                {authUser.nickname?.[0] ?? "U"}
               </div>
-            </div>
+            )}
           </div>
         ) : (
-          <User 
-            className="w-[23px] h-[23px] text-text" 
-            strokeWidth={isActive("/mypage") ? 2.5 : 1.8} 
+          <User
+            className="w-[23px] h-[23px] text-text"
+            strokeWidth={isActive("/mypage") ? 2.5 : 1.8}
           />
         )}
       </button>

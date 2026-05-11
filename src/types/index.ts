@@ -238,3 +238,13 @@ export interface CelebrityFormData {
   order?: number; // [효진] 추가
 }
 
+export interface AppEvent {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  startDate: string; // ISO string
+  endDate: string;   // ISO string
+  isActive: boolean;
+}
+
