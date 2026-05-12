@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Input, Radio, App } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
 import { useCartStore } from "@/stores/cartStore";
@@ -23,14 +23,42 @@ function formatPrice(n: number, mounted: boolean) {
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { message } = App.useApp();
-  const { items, clearCart } = useCartStore();
+  const { items: cartItems } = useCartStore();
   const user = useAuthStore((s) => s.user);
   const createOrderMutation = useCreateOrder();
   const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
-  const getUnitPrice = (item: (typeof items)[number]) =>
+
+  // URL 쿼리 파라미터 읽기 (바로 구매용)
+  const pId = searchParams.get("productId");
+  const pColor = searchParams.get("color");
+  const pSize = searchParams.get("size");
+  const pQuantity = Number(searchParams.get("quantity") || "1");
+
+  // 결제 대상 상품 목록 결정
+  const checkoutItems = useMemo(() => {
+    if (pId && products.length > 0) {
+      const product = products.find((p) => p.id === pId);
+      if (product) {
+        return [
+          {
+            id: `direct-${pId}`,
+            productId: pId,
+            product,
+            color: pColor || "",
+            size: pSize || "",
+            quantity: pQuantity,
+          },
+        ];
+      }
+    }
+    return cartItems;
+  }, [pId, pColor, pSize, pQuantity, products, cartItems]);
+
+  const getUnitPrice = (item: (typeof checkoutItems)[number]) =>
     resolveUnitPrice(item.productId, item.product.price, priceMap);
 
   const [mounted, setMounted] = useState(false);
@@ -42,13 +70,14 @@ export default function CheckoutPage() {
     setBottomNavVisible(false);
     return () => setBottomNavVisible(true);
   }, [setBottomNavVisible]);
+
   const [zipCode, setZipCode] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("standard");
   const [paymentMethod, setPaymentMethod] = useState("card");
 
-  const totalAmount = items.reduce(
+  const totalAmount = checkoutItems.reduce(
     (sum, item) => sum + getUnitPrice(item) * item.quantity,
     0
   );
@@ -73,17 +102,22 @@ export default function CheckoutPage() {
       message.error("로그인이 필요합니다");
       return;
     }
+    if (checkoutItems.length === 0) {
+      message.error("결제할 상품이 없습니다");
+      return;
+    }
 
     try {
       // 1. Create order in our database
       const order = await createOrderMutation.mutateAsync({
         userId: user.id,
-        items: items.map((item) => {
+        items: checkoutItems.map((item) => {
           const unit = getUnitPrice(item);
           const livePrice = priceMap.get(item.productId);
-          const product = livePrice != null
-            ? { ...item.product, price: livePrice }
-            : item.product;
+          const product =
+            livePrice != null
+              ? { ...item.product, price: livePrice }
+              : item.product;
           return {
             productId: item.productId,
             product,
@@ -110,7 +144,7 @@ export default function CheckoutPage() {
 
       // 2. Initialize TossPayments
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
-      
+
       // 3. Request payment
       const payment = tossPayments.payment({
         customerKey: user.id,
@@ -125,14 +159,15 @@ export default function CheckoutPage() {
           value: finalTotal,
         },
         orderId: order.orderNumber,
-        orderName: items.length > 1 ? `${items[0].product.name} 외 ${items.length - 1}건` : items[0].product.name,
+        orderName:
+          checkoutItems.length > 1
+            ? `${checkoutItems[0].product.name} 외 ${checkoutItems.length - 1}건`
+            : checkoutItems[0].product.name,
         successUrl: redirectUrl,
         failUrl: redirectUrl,
         customerEmail: user.email,
         customerName: recipient,
       });
-
-      // Clear cart will happen on order-complete page or success
     } catch (error: any) {
       if (error.code === "USER_CANCEL") {
         message.info("결제가 취소되었습니다");
@@ -154,7 +189,9 @@ export default function CheckoutPage() {
           <h3 className="mb-3 text-[15px] font-bold">배송 정보</h3>
           <div className="space-y-2.5">
             <div>
-              <label className="mb-1 block text-xs text-text-secondary">받는 사람</label>
+              <label className="mb-1 block text-xs text-text-secondary">
+                받는 사람
+              </label>
               <Input
                 size="large"
                 placeholder="이름"
@@ -163,7 +200,9 @@ export default function CheckoutPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-text-secondary">연락처</label>
+              <label className="mb-1 block text-xs text-text-secondary">
+                연락처
+              </label>
               <Input
                 size="large"
                 placeholder="010-0000-0000"
@@ -172,9 +211,17 @@ export default function CheckoutPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-text-secondary">배송지</label>
+              <label className="mb-1 block text-xs text-text-secondary">
+                배송지
+              </label>
               <div className="flex gap-2">
-                <Input size="large" placeholder="우편번호" value={zipCode} readOnly className="flex-1" />
+                <Input
+                  size="large"
+                  placeholder="우편번호"
+                  value={zipCode}
+                  readOnly
+                  className="flex-1"
+                />
                 <Button size="large" onClick={handleOpenPostcode}>
                   주소 검색
                 </Button>
@@ -207,7 +254,10 @@ export default function CheckoutPage() {
             <Radio value="standard" className="block">
               <span className="text-sm">일반배송 (2~3일)</span>
               <span className="ml-2 text-xs text-text-secondary">
-                {mounted && (shippingFee === 0 ? "무료" : `₩${formatPrice(shippingFee, mounted)}`)}
+                {mounted &&
+                  (shippingFee === 0
+                    ? "무료"
+                    : `₩${formatPrice(shippingFee, mounted)}`)}
               </span>
             </Radio>
           </Radio.Group>
@@ -215,11 +265,18 @@ export default function CheckoutPage() {
 
         <section className="bg-surface px-3 py-4">
           <h3 className="mb-3 text-[15px] font-bold">주문 상품</h3>
-          {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0">
+          {checkoutItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0"
+            >
               <div className="h-14 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
                 {item.product.imageUrls?.[0] ? (
-                  <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+                  <img
+                    src={item.product.imageUrls[0]}
+                    alt={item.product.name}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <div className="h-full w-full bg-gradient-to-br from-gray-200 to-gray-300" />
                 )}
@@ -230,7 +287,9 @@ export default function CheckoutPage() {
                   {item.color} / {item.size} · {item.quantity}개
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-bold">₩{formatPrice(getUnitPrice(item) * item.quantity, mounted)}</p>
+              <p className="shrink-0 text-sm font-bold">
+                ₩{formatPrice(getUnitPrice(item) * item.quantity, mounted)}
+              </p>
             </div>
           ))}
         </section>
@@ -239,14 +298,18 @@ export default function CheckoutPage() {
           <h3 className="mb-3 text-[15px] font-bold">결제 수단</h3>
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-[#0064FF]/5 px-3 py-2">
             <span className="text-sm font-bold text-[#0064FF]">toss</span>
-            <span className="text-xs text-text-secondary">TossPayments (테스트 모드)</span>
+            <span className="text-xs text-text-secondary">
+              TossPayments (테스트 모드)
+            </span>
           </div>
           <Radio.Group
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
             className="space-y-2"
           >
-            <Radio value="card" className="block text-sm">신용/체크카드</Radio>
+            <Radio value="card" className="block text-sm">
+              신용/체크카드
+            </Radio>
           </Radio.Group>
         </section>
       </div>
@@ -265,7 +328,9 @@ export default function CheckoutPage() {
           onClick={handlePayment}
           style={{ background: "#262626", border: "none" }}
         >
-          {mounted ? `₩${formatPrice(finalTotal, mounted)} 결제하기` : "결제하기"}
+          {mounted
+            ? `₩${formatPrice(finalTotal, mounted)} 결제하기`
+            : "결제하기"}
         </Button>
       </div>
     </div>

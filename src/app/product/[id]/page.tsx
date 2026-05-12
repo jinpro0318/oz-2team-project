@@ -7,6 +7,8 @@ import {
   LeftOutlined,
   PhoneOutlined,
   TruckOutlined,
+  MinusOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import { Star } from "lucide-react";
 import { useProduct } from "@/hooks/useProducts";
@@ -30,6 +32,7 @@ export default function ProductDetailPage() {
   const { data: celebrity } = useCelebrity(product?.celebrityId ?? "");
 
   const [mounted, setMounted] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const addItem = useCartStore((s) => s.addItem);
   const { requireAuth } = useRequireAuth();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -61,7 +64,7 @@ export default function ProductDetailPage() {
 
   const activeColor = selectedColor || product.colors[0]?.name || "";
   const colorData = product.colors.find(c => c.name === activeColor);
-  
+
   // [효진] 선택된 색상에 연결된 이미지가 있으면 우선 노출, 없으면 기본 이미지 노출
   const mainImageUrl = colorData?.imageUrl || product.imageUrls?.[0];
 
@@ -70,8 +73,10 @@ export default function ProductDetailPage() {
       message.warning("사이즈를 선택해주세요");
       return;
     }
-    addItem(product, activeColor, selectedSize);
-    message.success("장바구니에 담았습니다");
+    requireAuth(() => {
+      addItem(product, activeColor, selectedSize, quantity);
+      message.success("장바구니에 담았습니다");
+    });
   };
 
   const handleBuyNow = () => {
@@ -80,8 +85,7 @@ export default function ProductDetailPage() {
       return;
     }
     requireAuth(() => {
-      addItem(product, activeColor, selectedSize);
-      router.push("/cart");
+      router.push(`/checkout?productId=${id}&color=${encodeURIComponent(activeColor)}&size=${encodeURIComponent(selectedSize)}&quantity=${quantity}`);
     });
   };
 
@@ -162,11 +166,10 @@ export default function ProductDetailPage() {
           {product.colors.map((c) => (
             <button
               key={c.name}
-              className={`flex items-center justify-center rounded-lg border px-4 py-2 text-xs transition-all ${
-                activeColor === c.name
-                  ? "border-text border-2 font-bold text-text bg-gray-50"
-                  : "border-border text-text-secondary hover:border-gray-400"
-              }`}
+              className={`flex items-center justify-center rounded-lg border px-4 py-2 text-xs transition-all ${activeColor === c.name
+                ? "border-text border-2 font-bold text-text bg-gray-50"
+                : "border-border text-text-secondary hover:border-gray-400"
+                }`}
               onClick={() => setSelectedColor(c.name)}
             >
               {c.name}
@@ -182,16 +185,38 @@ export default function ProductDetailPage() {
           {product.sizes.map((s) => (
             <button
               key={s}
-              className={`flex min-w-[46px] items-center justify-center rounded-lg border px-2.5 py-2 text-[13px] ${
-                selectedSize === s
-                  ? "border-2 border-text font-bold text-text"
-                  : "border-border text-text-secondary"
-              }`}
+              className={`flex min-w-[46px] items-center justify-center rounded-lg border px-2.5 py-2 text-[13px] ${selectedSize === s
+                ? "border-2 border-text font-bold text-text"
+                : "border-border text-text-secondary"
+                }`}
               onClick={() => setSelectedSize(s)}
             >
               {s}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="border-b border-border px-3 py-3.5">
+        <p className="mb-2.5 text-[13px] font-bold">수량</p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            <button
+              className="flex h-9 w-9 items-center justify-center bg-gray-50 text-text hover:bg-gray-100 transition-colors"
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+            >
+              <MinusOutlined className="text-xs" />
+            </button>
+            <div className="flex h-9 w-12 items-center justify-center bg-white text-[13px] font-bold">
+              {quantity}
+            </div>
+            <button
+              className="flex h-9 w-9 items-center justify-center bg-gray-50 text-text hover:bg-gray-100 transition-colors"
+              onClick={() => setQuantity(quantity + 1)}
+            >
+              <PlusOutlined className="text-xs" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -205,15 +230,15 @@ export default function ProductDetailPage() {
       <div className="border-b border-border px-3 py-3.5">
         <h4 className="mb-2 text-[13px] font-bold">상품 설명</h4>
         <p className="text-[13px] leading-relaxed text-text-secondary whitespace-pre-wrap">{product.description}</p>
-        
+
         {/* [효진] 추가 이미지들을 상세 설명 영역에 순차적으로 노출 */}
         {product.imageUrls && product.imageUrls.length > 1 && (
           <div className="mt-6 space-y-2">
             {product.imageUrls.slice(1).map((url, idx) => (
-              <img 
-                key={idx} 
-                src={url} 
-                alt={`${product.name} detail ${idx + 1}`} 
+              <img
+                key={idx}
+                src={url}
+                alt={`${product.name} detail ${idx + 1}`}
                 className="w-full h-auto rounded-lg"
               />
             ))}
