@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Card, Table, Tag, Button, Space, Spin, Drawer, Popconfirm, Timeline, App, Typography, Select, Modal } from "antd"; // [효진] App, Select, Modal 추가
+import {
+  Card,
+  Table,
+  Tag,
+  Button,
+  Space,
+  Spin,
+  Drawer,
+  Popconfirm,
+  Timeline,
+  App,
+  Typography,
+  Select,
+  Modal,
+} from "antd"; // [효진] App, Select, Modal 추가
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -14,22 +28,30 @@ import {
   EnvironmentOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useAllOrders, useUpdateOrderStatus, useExecuteOrderAction } from "@/hooks/useOrders";
+import {
+  useAllOrders,
+  useUpdateOrderStatus,
+  useExecuteOrderAction,
+} from "@/hooks/useOrders";
 import { useAllProducts } from "@/hooks/useProducts";
 import type { Order, OrderStatus } from "@/types";
 import {
   isFinishedStatus,
   getActiveClaimType,
   isClaimInProgress,
-  generateMOCKTrackingNumber
+  generateMOCKTrackingNumber,
 } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { initShipment } from "@/lib/services/logistics";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, orderBy } from "firebase/firestore";
-
-
+import {
+  doc,
+  onSnapshot,
+  collection,
+  query,
+  orderBy,
+} from "firebase/firestore";
 
 const statusTabs = [
   { key: "all", label: "전체" },
@@ -37,12 +59,26 @@ const statusTabs = [
   { key: "preparing", label: "준비중" },
   { key: "shipping", label: "배송중" },
   { key: "delivered", label: "배송완료" },
-  { key: "purchase_confirmed", label: "판매완료" },
-  { key: "exchange", label: "교환요청", statuses: ["exchange_requested", "returning", "returned", "exchange_completed"], type: "exchange" },
-  { key: "return", label: "반품요청", statuses: ["return_requested", "returning", "returned"], type: "return" },
+  { key: "purchase_confirmed", label: "구매확정" },
+  {
+    key: "exchange",
+    label: "교환요청",
+    statuses: [
+      "exchange_requested",
+      "returning",
+      "returned",
+      "exchange_completed",
+    ],
+    type: "exchange",
+  },
+  {
+    key: "return",
+    label: "반품요청",
+    statuses: ["return_requested", "returning", "returned"],
+    type: "return",
+  },
   { key: "cancelled", label: "취소" },
 ];
-
 
 const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   payment_complete: { label: "결제완료", color: "blue" },
@@ -56,14 +92,14 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   returning: { label: "수거중", color: "volcano" },
   returned: { label: "수거완료", color: "magenta" },
   inspecting: { label: "검수중", color: "gold" },
+  inspection_completed: { label: "반품완료", color: "geekblue" },
+  exchange_preparing: { label: "상품준비", color: "orange" },
   exchange_completed: { label: "교환완료", color: "geekblue" },
   return_completed: { label: "반품완료", color: "gray" },
   purchase_confirmed: { label: "구매확정", color: "green" },
   claim_rejected: { label: "클레임반려", color: "red" },
-  reshipping: { label: "교환재발송", color: "geekblue" }, // [v13.12] 영어 원문 노출 버그 픽스
+  reshipping: { label: "교환재발송", color: "geekblue" },
 };
-
-
 
 const CARRIERS = [
   { label: "CJ대한통운", value: "04" },
@@ -81,14 +117,11 @@ const CARRIERS = [
  * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
  */
 export default function AdminOrdersPage() {
-  return (
-    <AdminOrders />
-  );
+  return <AdminOrders />;
 }
 
-
 function AdminOrders() {
-  const { message, modal } = App.useApp(); 
+  const { message, modal } = App.useApp();
   const [activeTab, setActiveTab] = useState("all");
   const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -98,13 +131,15 @@ function AdminOrders() {
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => {
+      const docs = snap.docs.map((d) => {
         const data = d.data();
         // [중요] 무한 루프 방지를 위해 Timestamp를 ISO 문자열로 변환
-        return { 
-          id: d.id, 
+        return {
+          id: d.id,
           ...data,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt 
+          createdAt: data.createdAt?.toDate
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
         } as Order;
       });
       setOrders(docs);
@@ -112,7 +147,7 @@ function AdminOrders() {
 
       // 현재 열려있는 드로어 데이터도 함께 업데이트
       if (drawerOrder?.id) {
-        const updated = docs.find(o => o.id === drawerOrder.id);
+        const updated = docs.find((o) => o.id === drawerOrder.id);
         if (updated) setDrawerOrder(updated);
       }
     });
@@ -124,15 +159,17 @@ function AdminOrders() {
   const priceMap = buildProductPriceMap(products);
   const computeOrderTotal = (order: Order) =>
     order.items.reduce(
-      (sum, item) => sum + (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
-      0
+      (sum, item) =>
+        sum +
+        (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
+      0,
     );
   const updateStatus = useUpdateOrderStatus();
   const executeAction = useExecuteOrderAction();
 
   const filteredOrders = orders.filter((o) => {
     if (activeTab === "all") return true;
-    
+
     const claimType = getActiveClaimType(o);
     const finished = isFinishedStatus(o.status);
 
@@ -147,18 +184,21 @@ function AdminOrders() {
 
   const tabCounts = useMemo(() => {
     const acc: Record<string, number> = {};
-    statusTabs.forEach(tab => {
+    statusTabs.forEach((tab) => {
       if (tab.key === "all") {
         acc[tab.key] = orders.length;
       } else if (tab.key === "exchange" || tab.key === "return") {
-        acc[tab.key] = orders.filter(o => 
-          getActiveClaimType(o) === tab.key && !isFinishedStatus(o.status)
+        acc[tab.key] = orders.filter(
+          (o) =>
+            getActiveClaimType(o) === tab.key && !isFinishedStatus(o.status),
         ).length;
       } else if (tab.key === "purchase_confirmed") {
-        acc[tab.key] = orders.filter(o => o.status === "purchase_confirmed").length;
+        acc[tab.key] = orders.filter(
+          (o) => o.status === "purchase_confirmed",
+        ).length;
       } else {
-        acc[tab.key] = orders.filter(o => 
-          o.status === tab.key && !isClaimInProgress(o)
+        acc[tab.key] = orders.filter(
+          (o) => o.status === tab.key && !isClaimInProgress(o),
         ).length;
       }
     });
@@ -175,7 +215,7 @@ function AdminOrders() {
         title: "배송 정보 누락",
         content: "택배사, 송장번호를 입력해 주세요.",
         centered: true,
-        okText: "확인"
+        okText: "확인",
       });
       return;
     }
@@ -185,7 +225,7 @@ function AdminOrders() {
         title: "택배사 미선택",
         content: "택배사를 선택하세요.",
         centered: true,
-        okText: "확인"
+        okText: "확인",
       });
       return;
     }
@@ -195,7 +235,7 @@ function AdminOrders() {
         title: "송장번호 미입력",
         content: "송장번호를 입력하세요.",
         centered: true,
-        okText: "확인"
+        okText: "확인",
       });
       return;
     }
@@ -205,7 +245,7 @@ function AdminOrders() {
         id: order.id,
         action: "PREPARE",
         trackingNumber: order.trackingNumber,
-        carrierCode: order.carrierCode
+        carrierCode: order.carrierCode,
       });
       message.success("상품 준비중으로 변경되었습니다.");
     } catch (err: any) {
@@ -238,6 +278,18 @@ function AdminOrders() {
     }
   };
 
+  const handleConfirmPurchase = async (order: Order) => {
+    try {
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "PURCHASE_CONFIRM",
+      });
+      message.success("구매 확정 처리되었습니다.");
+    } catch (err: any) {
+      message.error("구매 확정 실패");
+    }
+  };
+
   const handleReturnPickUp = async (order: Order) => {
     // [v13.9] CLAIM_REQUEST 시점에 이미 수거용 송장(R/EQ)이 발급되었으므로, 여기서 강제 재생성하지 않습니다.
     const claimType = getActiveClaimType(order);
@@ -246,7 +298,9 @@ function AdminOrders() {
         id: order.id,
         action: "RETURN_PICKUP",
       });
-      message.success(`${claimType === "exchange" ? "교환 수거" : "반품 수거"} 지시가 완료되었습니다.`);
+      message.success(
+        `${claimType === "exchange" ? "교환 수거" : "반품 수거"} 지시가 완료되었습니다.`,
+      );
     } catch (err: any) {
       message.error("상태 변경 실패");
     }
@@ -273,6 +327,30 @@ function AdminOrders() {
       message.success("검수 단계로 진입했습니다.");
     } catch (err: any) {
       message.error("검수 시작 실패");
+    }
+  };
+
+  const handleInspectionComplete = async (order: Order) => {
+    try {
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "COMPLETE_INSPECTION" as any,
+      });
+      message.success("검수 완료 처리되었습니다.");
+    } catch (err: any) {
+      message.error("검수 완료 처리 실패");
+    }
+  };
+
+  const handlePrepareReship = async (order: Order) => {
+    try {
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "PREPARE_RESHIP" as any,
+      });
+      message.success("교환 상품 준비 단계로 전환되었습니다.");
+    } catch (err: any) {
+      message.error("상품 준비 전환 실패");
     }
   };
 
@@ -325,7 +403,10 @@ function AdminOrders() {
   };
 
   const handleRejectClaim = async (order: Order) => {
-    const reason = window.prompt("반려 사유를 입력해주세요:", "상품 상태 확인 결과, 교환/반품 사유에 해당하지 않습니다.");
+    const reason = window.prompt(
+      "반려 사유를 입력해주세요:",
+      "상품 상태 확인 결과, 교환/반품 사유에 해당하지 않습니다.",
+    );
     if (!reason) return;
 
     try {
@@ -339,8 +420,11 @@ function AdminOrders() {
           description: `판매자가 클레임을 반려했습니다. 사유: ${reason}`,
         },
       });
-      message.warning("클레임이 반려되어 '클레임 반려' 목록으로 이동되었습니다.");
-      if (drawerOrder?.id === order.id) setDrawerOrder({ ...order, status: "claim_rejected" });
+      message.warning(
+        "클레임이 반려되어 '클레임 반려' 목록으로 이동되었습니다.",
+      );
+      if (drawerOrder?.id === order.id)
+        setDrawerOrder({ ...order, status: "claim_rejected" });
     } catch (err: any) {
       message.error("처리 실패");
     }
@@ -355,7 +439,9 @@ function AdminOrders() {
       key: "orderNumber",
       width: 120,
       render: (v: string) => (
-        <span className="font-mono text-xs font-semibold text-[#181C32]">{v}</span>
+        <span className="font-mono text-xs font-semibold text-[#181C32]">
+          {v}
+        </span>
       ),
     },
     {
@@ -363,35 +449,55 @@ function AdminOrders() {
       key: "trackingInfo",
       width: 240,
       render: (_: unknown, r: Order) => {
-        const isOrderLocked = lockedOrders[r.id] ?? (r.status === 'purchase_confirmed');
+        const isOrderLocked =
+          lockedOrders[r.id] ?? r.status === "purchase_confirmed";
         return (
           <div className="flex flex-col gap-1.5 py-1">
             {/* 택배사 라인 */}
             <div className="flex items-center gap-1">
-              <span className="w-[48px] text-[10px] text-[#7E8299] font-bold whitespace-nowrap">택배사</span>
+              <span className="w-[48px] text-[10px] text-[#7E8299] font-bold whitespace-nowrap">
+                택배사
+              </span>
               <div className="flex items-center gap-1.5">
                 <Select
                   size="small"
                   placeholder="선택"
-                  style={{ width: '145px' }}
+                  style={{ width: "145px" }}
                   value={r.carrierCode || undefined}
                   disabled={isOrderLocked}
                   onChange={async (val) => {
                     try {
-                      const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
-                      
+                      const { CodeFulfillmentEngine } =
+                        await import("@/lib/services/CodeFulfillmentEngine");
+
                       if (val === "MOCK") {
                         // [v11.11] 엔진에게 CODE 로지스틱스 송장 자동 발급 및 문서 생성 의뢰
-                        await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { carrierCode: "MOCK" });
-                        
+                        await CodeFulfillmentEngine.executeAction(
+                          r.id,
+                          "ASSIGN_TRACKING",
+                          { carrierCode: "MOCK" },
+                        );
+
                         modal.info({
-                          title: <div className="text-center w-full font-bold">시뮬레이션 송장 할당</div>,
+                          title: (
+                            <div className="text-center w-full font-bold">
+                              시뮬레이션 송장 할당
+                            </div>
+                          ),
                           content: (
                             <div className="py-4 text-center">
-                              <p className="font-bold text-[#3699FF] text-lg mb-2">MOCK 송장이 생성되었습니다.</p>
+                              <p className="font-bold text-[#3699FF] text-lg mb-2">
+                                MOCK 송장이 생성되었습니다.
+                              </p>
                               <p className="text-sm text-gray-500">
-                                CODE 로지스틱스 시뮬레이션 송장이 임시 할당되었습니다.<br/>
-                                오른쪽의 <b className="text-[#181C32]">['준비중']</b> 버튼을 눌러 물류 엔진을 가동해 주세요.
+                                CODE 로지스틱스 시뮬레이션 송장이 임시
+                                할당되었습니다.
+                                <br />
+                                오른쪽의{" "}
+                                <b className="text-[#181C32]">
+                                  ['준비중']
+                                </b>{" "}
+                                버튼을 눌러 물류 엔진을 가동해 주세요.
                               </p>
                             </div>
                           ),
@@ -402,10 +508,14 @@ function AdminOrders() {
                       }
 
                       // 일반 택배사 수동 선택 시
-                      await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { 
-                        carrierCode: val, 
-                        trackingNumber: r.trackingNumber 
-                      });
+                      await CodeFulfillmentEngine.executeAction(
+                        r.id,
+                        "ASSIGN_TRACKING",
+                        {
+                          carrierCode: val,
+                          trackingNumber: r.trackingNumber,
+                        },
+                      );
                       message.success("택배사가 지정되었습니다.");
                     } catch (err) {
                       console.error("송장 부여 실패:", err);
@@ -417,24 +527,33 @@ function AdminOrders() {
                 <Button
                   size="small"
                   shape="circle"
-                  style={{ 
-                    width: '20px', 
-                    height: '20px', 
-                    minWidth: '20px', 
-                    backgroundColor: '#ff4d4f', 
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    minWidth: "20px",
+                    backgroundColor: "#ff4d4f",
+                    border: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     padding: 0,
-                    cursor: isOrderLocked ? 'not-allowed' : 'pointer',
-                    opacity: isOrderLocked ? 0.5 : 1
+                    cursor: isOrderLocked ? "not-allowed" : "pointer",
+                    opacity: isOrderLocked ? 0.5 : 1,
                   }}
                   disabled={isOrderLocked}
                   onClick={() => {
                     modal.confirm({
-                      title: <div className="text-center w-full font-bold">정보 삭제 확인</div>,
-                      content: <div className="text-center">설정된 택배사 및 송장번호 정보를 모두 제거하시겠습니까?</div>,
+                      title: (
+                        <div className="text-center w-full font-bold">
+                          정보 삭제 확인
+                        </div>
+                      ),
+                      content: (
+                        <div className="text-center">
+                          설정된 택배사 및 송장번호 정보를 모두
+                          제거하시겠습니까?
+                        </div>
+                      ),
                       okText: "삭제",
                       cancelText: "취소",
                       okButtonProps: { danger: true, className: "rounded-md" },
@@ -444,9 +563,15 @@ function AdminOrders() {
                       onOk: async () => {
                         try {
                           // [v11.8] 어드민 UI가 DB를 직접 지우는 월권을 멈추고, 엔진에게 리셋 명령 하달
-                          const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
-                          await CodeFulfillmentEngine.executeAction(r.id, "DELETE_LOGISTICS");
-                          message.success("물류 엔진: 배송 정보 및 DB 문서가 완벽하게 초기화되었습니다.");
+                          const { CodeFulfillmentEngine } =
+                            await import("@/lib/services/CodeFulfillmentEngine");
+                          await CodeFulfillmentEngine.executeAction(
+                            r.id,
+                            "DELETE_LOGISTICS",
+                          );
+                          message.success(
+                            "물류 엔진: 배송 정보 및 DB 문서가 완벽하게 초기화되었습니다.",
+                          );
                         } catch (e) {
                           console.error("물류 리셋 엔진 가동 실패:", e);
                           message.error("물류 초기화 중 오류가 발생했습니다.");
@@ -455,39 +580,63 @@ function AdminOrders() {
                     });
                   }}
                 >
-                  <span style={{ color: 'white', fontSize: '9px', fontWeight: 'bold', lineHeight: 1 }}>del</span>
+                  <span
+                    style={{
+                      color: "white",
+                      fontSize: "9px",
+                      fontWeight: "bold",
+                      lineHeight: 1,
+                    }}
+                  >
+                    del
+                  </span>
                 </Button>
               </div>
             </div>
 
             {/* 송장번호 라인 */}
             <div className="flex items-center gap-1">
-              <span className="w-[48px] text-[10px] text-[#7E8299] font-bold whitespace-nowrap">송장번호</span>
+              <span className="w-[48px] text-[10px] text-[#7E8299] font-bold whitespace-nowrap">
+                송장번호
+              </span>
               <div className="flex items-center gap-1.5">
                 <Typography.Text
-                  editable={isOrderLocked ? false : {
-                    icon: <EditOutlined />,
-                    tooltip: "송장번호 수정",
-                    onChange: async (val) => {
-                      try {
-                        const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
-                        await CodeFulfillmentEngine.executeAction(r.id, "ASSIGN_TRACKING", { 
-                          carrierCode: r.carrierCode || "04", 
-                          trackingNumber: val 
-                        });
-                        message.success("송장번호가 수동으로 입력되었습니다.");
-                      } catch (err) {
-                        console.error("수동 송장 입력 실패:", err);
-                        message.error("송장 번호 저장 중 오류가 발생했습니다.");
-                      }
-                    },
-                  }}
+                  editable={
+                    isOrderLocked
+                      ? false
+                      : {
+                          icon: <EditOutlined />,
+                          tooltip: "송장번호 수정",
+                          onChange: async (val) => {
+                            try {
+                              const { CodeFulfillmentEngine } =
+                                await import("@/lib/services/CodeFulfillmentEngine");
+                              await CodeFulfillmentEngine.executeAction(
+                                r.id,
+                                "ASSIGN_TRACKING",
+                                {
+                                  carrierCode: r.carrierCode || "04",
+                                  trackingNumber: val,
+                                },
+                              );
+                              message.success(
+                                "송장번호가 수동으로 입력되었습니다.",
+                              );
+                            } catch (err) {
+                              console.error("수동 송장 입력 실패:", err);
+                              message.error(
+                                "송장 번호 저장 중 오류가 발생했습니다.",
+                              );
+                            }
+                          },
+                        }
+                  }
                   className="font-mono"
-                  style={{ 
-                    fontSize: "12px", 
+                  style={{
+                    fontSize: "12px",
                     fontWeight: 500,
                     color: isOrderLocked ? "#7E8299" : "#1890ff",
-                    minWidth: '145px'
+                    minWidth: "145px",
                   }}
                 >
                   {r.trackingNumber || "미발급"}
@@ -495,57 +644,92 @@ function AdminOrders() {
                 <Button
                   size="small"
                   shape="circle"
-                  icon={isOrderLocked ? <LockOutlined style={{ fontSize: '10px' }} /> : <UnlockOutlined style={{ fontSize: '10px' }} />}
-                  style={{ 
-                    width: '20px', 
-                    height: '20px', 
-                    minWidth: '20px', 
-                    backgroundColor: isOrderLocked ? '#7E8299' : '#3699FF', 
-                    color: 'white',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0
+                  icon={
+                    isOrderLocked ? (
+                      <LockOutlined style={{ fontSize: "10px" }} />
+                    ) : (
+                      <UnlockOutlined style={{ fontSize: "10px" }} />
+                    )
+                  }
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    minWidth: "20px",
+                    backgroundColor: isOrderLocked ? "#7E8299" : "#3699FF",
+                    color: "white",
+                    border: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
                   }}
                   onClick={() => {
                     const willUnlock = isOrderLocked;
-                    
-                      if (willUnlock && r.status === 'purchase_confirmed') {
-                        modal.confirm({
-                          title: <div className="text-center w-full font-bold text-red-500 text-3xl mb-2">경고</div>,
-                          content: (
-                            <div className="text-center py-4">
-                              <p className="font-bold text-[#111] mb-2 text-lg">해당 주문은 판매완료 된 상품입니다.</p>
-                              <p className="text-sm text-gray-500">택배사, 송장번호를 수정하시겠습니까?</p>
-                            </div>
-                          ),
-                          okText: "편집",
-                          cancelText: "취소",
-                          okButtonProps: { danger: true },
-                          centered: true,
-                          mask: { closable: true },
-                          onOk: () => {
-                            setLockedOrders(prev => ({ ...prev, [r.id]: false }));
-                            modal.success({
-                              title: <div className="text-center w-full font-bold text-xl">권한 해제</div>,
-                              content: <div className="text-center text-gray-600">수정 권한이 해제되었습니다. 신중히 작업해 주세요.</div>,
-                              centered: true,
-                              okText: "확인"
-                            });
-                          }
-                        });
-                        return;
-                      }
+
+                    if (willUnlock && r.status === "purchase_confirmed") {
+                      modal.confirm({
+                        title: (
+                          <div className="text-center w-full font-bold text-red-500 text-3xl mb-2">
+                            경고
+                          </div>
+                        ),
+                        content: (
+                          <div className="text-center py-4">
+                            <p className="font-bold text-[#111] mb-2 text-lg">
+                              해당 주문은 판매완료 된 상품입니다.
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              택배사, 송장번호를 수정하시겠습니까?
+                            </p>
+                          </div>
+                        ),
+                        okText: "편집",
+                        cancelText: "취소",
+                        okButtonProps: { danger: true },
+                        centered: true,
+                        mask: { closable: true },
+                        onOk: () => {
+                          setLockedOrders((prev) => ({
+                            ...prev,
+                            [r.id]: false,
+                          }));
+                          modal.success({
+                            title: (
+                              <div className="text-center w-full font-bold text-xl">
+                                권한 해제
+                              </div>
+                            ),
+                            content: (
+                              <div className="text-center text-gray-600">
+                                수정 권한이 해제되었습니다. 신중히 작업해
+                                주세요.
+                              </div>
+                            ),
+                            centered: true,
+                            okText: "확인",
+                          });
+                        },
+                      });
+                      return;
+                    }
 
                     const newStatus = !isOrderLocked;
-                    setLockedOrders(prev => ({ ...prev, [r.id]: newStatus }));
-                    
+                    setLockedOrders((prev) => ({ ...prev, [r.id]: newStatus }));
+
                     modal.info({
-                      title: <div className="text-center w-full font-bold">권한 변경</div>,
-                      content: <div className="text-center">해당 주문의 수정 권한이 {newStatus ? '잠겼습니다' : '해제되었습니다'}.</div>,
+                      title: (
+                        <div className="text-center w-full font-bold">
+                          권한 변경
+                        </div>
+                      ),
+                      content: (
+                        <div className="text-center">
+                          해당 주문의 수정 권한이{" "}
+                          {newStatus ? "잠겼습니다" : "해제되었습니다"}.
+                        </div>
+                      ),
                       centered: true,
-                      okText: "확인"
+                      okText: "확인",
                     });
                   }}
                 />
@@ -579,7 +763,9 @@ function AdminOrders() {
       key: "amount",
       width: 110,
       render: (_: unknown, r: Order) => (
-        <span className="text-xs font-semibold">₩{computeOrderTotal(r).toLocaleString("ko-KR")}</span>
+        <span className="text-xs font-semibold">
+          ₩{computeOrderTotal(r).toLocaleString("ko-KR")}
+        </span>
       ),
     },
     {
@@ -590,7 +776,9 @@ function AdminOrders() {
       render: (date: any) => {
         return (
           <Space orientation="vertical" size={0}>
-            <span className="text-xs">{dayjs(date).format("YYYY-MM-DD HH:mm")}</span>
+            <span className="text-xs">
+              {dayjs(date).format("YYYY-MM-DD HH:mm")}
+            </span>
           </Space>
         );
       },
@@ -611,7 +799,11 @@ function AdminOrders() {
       width: 170,
       render: (_: unknown, r: Order) => (
         <Space size={4}>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => setDrawerOrder(r)}>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => setDrawerOrder(r)}
+          >
             상세
           </Button>
           {r.status === "payment_complete" && (
@@ -636,49 +828,74 @@ function AdminOrders() {
               출고
             </Button>
           )}
-          {(r.status === "shipping" || r.status === "delivered") && !r.timeline?.some(t => t.status === "exchange_requested") && (
-            <Button
-              size="small"
-              icon={<CheckOutlined />}
-              loading={updateStatus.isPending}
-              disabled={r.status === "delivered" || r.trackingNumber?.startsWith("MOCK-")}
-              onClick={() => handleDeliver(r)}
-              className={(r.status === "delivered" || r.trackingNumber?.startsWith("MOCK-")) ? "" : "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"}
-              title={r.status === "delivered" ? "이미 완료된 주문입니다" : (r.trackingNumber?.startsWith("MOCK-") ? "MOCK 송장은 자동 처리됩니다" : "")}
-            >
-              완료
-            </Button>
-          )}
-          {r.status === "shipping" && r.timeline?.some(t => t.status === "exchange_requested") && (
-            <Button
-              size="small"
-              type="primary"
-              icon={<CheckOutlined />}
-              loading={updateStatus.isPending}
-              onClick={() => handleDeliver(r)}
-            >
-              교환배송완료
-            </Button>
-          )}
-          {r.status === "delivered" && r.timeline?.some(t => t.status === "exchange_requested") && (
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => handleExchangeComplete(r)}
-            >
-              교환완료
-            </Button>
-          )}
-          {r.status === "returned" && r.timeline?.some(t => t.status === "return_requested") && (
-            <Button
-              size="small"
-              danger
-              onClick={() => handleReturnComplete(r)}
-            >
-              반품완료
-            </Button>
-          )}
-          {(r.status === "exchange_requested" || r.status === "return_requested") && (
+          {r.status === "shipping" &&
+            !r.timeline?.some((t) => t.status === "exchange_requested") && (
+              <Button
+                size="small"
+                icon={<CheckOutlined />}
+                loading={updateStatus.isPending}
+                disabled={r.trackingNumber?.startsWith("MOCK-")}
+                onClick={() => handleDeliver(r)}
+                className={
+                  r.trackingNumber?.startsWith("MOCK-")
+                    ? ""
+                    : "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                }
+                title={
+                  r.trackingNumber?.startsWith("MOCK-")
+                    ? "MOCK 송장은 자동 처리됩니다"
+                    : ""
+                }
+              >
+                완료
+              </Button>
+            )}
+          {r.status === "delivered" &&
+            !r.timeline?.some((t) => t.status === "exchange_requested") && (
+              <Button
+                size="small"
+                icon={<CheckOutlined />}
+                loading={updateStatus.isPending}
+                onClick={() => handleConfirmPurchase(r)}
+                className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+              >
+                구매확정
+              </Button>
+            )}
+          {r.status === "shipping" &&
+            r.timeline?.some((t) => t.status === "exchange_requested") && (
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckOutlined />}
+                loading={updateStatus.isPending}
+                onClick={() => handleDeliver(r)}
+              >
+                교환배송완료
+              </Button>
+            )}
+          {r.status === "delivered" &&
+            r.timeline?.some((t) => t.status === "exchange_requested") && (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => handleExchangeComplete(r)}
+              >
+                교환완료
+              </Button>
+            )}
+          {r.status === "returned" &&
+            r.timeline?.some((t) => t.status === "return_requested") && (
+              <Button
+                size="small"
+                danger
+                onClick={() => handleReturnComplete(r)}
+              >
+                반품완료
+              </Button>
+            )}
+          {(r.status === "exchange_requested" ||
+            r.status === "return_requested") && (
             <Space size={4}>
               <Button
                 size="small"
@@ -703,40 +920,64 @@ function AdminOrders() {
             <Button
               size="small"
               icon={<CheckOutlined />}
-              disabled={true}
-              title="실시간 배송 조회가 '수거완료'가 되면 활성화됩니다"
+              loading={executeAction.isPending}
+              onClick={() => handleReturnReceived(r)}
+              className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+              title="클릭 시 즉시 수거완료 상태로 변경합니다"
             >
-              수거 확인 대기중
+              수거완료 처리
             </Button>
           )}
           {r.status === "returned" && (
             <Button
               size="small"
-              icon={r.timeline?.some(t => t.status === "exchange_requested") ? <DownloadOutlined /> : <CheckOutlined />}
-              loading={updateStatus.isPending}
-              onClick={() => r.timeline?.some(t => t.status === "exchange_requested") ? handleStartInspection(r) : handleDeliver(r)}
+              icon={
+                r.timeline?.some((t) => t.status === "exchange_requested") ? (
+                  <DownloadOutlined />
+                ) : (
+                  <CheckOutlined />
+                )
+              }
+              loading={executeAction.isPending}
+              onClick={() =>
+                r.timeline?.some((t) => t.status === "exchange_requested")
+                  ? handleInspectionComplete(r)
+                  : handleDeliver(r)
+              }
               className="bg-blue-50 text-blue-600 border-blue-200"
             >
-              {r.timeline?.some(t => t.status === "exchange_requested") ? "입고/검수 시작" : "반품 완료 처리"}
+              {r.timeline?.some((t) => t.status === "exchange_requested")
+                ? "반품완료 처리"
+                : "반품 완료 처리"}
             </Button>
           )}
-          {r.status === "inspecting" && (
+          {(r.status === "inspecting" ||
+            r.status === "exchange_preparing") && (
             <Button
               size="small"
               type="primary"
               icon={<SendOutlined />}
-              loading={updateStatus.isPending}
+              loading={executeAction.isPending}
               onClick={() => handleReshipItem(r)}
             >
-              교환품 발송
+              {r.status === "exchange_preparing"
+                ? "교환배송 처리"
+                : "교환품 발송"}
+            </Button>
+          )}
+          {r.status === "reshipping" && (
+            <Button
+              size="small"
+              icon={<CheckOutlined />}
+              loading={executeAction.isPending}
+              onClick={() => handleDeliver(r)}
+              className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+            >
+              교환 배송완료 처리
             </Button>
           )}
           {r.status === "cancelled" && (
-            <Button 
-              size="small" 
-              danger 
-              onClick={() => handleCancel(r)}
-            >
+            <Button size="small" danger onClick={() => handleCancel(r)}>
               주문 취소
             </Button>
           )}
@@ -760,11 +1001,19 @@ function AdminOrders() {
     <div>
       <div className="mb-6 flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">주문 관리</h1>
-          <p className="text-sm text-gray-500 mt-1">총 {orders.length}건의 주문이 있습니다.</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            주문 관리
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            총 {orders.length}건의 주문이 있습니다.
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <Button icon={<DownloadOutlined />} size="small" className="text-xs font-medium">
+          <Button
+            icon={<DownloadOutlined />}
+            size="small"
+            className="text-xs font-medium"
+          >
             엑셀 다운로드
           </Button>
         </div>
@@ -776,7 +1025,7 @@ function AdminOrders() {
           {statusTabs.map((tab) => {
             const isActive = activeTab === tab.key;
             let activeBg = "bg-[#3699FF]"; // 기본 파란색
-            
+
             if (["exchange", "return"].includes(tab.key)) {
               activeBg = "bg-[#E67E22]"; // 진한 주황색
             } else if (["claim_rejected", "cancelled"].includes(tab.key)) {
@@ -799,7 +1048,9 @@ function AdminOrders() {
                 {tabCounts[tab.key] > 0 && (
                   <span
                     className={`rounded-full px-1.5 py-0 text-[10px] font-bold ${
-                      isActive ? "bg-white/20 text-white" : "bg-[#E4E6EF] text-[#7E8299]"
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-[#E4E6EF] text-[#7E8299]"
                     }`}
                   >
                     {tabCounts[tab.key]}
@@ -839,17 +1090,26 @@ function AdminOrders() {
         extra={
           drawerOrder && (
             <Space>
-              {(drawerOrder.status === "shipping" || drawerOrder.status === "delivered") && (
+              {drawerOrder.status === "shipping" && (
                 <Button
                   block
                   icon={<CheckOutlined />}
                   loading={updateStatus.isPending}
-                  disabled={drawerOrder.status === "delivered"}
                   onClick={() => handleDeliver(drawerOrder)}
-                  className={drawerOrder.status === "delivered" ? "" : "bg-green-50 text-green-600 border-green-200"}
-                  title={drawerOrder.status === "delivered" ? "이미 완료된 주문입니다" : ""}
+                  className="bg-green-50 text-green-600 border-green-200"
                 >
                   배송완료 처리
+                </Button>
+              )}
+              {drawerOrder.status === "delivered" && (
+                <Button
+                  block
+                  icon={<CheckOutlined />}
+                  loading={updateStatus.isPending}
+                  onClick={() => handleConfirmPurchase(drawerOrder)}
+                  className="bg-blue-50 text-blue-600 border-blue-200"
+                >
+                  구매확정 처리
                 </Button>
               )}
               {drawerOrder.status === "payment_complete" && (
@@ -874,7 +1134,8 @@ function AdminOrders() {
                   출고 처리
                 </Button>
               )}
-              {(drawerOrder.status === "exchange_requested" || drawerOrder.status === "return_requested") && (
+              {(drawerOrder.status === "exchange_requested" ||
+                drawerOrder.status === "return_requested") && (
                 <Space orientation="vertical" className="w-full" size={8}>
                   <Button
                     block
@@ -899,33 +1160,66 @@ function AdminOrders() {
                 <Button
                   block
                   icon={<CheckOutlined />}
-                  disabled={true}
-                  className="bg-gray-50 text-gray-400 border-gray-200"
-                  title="실시간 배송 조회가 '수거완료'가 되면 활성화됩니다"
+                  loading={executeAction.isPending}
+                  onClick={() => handleReturnReceived(drawerOrder)}
+                  className="bg-blue-50 text-blue-600 border-blue-200"
+                  title="클릭 시 즉시 수거완료 상태로 변경합니다"
                 >
-                  수거 확인 대기중
+                  수거완료 처리
                 </Button>
               )}
               {drawerOrder.status === "returned" && (
                 <Button
                   block
-                  icon={drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? <DownloadOutlined /> : <CheckOutlined />}
-                  loading={updateStatus.isPending}
-                  onClick={() => drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? handleStartInspection(drawerOrder) : handleDeliver(drawerOrder)}
+                  icon={
+                    drawerOrder.timeline?.some(
+                      (t) => t.status === "exchange_requested",
+                    ) ? (
+                      <DownloadOutlined />
+                    ) : (
+                      <CheckOutlined />
+                    )
+                  }
+                  loading={executeAction.isPending}
+                  onClick={() =>
+                    drawerOrder.timeline?.some(
+                      (t) => t.status === "exchange_requested",
+                    )
+                      ? handleInspectionComplete(drawerOrder)
+                      : handleDeliver(drawerOrder)
+                  }
                   className="bg-blue-50 text-blue-600 border-blue-200"
                 >
-                  {drawerOrder.timeline?.some(t => t.status === "exchange_requested") ? "입고 확인 / 검수 시작" : "반품 완료 처리"}
+                  {drawerOrder.timeline?.some(
+                    (t) => t.status === "exchange_requested",
+                  )
+                    ? "반품완료 처리"
+                    : "반품 완료 처리"}
                 </Button>
               )}
-              {drawerOrder.status === "inspecting" && (
+              {(drawerOrder.status === "inspecting" ||
+                drawerOrder.status === "exchange_preparing") && (
                 <Button
                   type="primary"
                   block
                   icon={<SendOutlined />}
-                  loading={updateStatus.isPending}
+                  loading={executeAction.isPending}
                   onClick={() => handleReshipItem(drawerOrder)}
                 >
-                  교환 상품 재발송
+                  {drawerOrder.status === "exchange_preparing"
+                    ? "교환배송 처리"
+                    : "교환 상품 재발송"}
+                </Button>
+              )}
+              {drawerOrder.status === "reshipping" && (
+                <Button
+                  block
+                  icon={<CheckOutlined />}
+                  loading={executeAction.isPending}
+                  onClick={() => handleDeliver(drawerOrder)}
+                  className="bg-green-50 text-green-600 border-green-200"
+                >
+                  교환 배송완료 처리
                 </Button>
               )}
             </Space>
@@ -945,23 +1239,34 @@ function AdminOrders() {
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold text-[#181C32]">주문 상품</p>
+              <p className="mb-2 text-xs font-semibold text-[#181C32]">
+                주문 상품
+              </p>
               <div className="space-y-2">
                 {drawerOrder.items.map((item, idx) => {
-                  const lineTotal = (priceMap.get(item.productId) ?? item.product.price) * item.quantity;
+                  const lineTotal =
+                    (priceMap.get(item.productId) ?? item.product.price) *
+                    item.quantity;
                   return (
-                    <div key={idx} className="flex items-center gap-3 rounded-lg border border-[#E4E6EF] p-3">
+                    <div
+                      key={idx}
+                      className="flex items-center gap-3 rounded-lg border border-[#E4E6EF] p-3"
+                    >
                       <div className="h-14 w-11 shrink-0 rounded-md bg-gradient-to-br from-gray-200 to-gray-300" />
                       <div className="flex-1">
                         <p className="text-[10px] font-semibold uppercase text-[#7E8299]">
                           {item.product.brand}
                         </p>
-                        <p className="text-xs font-bold text-[#181C32]">{item.product.name}</p>
+                        <p className="text-xs font-bold text-[#181C32]">
+                          {item.product.name}
+                        </p>
                         <p className="text-[10px] text-[#A8A8A8]">
                           {item.color} / {item.size} / {item.quantity}개
                         </p>
                       </div>
-                      <p className="text-xs font-semibold">₩{lineTotal.toLocaleString("ko-KR")}</p>
+                      <p className="text-xs font-semibold">
+                        ₩{lineTotal.toLocaleString("ko-KR")}
+                      </p>
                     </div>
                   );
                 })}
@@ -970,20 +1275,29 @@ function AdminOrders() {
 
             {/* 배송지 */}
             <div>
-              <p className="mb-2 text-xs font-semibold text-[#181C32]">배송지</p>
+              <p className="mb-2 text-xs font-semibold text-[#181C32]">
+                배송지
+              </p>
               <div className="rounded-lg border border-[#E4E6EF] p-3">
-                <p className="text-xs font-bold text-[#181C32]">{drawerOrder.shippingAddress.recipient}</p>
-                <p className="text-xs text-[#7E8299]">{drawerOrder.shippingAddress.phone}</p>
+                <p className="text-xs font-bold text-[#181C32]">
+                  {drawerOrder.shippingAddress.recipient}
+                </p>
+                <p className="text-xs text-[#7E8299]">
+                  {drawerOrder.shippingAddress.phone}
+                </p>
                 <p className="text-xs text-[#7E8299]">
                   [{drawerOrder.shippingAddress.zipCode}]{" "}
-                  {drawerOrder.shippingAddress.address} {drawerOrder.shippingAddress.addressDetail}
+                  {drawerOrder.shippingAddress.address}{" "}
+                  {drawerOrder.shippingAddress.addressDetail}
                 </p>
               </div>
             </div>
 
             {/* 결제 정보 */}
             <div>
-              <p className="mb-2 text-xs font-semibold text-[#181C32]">결제 정보</p>
+              <p className="mb-2 text-xs font-semibold text-[#181C32]">
+                결제 정보
+              </p>
               <div className="rounded-lg border border-[#E4E6EF] p-3 text-xs">
                 <div className="flex justify-between py-1">
                   <span className="text-[#7E8299]">결제 수단</span>
@@ -991,26 +1305,36 @@ function AdminOrders() {
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-[#7E8299]">배송비</span>
-                  <span>₩{drawerOrder.shippingFee.toLocaleString("ko-KR")}</span>
+                  <span>
+                    ₩{drawerOrder.shippingFee.toLocaleString("ko-KR")}
+                  </span>
                 </div>
                 <div className="flex justify-between border-t border-[#E4E6EF] pt-2 font-bold">
                   <span className="text-[#181C32]">총 결제금액</span>
-                  <span className="text-[#3699FF]">₩{(computeOrderTotal(drawerOrder) + drawerOrder.shippingFee).toLocaleString("ko-KR")}</span>
+                  <span className="text-[#3699FF]">
+                    ₩
+                    {(
+                      computeOrderTotal(drawerOrder) + drawerOrder.shippingFee
+                    ).toLocaleString("ko-KR")}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* 실시간 배송 조회 (관리자용) - 결제완료 이후 모든 유효 상태에서 노출 */}
-            {(drawerOrder.trackingNumber || drawerOrder.status === "payment_complete") ? (
+            {drawerOrder.trackingNumber ||
+            drawerOrder.status === "payment_complete" ? (
               <div>
-                <p className="mb-2 text-xs font-semibold text-[#181C32]">실시간 배송 현황</p>
+                <p className="mb-2 text-xs font-semibold text-[#181C32]">
+                  실시간 배송 현황
+                </p>
                 <div className="rounded-lg border border-[#E4E6EF] p-1">
-                  <DeliveryTracking 
-                    key={drawerOrder.trackingNumber || 'initial'}
+                  <DeliveryTracking
+                    key={drawerOrder.trackingNumber || "initial"}
                     orderId={drawerOrder.orderNumber}
                     documentId={drawerOrder.id}
-                    carrierCode={drawerOrder.carrierCode || 'MOCK'} 
-                    trackingNumber={drawerOrder.trackingNumber || ''}
+                    carrierCode={drawerOrder.carrierCode || "MOCK"}
+                    trackingNumber={drawerOrder.trackingNumber || ""}
                     isAdmin={true}
                     orderStatus={drawerOrder.status}
                   />
@@ -1021,7 +1345,8 @@ function AdminOrders() {
             {/* [v13.17] 주문 이력 섹션 삭제: DeliveryTracking의 상세 로그와 중복되므로 제거 (UX 개선) */}
 
             {/* 취소 버튼 */}
-            {(drawerOrder.status === "payment_complete" || drawerOrder.status === "preparing") && (
+            {(drawerOrder.status === "payment_complete" ||
+              drawerOrder.status === "preparing") && (
               <Popconfirm
                 title="주문을 취소 처리하시겠습니까?"
                 onConfirm={() => handleCancel(drawerOrder)}

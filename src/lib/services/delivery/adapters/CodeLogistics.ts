@@ -2,7 +2,6 @@ import {
   getShipment, 
   createMockShipment, 
   MOCK_STANDARD_PATH, 
-  MOCK_EXCHANGE_PATH, 
   MOCK_RETURN_PATH,
   applyRevealFilter
 } from "../../logistics";
@@ -38,7 +37,7 @@ export class CodeLogistics {
         orderId: orderId,
         senderAddress: "경기 성남시 분당구 판교역로",
         receiverAddress,
-        orderStatus: orderData?.status || "payment_complete"
+        targetStep: 0
       });
     }
 
@@ -47,7 +46,7 @@ export class CodeLogistics {
       shipment = {
         trackingNumber,
         receiverAddress: "서울 강남구 테헤란로",
-        path: MOCK_STANDARD_PATH(createdAt || new Date().toISOString()),
+        path: MOCK_STANDARD_PATH,
         currentStep: 0
       };
     }
@@ -57,7 +56,7 @@ export class CodeLogistics {
     const address = shipment.receiverAddress || "";
     const region = address.split(' ')[1] || address.split(' ')[0] || "서울";
     
-    const enrichedPath = shipment.path.map(step => {
+    const enrichedPath = shipment.path.map((step: any) => {
       if (step.location === "지역 터미널") {
         return { ...step, location: `${region} 터미널` };
       }
@@ -65,10 +64,12 @@ export class CodeLogistics {
     });
 
     // 4. [v10.1] DB의 currentStep을 기준으로 확정된 로그만 필터링 (SSOT 동기화)
-    const currentStep = shipment.currentStep || 0;
+    // [v14.0] 방어: step 값이 경로 배열 길이를 초과하지 않도록 클램핑
+    const rawStep = shipment.currentStep || 0;
+    const currentStep = Math.min(rawStep, enrichedPath.length - 1);
     const revealed = enrichedPath.slice(0, currentStep + 1);
 
-    const history: TrackingHistory[] = revealed.map((step, idx) => ({
+    const history: TrackingHistory[] = revealed.map((step: any, idx: number) => ({
       time: step.estimatedTime || (idx === currentStep ? new Date().toISOString() : ""),
       location: step.location,
       status: step.statusLabel,

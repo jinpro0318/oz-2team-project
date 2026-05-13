@@ -122,6 +122,8 @@ export type OrderStatus =
   | "payment_pending"
   | "claim_rejected"
   | "inspecting"
+  | "inspection_completed"
+  | "exchange_preparing"
   | "reshipping";
 
 

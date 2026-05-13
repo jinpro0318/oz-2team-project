@@ -28,6 +28,10 @@ const statusConfig: Record<OrderStatus, { label: string; icon: string; className
 
   payment_pending: { label: "결제대기", icon: "⏳", className: "text-gray-400" },
   claim_rejected: { label: "클레임 반려", icon: "✕", className: "text-red-500" },
+  inspecting: { label: "검수중", icon: "🔍", className: "text-blue-400" },
+  inspection_completed: { label: "검수완료", icon: "✅", className: "text-blue-500" },
+  exchange_preparing: { label: "상품준비", icon: "📦", className: "text-orange-500" },
+  reshipping: { label: "교환배송", icon: "🚚", className: "text-blue-600" },
 };
 
 

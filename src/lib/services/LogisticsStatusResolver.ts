@@ -1,6 +1,7 @@
 import {
   MOCK_STANDARD_PATH,
-  MOCK_EXCHANGE_PATH,
+  MOCK_EXCHANGE_PICKUP_PATH,
+  MOCK_EXCHANGE_RESHIP_PATH,
   MOCK_RETURN_PATH,
   PathStep,
 } from "./logistics";
@@ -21,13 +22,16 @@ export type OrderActionIntent =
   | "SIMULATE_NEXT"
   | "REVERT_PHASE"
   | "CLAIM_REQUEST"
-  | "START_INSPECTION";
+  | "START_INSPECTION"
+  | "COMPLETE_INSPECTION"
+  | "PREPARE_RESHIP";
 
 export interface ResolvedAction {
-  status?: string;
+  status?: string | null;
   step?: number;
   shouldUpdateShipment: boolean;
-  requiresNewShipment?: "ES" | "EQ" | "none"; // 👈 추가: 교환용 새 송장 발급 필요 여부
+  requiresNewShipment?: "ES" | "EQ" | "none";
+  error?: string; // [v13.20] 정책 위반 시 에러 메시지
 }
 
 export class LogisticsStatusResolver {
@@ -48,15 +52,20 @@ export class LogisticsStatusResolver {
     return_completed: 3, // 3: 판매처 (반품완료)
   };
 
-  // [교환 배송 (E)] 주문 상태 -> 배송 인덱스 매핑
-  static readonly ORDER_TO_EXCHANGE_INDEX: Record<string, number> = {
-    exchange_requested: 0,
-    returning: 1, // 1: 수거지 인근 (수거중)
-    returned: 2, // 2: 수거지 (수거완료)
-    inspecting: 3, // 3: 검수 센터 (검수중 - 현재 시스템에 명시적 상태가 없다면 생략 가능)
-    reshipping: 4, // 4: 분류 센터 (교환배송 - 수동 상태 제어용)
-    exchange_completed: 5, // 5: 고객님 댁 (교환완료)
-    purchase_confirmed: 6, // 6: 주문 종료 (구매확정)
+  // [v13.20] [4+4] 교환 수거 (EQ) 전용 인덱스 매핑
+  static readonly ORDER_TO_EXCHANGE_PICKUP_INDEX: Record<string, number> = {
+    exchange_requested: 0, // 교환접수
+    returning: 1, // 수거중
+    returned: 2, // 수거완료
+    inspection_completed: 3, // 검수완료 (EQ의 마지막)
+  };
+
+  // [v13.20] [4+4] 교환 재발송 (ES) 전용 인덱스 매핑
+  static readonly ORDER_TO_EXCHANGE_RESHIP_INDEX: Record<string, number> = {
+    exchange_preparing: 0, // 상품준비
+    reshipping: 1, // 교환배송
+    exchange_completed: 2, // 배송완료
+    purchase_confirmed: 3, // 구매확정
   };
 
   static readonly STANDARD_STEPS = [
@@ -73,15 +82,30 @@ export class LogisticsStatusResolver {
     { title: "배송완료" },
   ];
 
-  static readonly EXCHANGE_STEPS = [
-    { title: "교환접수" }, // 수정됨: 반품접수 -> 교환접수
-    { title: "수거중" },
-    { title: "수거완료" },
-    { title: "검수중" },
-    { title: "교환배송" },
-    { title: "배송완료" },
-    { title: "구매확정" }, // 7단계 추가
-  ];
+  /**
+   * [v13.20] 송장 번호가 시뮬레이션(Mock)용인지 판별합니다.
+   */
+  static isMockTracking(trackingNumber: string | null | undefined): boolean {
+    return !!trackingNumber && trackingNumber.startsWith("MOCK-");
+  }
+
+  /**
+   * [v13.20] 4+4 Phase Finalization: 송장 타입별 도달 가능한 최대 단계(Step)를 반환합니다.
+   */
+  static getMaxStepForType(shipmentType: "S" | "R" | "EQ" | "ES"): number {
+    switch (shipmentType) {
+      case "EQ":
+        return 3; // 검수완료까지만 허용
+      case "R":
+        return 3; // 반품완료까지만 허용
+      case "ES":
+        return 3; // 구매확정까지 허용
+      case "S":
+        return 4; // 구매확정까지 허용
+      default:
+        return 4;
+    }
+  }
 
   /**
    * 주문 상태와 배송 타입을 받아, 가장 알맞은 배송 인덱스(currentStep)를 반환합니다.
@@ -97,12 +121,12 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return this.ORDER_TO_RETURN_INDEX[orderStatus] ?? 0;
     }
-    if (
-      shipmentType === "EQ" ||
-      shipmentType === "ES" ||
-      shipmentType === "E"
-    ) {
-      return this.ORDER_TO_EXCHANGE_INDEX[orderStatus] ?? 0;
+    // [v13.20] 4+4: EQ와 ES를 각각 전용 인덱스로 분리
+    if (shipmentType === "EQ") {
+      return this.ORDER_TO_EXCHANGE_PICKUP_INDEX[orderStatus] ?? 0;
+    }
+    if (shipmentType === "ES") {
+      return this.ORDER_TO_EXCHANGE_RESHIP_INDEX[orderStatus] ?? 0;
     }
     return 0;
   }
@@ -117,12 +141,12 @@ export class LogisticsStatusResolver {
     if (shipmentType === "R") {
       return MOCK_RETURN_PATH.map((p) => ({ title: p.statusLabel }));
     }
-    if (
-      shipmentType === "EQ" ||
-      shipmentType === "ES" ||
-      shipmentType === "E"
-    ) {
-      return MOCK_EXCHANGE_PATH.map((p) => ({ title: p.statusLabel }));
+    // [v13.20] 4+4: EQ와 ES를 각각 전용 경로에서 라벨을 생성
+    if (shipmentType === "EQ") {
+      return MOCK_EXCHANGE_PICKUP_PATH.map((p) => ({ title: p.statusLabel }));
+    }
+    if (shipmentType === "ES") {
+      return MOCK_EXCHANGE_RESHIP_PATH.map((p) => ({ title: p.statusLabel }));
     }
     // 기본(Standard) 및 'none'
     return MOCK_STANDARD_PATH.map((p) => ({ title: p.statusLabel }));
@@ -148,8 +172,8 @@ export class LogisticsStatusResolver {
   ): string {
     let path: PathStep[] = MOCK_STANDARD_PATH;
     if (shipmentType === "R") path = MOCK_RETURN_PATH;
-    if (shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "E")
-      path = MOCK_EXCHANGE_PATH;
+    if (shipmentType === "EQ") path = MOCK_EXCHANGE_PICKUP_PATH;
+    if (shipmentType === "ES") path = MOCK_EXCHANGE_RESHIP_PATH;
 
     return path[index]?.status || "shipping";
   }
@@ -161,7 +185,20 @@ export class LogisticsStatusResolver {
     intent: OrderActionIntent,
     currentStep: number,
     shipmentType: "S" | "R" | "EQ" | "ES",
+    trackingNumber?: string, // [v13.20] 신분 확인용
   ): ResolvedAction {
+    // [v13.20] 리얼 모드 보호 가드: Mock이 아닌 경우 시뮬레이션 명령 차단
+    const isMock = !trackingNumber || this.isMockTracking(trackingNumber);
+    if ((intent === "SIMULATE_NEXT" || intent === "REVERT_PHASE") && !isMock) {
+      console.warn(
+        `[Policy] 리얼 모드(${trackingNumber})에서 시뮬레이션 명령(${intent}) 차단`,
+      );
+      return {
+        shouldUpdateShipment: false,
+        error: "리얼 모드에서는 자동 전이를 사용할 수 없습니다.",
+      };
+    }
+
     switch (intent) {
       case "PAYMENT_DONE":
         // [v11.1] 결제 완료 시 0단계로 초기화하되, 송장은 굽지 않음(shouldUpdateShipment: false)
@@ -183,14 +220,16 @@ export class LogisticsStatusResolver {
       case "PREPARE":
         return { status: "preparing", step: 1, shouldUpdateShipment: true };
       case "DISPATCH":
-        if (shipmentType === "ES" || shipmentType === "EQ")
-          return { status: "reshipping", step: 4, shouldUpdateShipment: true };
+        if (shipmentType === "ES")
+          return { status: "reshipping", step: 1, shouldUpdateShipment: true };
+        if (shipmentType === "EQ")
+          return { status: "returning", step: 1, shouldUpdateShipment: true };
         return { status: "shipping", step: 2, shouldUpdateShipment: true };
       case "DELIVER":
         if (shipmentType === "ES")
           return {
-            status: "exchange_completed",
-            step: 5,
+            status: "delivered",
+            step: 2,
             shouldUpdateShipment: true,
           };
         if (shipmentType === "EQ")
@@ -212,10 +251,23 @@ export class LogisticsStatusResolver {
         return { status: "returned", step: 2, shouldUpdateShipment: true };
       case "START_INSPECTION":
         return { status: "inspecting", step: 3, shouldUpdateShipment: true };
+      case "COMPLETE_INSPECTION":
+        return {
+          status: "inspection_completed",
+          step: 3,
+          shouldUpdateShipment: true,
+        };
+      case "PREPARE_RESHIP":
+        return {
+          status: "exchange_preparing",
+          step: 0,
+          shouldUpdateShipment: true,
+          requiresNewShipment: "ES",
+        };
       case "RESHIP_ITEM":
         return {
           status: "reshipping",
-          step: 4,
+          step: 1,
           shouldUpdateShipment: true,
           // [v13.7] 현재 타입이 수거(EQ)인 경우에만 새 송장 발급 트리거
           requiresNewShipment: shipmentType === "EQ" ? "ES" : "none",
@@ -223,17 +275,15 @@ export class LogisticsStatusResolver {
       case "EXCHANGE_DONE":
         return {
           status: "exchange_completed",
-          step: 5,
+          step: 3,
           shouldUpdateShipment: true,
         };
       case "PURCHASE_CONFIRM":
         // [v12.5] 구매 확정 시 타임라인의 마지막 노드(구매확정)까지 모두 활성화하도록 강제 동기화
         const lastStep =
-          shipmentType === "EQ" || shipmentType === "ES"
-            ? 6
-            : shipmentType === "R"
-              ? 3
-              : 4;
+          shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "R"
+            ? 3
+            : 4;
         return {
           status: "purchase_confirmed",
           step: lastStep,
@@ -243,11 +293,29 @@ export class LogisticsStatusResolver {
         return { status: "claim_rejected", shouldUpdateShipment: false };
 
       case "SIMULATE_NEXT": {
+        // [v14.2] 교환 수거(EQ)가 step 3(검수완료)에 도달하면 시뮬레이션 정지
+        // 관리자가 수동으로 PREPARE_RESHIP을 실행해야 다음 페이즈(ES)로 넘어감
+        if (shipmentType === "EQ" && currentStep >= 3) {
+          console.log(
+            "[Policy] 교환 회수 완료 → 시뮬레이션 정지 (관리자 수동 전환 대기)",
+          );
+          return { shouldUpdateShipment: false };
+        }
+
         const nextStep = currentStep + 1;
+        const maxStep = this.getMaxStepForType(shipmentType);
+
+        // [v13.20] 단계별 종료(Phase Finalization): 최대 단계 도달 시 시뮬레이션 정지
+        if (nextStep > maxStep) {
+          console.log(
+            `[Policy] 송장(${shipmentType}) 최대 단계(${maxStep}) 도달, 전진 정지`,
+          );
+          return { shouldUpdateShipment: false };
+        }
+
         const nextStatus = this.getStatusFromIndex(nextStep, shipmentType);
 
         // [v13.7] 정밀 제어: 수거 송장(EQ)일 때만 재발송 송장(ES) 발급을 허용합니다.
-        // 반품(R)이나 일반 배송(S) 완료 단계에서 송장이 새로 발급되는 심각한 오류를 방지합니다.
         const requiresNewShipment =
           shipmentType === "EQ" && nextStep === 4 ? "ES" : "none";
 
@@ -285,8 +353,10 @@ export class LogisticsStatusResolver {
   ): string | undefined {
     let mapping: Record<string, number>;
     if (shipmentType === "R") mapping = this.ORDER_TO_RETURN_INDEX;
-    else if (shipmentType === "EQ" || shipmentType === "ES")
-      mapping = this.ORDER_TO_EXCHANGE_INDEX;
+    else if (shipmentType === "EQ")
+      mapping = this.ORDER_TO_EXCHANGE_PICKUP_INDEX;
+    else if (shipmentType === "ES")
+      mapping = this.ORDER_TO_EXCHANGE_RESHIP_INDEX;
     else mapping = this.ORDER_TO_STANDARD_INDEX;
 
     // value(index)를 통해 key(status)를 찾습니다.

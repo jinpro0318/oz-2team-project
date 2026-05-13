@@ -28,21 +28,23 @@ export default function OrderDetailPage() {
   const [stepperData, setStepperData] = useState<{
     current: number;
     steps: any[];
+    type?: string;
   } | null>(null);
 
   // [v9.1] 콜백 안정화: 무한 루프 방지 핵심 로직
   const handleStatusChange = useCallback(
-    (status: string, extra?: { current: number; steps: any[] }) => {
+    (status: string, extra?: { current: number; steps: any[]; type?: string }) => {
       if (extra) {
         setStepperData((prev) => {
           // 불필요한 상태 업데이트 방지 (값 비교)
           if (
             prev?.current === extra.current &&
-            prev?.steps.length === extra.steps.length
+            prev?.steps.length === extra.steps.length &&
+            prev?.type === extra.type
           ) {
             return prev;
           }
-          return { current: extra.current, steps: extra.steps };
+          return { current: extra.current, steps: extra.steps, type: extra.type };
         });
       }
     },
@@ -80,22 +82,42 @@ export default function OrderDetailPage() {
     ["exchange_requested", "return_requested"].includes(order.status) &&
     !order.timeline?.some((t) => t.status === "returning");
 
-  // [v10.1] 공용 정책 모듈(LogisticsStatusResolver)을 통한 단일 진실의 샘 로직
-  const shipmentType = claimType === "return" ? "R" : (claimType === "exchange" ? "E" : "S");
-  
+  // [v14.0] 4+4 Phase Finalization: 교환 시 7단계 레거시(E)를 제거하고 현재 페이즈(EQ/ES)를 자동 판별합니다.
+  const isReshipping = [
+    "exchange_preparing",
+    "reshipping",
+    "exchange_completed",
+  ].includes(order.status);
+  const shipmentType =
+    claimType === "return"
+      ? "R"
+      : claimType === "exchange"
+        ? isReshipping
+          ? "ES"
+          : "EQ"
+        : "S";
+
   // 1. [v12.5 복원] 하단 물류 엔진의 실시간 계산 결과(stepperData)를 1순위로 반영하여 "순간이동" 등 지능형 복구를 수용합니다.
-  let currentStep = stepperData?.current ?? LogisticsStatusResolver.getTargetIndex(order.status, shipmentType);
-  
+  const activeShipmentType = stepperData?.type || shipmentType;
+  let currentStep =
+    stepperData?.current ??
+    LogisticsStatusResolver.getTargetIndex(order.status, activeShipmentType);
+
   // 2. UI용 스텝 리스트 (물류 엔진 컴포넌트가 보내준 동적 스텝 우선 반영)
-  const displaySteps = stepperData?.steps && stepperData.steps.length > 0 
-    ? stepperData.steps 
-    : LogisticsStatusResolver.getUISteps(shipmentType);
+  const displaySteps =
+    stepperData?.steps && stepperData.steps.length > 0
+      ? stepperData.steps
+      : LogisticsStatusResolver.getUISteps(activeShipmentType);
 
   // 3. [v12.8] 모듈 상태 동기화: 하단 버튼들도 DB의 정적 상태(order.status)가 아닌, 실시간 통합 엔진 상태(currentStep)를 따르도록 역산출
   // (단, claim_rejected 같은 특수 상태는 원본 order.status를 보존합니다)
-  const engineStatus = order.status === "claim_rejected" 
-    ? "claim_rejected" 
-    : (LogisticsStatusResolver.getStatusFromIndex(currentStep, shipmentType) || order.status);
+  const engineStatus =
+    order.status === "claim_rejected"
+      ? "claim_rejected"
+      : LogisticsStatusResolver.getStatusFromIndex(
+          currentStep,
+          activeShipmentType,
+        ) || order.status;
 
   // [추가] 반려 사유 추출
   const rejectionReason = order.timeline?.find(
@@ -252,20 +274,23 @@ export default function OrderDetailPage() {
 
       <div className="bg-surface px-3 py-4 space-y-2">
         {/* [v13.13] 주문 취소: 결제완료/준비중이면서 클레임이 없을 때만 가능 */}
-        {!claimType && (engineStatus === "payment_complete" || engineStatus === "preparing") && (
-          <Button
-            block
-            danger
-            onClick={() => router.push(`/orders/${order.id}/cancel`)}
-          >
-            주문 취소 신청
-          </Button>
-        )}
+        {!claimType &&
+          (engineStatus === "payment_complete" ||
+            engineStatus === "preparing") && (
+            <Button
+              block
+              danger
+              onClick={() => router.push(`/orders/${order.id}/cancel`)}
+            >
+              주문 취소 신청
+            </Button>
+          )}
 
-        {/* [v13.13] 구매 결정: (배송완료 + 클레임없음) OR (교환완료) OR (반려됨) 일 때 노출 */}
-        {((engineStatus === "delivered" && !claimType) ||
+        {/* [v13.13] 구매 결정: (배송완료+클레임없음) OR 교환완료(DB/실시간) OR 반려됨 일 때 노출 */}
+        {((order.status === "delivered" && !claimType) ||
+          order.status === "exchange_completed" ||
           engineStatus === "exchange_completed" ||
-          engineStatus === "claim_rejected") && (
+          order.status === "claim_rejected") && (
           <Button
             block
             type="primary"
@@ -276,8 +301,10 @@ export default function OrderDetailPage() {
           </Button>
         )}
 
-        {/* [v13.16] 교환/반품 신청: 첫 배송완료(클레임없음) 또는 교환완료 상태일 때 노출 (재교환/재반품 허용) */}
-        {((engineStatus === "delivered" && !claimType) || engineStatus === "exchange_completed") && (
+        {/* [v13.16] 교환/반품 신청: (배송완료+클레임없음) OR 교환완료(DB/실시간) 일 때 노출 */}
+        {((order.status === "delivered" && !claimType) ||
+          order.status === "exchange_completed" ||
+          engineStatus === "exchange_completed") && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청
           </Button>

@@ -43,15 +43,22 @@ export const MOCK_STANDARD_PATH: PathStep[] = [
   { location: "주문 종료", status: "purchase_confirmed", statusLabel: "구매확정", message: "구매가 확정되어 거래가 종료되었습니다.", estimatedTime: "", condition: "normal" }
 ];
 
-// [v9.30] 마스터 교환 배송 경로 (7단계 정석)
-export const MOCK_EXCHANGE_PATH: PathStep[] = [
-  { location: "고객님 자택", status: "pickup_pending", statusLabel: "교환접수", message: "교환을 위한 상품 회수 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
+
+
+// [v13.20] 4+4 Phase Finalization: 교환 수거 경로 (EQ 전용 - 4단계)
+export const MOCK_EXCHANGE_PICKUP_PATH: PathStep[] = [
+  { location: "고객님 자택", status: "exchange_requested", statusLabel: "교환접수", message: "교환을 위한 상품 회수 접수가 완료되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지 인근", status: "returning", statusLabel: "수거중", message: "기사님이 교환 상품 수거를 위해 방문 예정입니다.", estimatedTime: "", condition: "normal" },
   { location: "수거지", status: "returned", statusLabel: "수거완료", message: "회수 상품의 수거가 완료되어 검수 센터로 입고 중입니다.", estimatedTime: "", condition: "normal" },
-  { location: "검수 센터", status: "inspecting", statusLabel: "검수중", message: "회수된 상품의 상태를 정밀 확인 중입니다.", estimatedTime: "", condition: "normal" },
-  { location: "분류 센터", status: "reshipping", statusLabel: "교환배송", message: "검수 완료 후 새 상품이 고객님께 재발송되었습니다.", estimatedTime: "", condition: "normal" },
+  { location: "검수 센터", status: "inspection_completed", statusLabel: "검수완료", message: "회수된 상품의 상태 확인이 완료되었습니다.", estimatedTime: "", condition: "normal" },
+];
+
+// [v13.20] 4+4 Phase Finalization: 교환 재발송 경로 (ES 전용 - 4단계)
+export const MOCK_EXCHANGE_RESHIP_PATH: PathStep[] = [
+  { location: "판매처 창고", status: "exchange_preparing", statusLabel: "상품준비", message: "검수 완료 후 새 상품을 포장하고 있습니다.", estimatedTime: "", condition: "normal" },
+  { location: "분류 센터", status: "reshipping", statusLabel: "교환배송", message: "새 상품이 고객님께 재발송되었습니다.", estimatedTime: "", condition: "normal" },
   { location: "고객님 댁", status: "exchange_completed", statusLabel: "배송완료", message: "교환 상품 배송이 최종 완료되었습니다.", estimatedTime: "", condition: "normal" },
-  { location: "주문 종료", status: "purchase_confirmed", statusLabel: "구매확정", message: "교환 거래가 최종 종료되었습니다. 이용해주셔서 감사합니다.", estimatedTime: "", condition: "normal" }
+  { location: "주문 종료", status: "purchase_confirmed", statusLabel: "구매확정", message: "교환 거래가 최종 종료되었습니다. 이용해주셔서 감사합니다.", estimatedTime: "", condition: "normal" },
 ];
 
 // [v9.30] 마스터 반품 수거 경로 (4단계)
@@ -190,9 +197,11 @@ export async function createMockShipment(params: {
   const now = new Date();
   const type = params.shipmentType || getShipmentTypeFromTracking(params.trackingNumber);
   
+  // [v13.20] 4+4 Phase Finalization: 송장 타입별 전용 경로 할당
   let basePath = MOCK_STANDARD_PATH;
   if (type === "R") basePath = MOCK_RETURN_PATH;
-  if (type === "EQ" || type === "ES") basePath = MOCK_EXCHANGE_PATH;
+  if (type === "EQ") basePath = MOCK_EXCHANGE_PICKUP_PATH;
+  if (type === "ES") basePath = MOCK_EXCHANGE_RESHIP_PATH;
 
   const { LogisticsStatusResolver } = await import("./LogisticsStatusResolver");
   const initialStatus = LogisticsStatusResolver.getShipmentStatusForIndex(params.targetStep, type);
@@ -235,9 +244,13 @@ export async function createMockShipment(params: {
         newMessage = `${p.message} (담당: ${driverInfo.name} 기사님, ${driverInfo.vehicle}, ${driverInfo.phone})`;
     }
 
-    // 시간 계산
+    // [v13.20] 리얼 모드 보호 가드: MOCK이 아닌 경우 가상 타임스탬프를 생성하지 않음
     let estTime = new Date(now.getTime());
-    if (idx <= params.targetStep) {
+    const isMock = params.carrierCode === "MOCK" || params.trackingNumber.startsWith("MOCK-");
+    if (!isMock) {
+        // 리얼 모드: 타임스탬프를 현재 시각으로 고정 (시뮬레이션 비활성화)
+        estTime = new Date(now.getTime());
+    } else if (idx <= params.targetStep) {
         estTime = new Date(now.getTime() - (params.targetStep - idx) * 3600000); 
     } else {
         estTime = new Date(now.getTime() + ((idx - params.targetStep) * 4 + scenario.delayHours) * 3600000);

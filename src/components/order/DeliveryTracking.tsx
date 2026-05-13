@@ -12,7 +12,10 @@ import {
 } from "firebase/firestore";
 import dayjs from "dayjs";
 import { deliveryService } from "@/lib/services/delivery";
-import { getShipmentsByOrder } from "@/lib/services/logistics";
+import {
+  getShipmentsByOrder,
+  getShipmentTypeFromTracking,
+} from "@/lib/services/logistics";
 import { useExecuteOrderAction } from "@/hooks/useOrders";
 import { LogisticsStatusResolver } from "@/lib/services/LogisticsStatusResolver";
 
@@ -204,7 +207,16 @@ export default function DeliveryTracking({
           // 최종적으로 노출될 스텝은 엔진이 지정한 currentStep과 시간 기반 computedStep 중 큰 값
           let effectiveStep = Math.max(currentStep, computedStep);
 
-          // [v13.10] 기존 일반 송장(MOCK-S)의 가상화 로직 제거
+          // [v13.20] Phase Finalization: 송장 타입별 최대 단계를 초과하지 못하도록 안전 캡 적용
+          const detectedType =
+            shipData.type || getShipmentTypeFromTracking(activeTrackingNumber);
+          const maxAllowedStep =
+            LogisticsStatusResolver.getMaxStepForType(detectedType);
+          effectiveStep = Math.min(
+            effectiveStep,
+            maxAllowedStep,
+            path.length - 1,
+          ); // [v13.10] 기존 일반 송장(MOCK-S)의 가상화 로직 제거
           // 사용자가 S 송장 탭을 명시적으로 눌렀다면, 원래의 '배송 완료' 이력을 그대로 보여주어야 합니다.
 
           // [v13.14] UI 클린업: 아직 진행되지 않은 미래의 단계들은 리스트에서 제외합니다. (사용자 요청)
@@ -259,13 +271,12 @@ export default function DeliveryTracking({
             // [v13.11] 명시적인 탭(송장) 선택 존중: metadata(claimType)보다 현재 활성화된 송장의 접두어를 우선합니다.
             let virtualType = shipData.type || "S";
             if (activeTrackingNumber.startsWith("MOCK-R")) virtualType = "R";
-            else if (
-              activeTrackingNumber.startsWith("MOCK-EQ") ||
-              activeTrackingNumber.startsWith("MOCK-ES")
-            )
+            else if (activeTrackingNumber.startsWith("MOCK-ES"))
+              virtualType = "ES";
+            else if (activeTrackingNumber.startsWith("MOCK-EQ"))
               virtualType = "EQ";
             else if (activeTrackingNumber.startsWith("MOCK-S"))
-              virtualType = "S"; // S탭이면 강제로 S 유지
+              virtualType = "S";
 
             const uiSteps = LogisticsStatusResolver.getUISteps(
               virtualType as any,
@@ -274,6 +285,7 @@ export default function DeliveryTracking({
             onStatusChange(result.status, {
               current: effectiveStep,
               steps: uiSteps,
+              type: virtualType,
             });
           }
           setLoading(false);
@@ -375,7 +387,19 @@ export default function DeliveryTracking({
             orderStatus === "return_completed" ||
             activeTrackingNumber?.startsWith("MOCK-R");
 
-          if (isExchange) {
+          const isS = activeTrackingNumber?.startsWith("MOCK-S");
+          const isEQ =
+            activeTrackingNumber?.startsWith("MOCK-EQ") ||
+            activeTrackingNumber?.startsWith("MOCK-ES");
+          const isR = activeTrackingNumber?.startsWith("MOCK-R");
+
+          if (isS) {
+            isActive = tab.type === "배송";
+          } else if (isEQ) {
+            isActive = tab.type === "교환";
+          } else if (isR) {
+            isActive = tab.type === "반품";
+          } else if (isExchange) {
             isActive = tab.type === "교환";
           } else if (isReturn) {
             isActive = tab.type === "반품";
@@ -587,8 +611,10 @@ export default function DeliveryTracking({
               const currentStep = rawShipment?.currentStep || 0;
               const isAtStart = currentStep === 0;
               const isAtEnd = pathLength > 0 && currentStep >= pathLength - 1;
+              const isEQShipment = activeTrackingNumber?.startsWith("MOCK-EQ");
               const isTerminal =
-                isAtEnd || rawShipment?.status === "purchase_confirmed";
+                (isAtEnd && !isEQShipment) ||
+                rawShipment?.status === "purchase_confirmed";
 
               return (
                 <div className="mt-4 flex justify-center gap-3 pb-2 w-full">
