@@ -85,6 +85,7 @@ export interface User {
   addresses: Address[];
   createdAt: string;
   role: "user" | "admin";
+  points?: number;
   lastCheckedOrders?: string;
   lastCheckedWishlist?: string;
   isEmailProtected?: boolean;

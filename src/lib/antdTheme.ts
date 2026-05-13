@@ -14,6 +14,8 @@ export const antdTheme: ThemeConfig = {
     fontFamily: "'Instrument Sans', 'Noto Sans KR', system-ui, sans-serif",
     borderRadius: 4,
     fontSize: 14,
+    motionDurationMid: "0.4s",
+    motionDurationSlow: "0.5s",
   },
   components: {
     Button: {

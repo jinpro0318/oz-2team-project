@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { App } from "antd";
+import { App, Drawer } from "antd";
 import { useAuthStore } from "@/stores/authStore";
 import { updateUserProfile } from "@/lib/services/user";
 import { deleteAccount } from "@/lib/auth";
@@ -12,6 +12,8 @@ import AddressAddSheet from "@/components/mypage/AddressAddSheet";
 import Avatar from "@/components/common/Avatar";
 import { useUIStore } from "@/stores/uiStore";
 import { uploadImage } from "@/lib/services/upload";
+import { useOrders } from "@/hooks/useOrders";
+import { useWishlist } from "@/hooks/useWishlist";
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -32,6 +34,14 @@ export default function ProfileEditPage() {
   // 배송지 추가/수정 바텀시트 관련
   const [showAddressSheet, setShowAddressSheet] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null); // [v13.34] 수정할 주소 데이터 저장
+  
+  // 데이터 동기화 (주문, 찜)
+  const { data: orders } = useOrders();
+  const { items: wishlistItems } = useWishlist();
+  
+  const ordersCount = orders?.length ?? 0;
+  const wishlistCount = wishlistItems.length;
+  const userPoints = user?.points ?? 0;
 
   useEffect(() => {
     setMounted(true);
@@ -189,7 +199,7 @@ export default function ProfileEditPage() {
   const username = user.email.split("@")[0];
 
   return (
-    <div className="flex flex-col bg-surface min-h-screen pb-[60px]">
+    <div className="flex flex-col bg-surface flex-1 pb-[60px]">
       {/* Top Bar (G-3 Style) */}
       <div className="sticky top-0 z-10 flex h-[50px] items-center border-b border-border bg-surface px-3">
         <div 
@@ -406,77 +416,89 @@ export default function ProfileEditPage() {
         </svg>
       </div>
 
-      {/* Delete Account Bottom Sheet (G-4 Style) */}
-      {showDeleteSheet && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity"
-            onClick={() => setShowDeleteSheet(false)}
-          />
-          <div className="relative w-full max-w-[390px] rounded-t-[20px] bg-surface shadow-[0_-8px_30px_rgb(0,0,0,0.12)] animate-in slide-in-from-bottom duration-300 translate-y-[10px]">
-            {/* Drag Handle */}
-            <div className="flex justify-center py-3">
-              <div className="h-1 w-9 rounded-full bg-border" />
+      {/* Delete Account Bottom Sheet (Consistent with LoginPromptSheet) */}
+      <Drawer
+        open={showDeleteSheet}
+        onClose={() => setShowDeleteSheet(false)}
+        placement="bottom"
+        closable={false}
+        getContainer={false}
+        styles={{
+          wrapper: { 
+            height: "auto",
+            width: "calc(100% + 2px)",
+            marginLeft: "-1px",
+            position: "absolute",
+            bottom: 0,
+          },
+          section: {
+            borderRadius: "20px 20px 0 0",
+            overflow: "hidden"
+          },
+          body: { padding: 0 },
+        }}
+      >
+        <div className="flex flex-col items-center px-5 pb-10 pt-2">
+          {/* Drag Handle */}
+          <div className="flex justify-center py-3">
+            <div className="h-1 w-9 rounded-full bg-border" />
+          </div>
+
+          {/* Trash Icon */}
+          <div className="mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-red-50">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-[#ED4956] stroke-[2px]">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </div>
+          
+          <h2 className="mb-1 text-[18px] font-bold text-text">계정 탈퇴</h2>
+          <p className="mb-4 text-center text-[13px] leading-relaxed text-text-secondary">
+            탈퇴 시 주문 내역, 찜 목록이<br />
+            <span className="font-bold text-[#ED4956]">영구 삭제</span>되며 복구할 수 없어요.
+          </p>
+
+          {/* Data Loss Summary (Real Data Synced) */}
+          <div className="mb-5 w-full rounded-xl border border-red-100 bg-red-50/30 p-3.5 space-y-1.5 text-left">
+            <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
+              <span>✕</span> <span>주문 내역 {ordersCount}건</span>
             </div>
-            
-            <div className="flex flex-col items-center px-5 pb-10 pt-2">
-              {/* Trash Icon */}
-              <div className="mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-red-50">
-                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-[#ED4956] stroke-[2px]">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                </svg>
-              </div>
-              
-              <h2 className="mb-1 text-[18px] font-bold text-text">계정 탈퇴</h2>
-              <p className="mb-4 text-center text-[13px] leading-relaxed text-text-secondary">
-                탈퇴 시 주문 내역, 찜 목록이<br />
-                <span className="font-bold text-[#ED4956]">영구 삭제</span>되며 복구할 수 없어요.
-              </p>
-
-              {/* Data Loss Summary */}
-              <div className="mb-5 w-full rounded-xl border border-red-100 bg-red-50/30 p-3.5 space-y-1.5">
-                <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
-                  <span>✕</span> <span>주문 내역 12건</span>
-                </div>
-                <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
-                  <span>✕</span> <span>찜한 상품 8개</span>
-                </div>
-                <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
-                  <span>✕</span> <span>장바구니 아이템</span>
-                </div>
-              </div>
-
-              {/* Password Input for deletion */}
-              <input 
-                type="password"
-                placeholder="비밀번호를 입력하세요"
-                className="mb-5 h-12 w-full rounded-xl border border-border bg-bg px-4 text-[14px] outline-none focus:border-red-400 transition-colors"
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-              />
-
-              <div className="flex w-full gap-3">
-                <button 
-                  className="h-[50px] flex-1 rounded-xl border-1.5 border-border bg-surface text-[15px] font-bold text-text active:scale-95 transition-all"
-                  onClick={() => setShowDeleteSheet(false)}
-                >
-                  취소
-                </button>
-                <button 
-                  className="h-[50px] flex-1 rounded-xl bg-[#ED4956] text-[15px] font-bold text-white shadow-lg shadow-red-200 active:scale-95 transition-all"
-                  onClick={handleDeleteAccount}
-                >
-                  탈퇴하기
-                </button>
-              </div>
+            <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
+              <span>✕</span> <span>찜한 상품 {wishlistCount}개</span>
+            </div>
+            <div className="flex gap-2 text-[11px] text-[#ED4956] font-medium">
+              <span>✕</span> <span>적립 포인트 {userPoints.toLocaleString()}P</span>
             </div>
           </div>
+
+          {/* Password Input for deletion */}
+          <input 
+            type="password"
+            placeholder="비밀번호를 입력하세요"
+            className="mb-5 h-12 w-full rounded-xl border border-border bg-bg px-4 text-[14px] outline-none focus:border-red-400 transition-colors"
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+          />
+
+          <div className="flex w-full gap-3">
+            <button 
+              className="h-[50px] flex-1 rounded-xl border border-border bg-surface text-[15px] font-bold text-text active:scale-95 transition-all"
+              onClick={() => setShowDeleteSheet(false)}
+            >
+              취소
+            </button>
+            <button 
+              className="h-[50px] flex-1 rounded-xl bg-[#ED4956] text-[15px] font-bold text-white shadow-lg shadow-red-200 active:scale-95 transition-all"
+              onClick={handleDeleteAccount}
+            >
+              탈퇴하기
+            </button>
+          </div>
         </div>
-      )}
+      </Drawer>
 
       {/* Address Add/Edit Bottom Sheet */}
       {showAddressSheet && (
