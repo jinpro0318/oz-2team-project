@@ -7,7 +7,6 @@ import {
   getAllOrders,
   getAllOrdersForAnalytics, // [효진] 추가
   getOrder,
-
   createOrder,
   updateOrderStatus,
   subscribeOrder,
@@ -99,8 +98,20 @@ export function useCreateOrder() {
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { id: string; status: OrderStatus; timelineEntry?: OrderTimeline; trackingNumber?: string; carrierCode?: string }) =>
-      updateOrderStatus(params.id, params.status, params.timelineEntry, params.trackingNumber, params.carrierCode),
+    mutationFn: (params: {
+      id: string;
+      status: OrderStatus;
+      timelineEntry?: OrderTimeline;
+      trackingNumber?: string;
+      carrierCode?: string;
+    }) =>
+      updateOrderStatus(
+        params.id,
+        params.status,
+        params.timelineEntry,
+        params.trackingNumber,
+        params.carrierCode,
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
@@ -110,13 +121,21 @@ export function useUpdateOrderStatus() {
 export function useExecuteOrderAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { id: string; action: any; trackingNumber?: string; carrierCode?: string; claimType?: string; reason?: string }) => {
-      const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
+    mutationFn: async (params: {
+      id: string;
+      action: any;
+      trackingNumber?: string;
+      carrierCode?: string;
+      claimType?: string;
+      reason?: string;
+    }) => {
+      const { CodeFulfillmentEngine } =
+        await import("@/lib/services/CodeFulfillmentEngine");
       return CodeFulfillmentEngine.executeAction(params.id, params.action, {
         trackingNumber: params.trackingNumber,
         carrierCode: params.carrierCode,
         claimType: params.claimType,
-        reason: params.reason
+        reason: params.reason,
       });
     },
     onSuccess: () => {
@@ -166,12 +185,13 @@ export function useAnalyticsOrders() {
 export function useUpdateExchangeStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { id: string; status: "requested" | "processing" | "completed" }) =>
-      updateExchangeStatus(params.id, params.status),
+    mutationFn: (params: {
+      id: string;
+      status: "requested" | "processing" | "completed";
+    }) => updateExchangeStatus(params.id, params.status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exchanges"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] }); // 연동된 주문 상태 변경 가능성 대응
     },
   });
 }
-

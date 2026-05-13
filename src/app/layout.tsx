@@ -42,7 +42,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className={`${instrumentSans.variable} ${notoSansKR.variable} ${nanumBrush.variable}`}>
-      <body className="min-h-screen">
+      <body className="min-h-screen" suppressHydrationWarning>
         <Providers>
           <MobileLayout>
             {children}

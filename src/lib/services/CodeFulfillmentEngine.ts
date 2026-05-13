@@ -177,6 +177,8 @@ export class CodeFulfillmentEngine {
 
         finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
         finalIsNewShipment = true;
+        // [v13.21] 신규 송장 발급 시 무조건 0단계부터 시작하도록 강제 (Jumping 방지)
+        resolved.step = 0;
         console.log(
           `[CodeFulfillmentEngine] 정책 모듈 지시에 의한 송장 교체: ${trackingNumber} -> ${finalTrackingNumber} (Type: ${shipmentType})`,
         );
@@ -273,7 +275,7 @@ export class CodeFulfillmentEngine {
 
         // 3. 신규 배송 문서 생성 지시
         resolved.shouldUpdateShipment = true;
-        resolved.step = 0;
+        resolved.step = 0; // [v13.21] 클레임 시작은 무조건 0단계
         finalIsNewShipment = true;
         finalShipmentRef = doc(db, "shipments", finalTrackingNumber);
 

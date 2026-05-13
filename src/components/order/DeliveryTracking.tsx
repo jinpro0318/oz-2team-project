@@ -150,15 +150,17 @@ export default function DeliveryTracking({
         });
         setShipmentHistory(sorted);
 
-        // [v13.6] 지능형 자동 선택: 리스트에서 가장 최신(sorted[0]) 송장을 우선시합니다.
-        // 현재 활성 송장이 없거나, 리스트의 첫 번째 송장이 현재 활성 송장과 다르면(신규 발급 상황) 강제 교체합니다.
+        // [v13.30] 지능형 자동 선택 강화: 리스트에서 가장 첫 번째(최신순 정렬 결과) 송장을 항상 최우선으로 선택합니다.
         if (sorted.length > 0) {
-          const newestId = sorted[0].shipmentId;
+          const latestShipment = sorted[0]; // 최신순 정렬이므로 0번이 가장 최신
+          const newestId = latestShipment.shipmentId;
+          
+          // 1. 현재 활성 송장이 없거나
+          // 2. 현재 활성 송장이 리스트의 최신 송장과 다르면 (새 송장 발송 시) 강제 교체
           if (
-            !activeTrackingNumber ||
+            !activeTrackingNumber || 
             activeTrackingNumber.length < 5 ||
-            (activeTrackingNumber.startsWith("MOCK-S") &&
-              (newestId.startsWith("MOCK-R") || newestId.startsWith("MOCK-EQ")))
+            activeTrackingNumber !== newestId
           ) {
             setActiveTrackingNumber(newestId);
           }
