@@ -27,7 +27,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-white border-t z-50 flex items-center h-[49px]"
+      className="sticky bottom-0 w-[calc(100%+2px)] -ml-[1px] bg-white border-t z-50 flex items-center h-[49px]"
       style={{ borderColor: "#DBDBDB" }}
     >
       {/* 홈 */}

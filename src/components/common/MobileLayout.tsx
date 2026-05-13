@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import React from "react";
 import { useUIStore } from "@/stores/uiStore";
+import BottomNav from "./BottomNav";
+import LoginPromptSheet from "./LoginPromptSheet";
 
 /**
  * 전역 "떠 있는 모바일 폰" 효과를 주는 레이아웃 래퍼
@@ -31,11 +33,17 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
         Inner: 최대 너비 390px, 중앙 정렬, 하얀 바탕, 그림자 효과를 적용합니다.
       */}
       <div 
-        className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-2xl relative flex flex-col border-x border-border-light overflow-x-hidden"
+        className="max-w-[390px] mx-auto bg-white min-h-dvh shadow-2xl relative flex flex-col border-x border-border-light"
       >
         {children}
         {/* 하단 바 공간 확보를 위한 물리적 스페이서 */}
-        {showBottomNav && <div className="h-[60px] shrink-0" />}
+        {showBottomNav && (
+          <>
+            <div className="h-[60px] shrink-0" />
+            <BottomNav />
+          </>
+        )}
+        <LoginPromptSheet />
       </div>
     </div>
   );

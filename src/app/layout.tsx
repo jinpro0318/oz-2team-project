@@ -32,7 +32,6 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-import BottomNav from "@/components/common/BottomNav";
 import MobileLayout from "@/components/common/MobileLayout";
 
 export default function RootLayout({
@@ -47,7 +46,6 @@ export default function RootLayout({
           <MobileLayout>
             {children}
           </MobileLayout>
-          <BottomNav />
         </Providers>
       </body>
     </html>

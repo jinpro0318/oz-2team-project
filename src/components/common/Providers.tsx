@@ -9,7 +9,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { onAuthChange } from "@/lib/auth";
 import { getDocument } from "@/lib/firestore";
 import type { User } from "@/types";
-import LoginPromptSheet from "./LoginPromptSheet";
 
 function AuthWatcher() {
   const { setUser, setLoading } = useAuthStore();
@@ -44,7 +43,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <AntdApp>
           <AuthWatcher />
           {children}
-          <LoginPromptSheet />
         </AntdApp>
       </ConfigProvider>
     </QueryClientProvider>

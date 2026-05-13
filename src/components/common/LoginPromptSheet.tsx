@@ -25,10 +25,20 @@ export default function LoginPromptSheet() {
       onClose={() => setShowLoginPrompt(false)}
       placement="bottom"
       closable={false}
+      getContainer={false}
       styles={{
-        wrapper: { height: "auto" },
+        wrapper: { 
+          height: "auto",
+          width: "calc(100% + 2px)",
+          marginLeft: "-1px",
+          position: "absolute",
+          bottom: 0,
+        },
+        section: {
+          borderRadius: "20px 20px 0 0",
+          overflow: "hidden"
+        },
         body: { padding: 0 },
-        section: { borderRadius: "20px 20px 0 0" }
       }}
       className="login-prompt-drawer"
     >
@@ -42,7 +52,7 @@ export default function LoginPromptSheet() {
           </div>
           <div className="flex-1 text-left">
             <h2 className="text-lg font-bold text-text">로그인이 필요해요</h2>
-            <p className="text-sm text-text-secondary">찜 기능은 로그인 후 사용할 수 있어요</p>
+            <p className="text-sm text-text-secondary">로그인 후 사용할 수 있어요</p>
           </div>
         </div>
 
