@@ -92,7 +92,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   returning: { label: "수거중", color: "volcano" },
   returned: { label: "수거완료", color: "magenta" },
   inspecting: { label: "검수중", color: "gold" },
-  inspection_completed: { label: "반품완료", color: "geekblue" },
+  inspection_completed: { label: "검수완료", color: "geekblue" },
   exchange_preparing: { label: "상품준비", color: "orange" },
   exchange_completed: { label: "교환완료", color: "geekblue" },
   return_completed: { label: "반품완료", color: "gray" },
@@ -929,30 +929,60 @@ function AdminOrders() {
             </Button>
           )}
           {r.status === "returned" && (
-            <Button
-              size="small"
-              icon={
-                r.timeline?.some((t) => t.status === "exchange_requested") ? (
-                  <DownloadOutlined />
-                ) : (
-                  <CheckOutlined />
-                )
-              }
-              loading={executeAction.isPending}
-              onClick={() =>
-                r.timeline?.some((t) => t.status === "exchange_requested")
-                  ? handleInspectionComplete(r)
-                  : handleDeliver(r)
-              }
-              className="bg-blue-50 text-blue-600 border-blue-200"
-            >
-              {r.timeline?.some((t) => t.status === "exchange_requested")
-                ? "반품완료 처리"
-                : "반품 완료 처리"}
-            </Button>
+            <>
+              {getActiveClaimType(r) === "exchange" && (
+                <Button
+                  size="small"
+                  icon={<DownloadOutlined />}
+                  loading={executeAction.isPending}
+                  onClick={() => handleInspectionComplete(r)}
+                  className="bg-blue-50 text-blue-600 border-blue-200"
+                >
+                  검수완료 처리
+                </Button>
+              )}
+              {getActiveClaimType(r) === "return" && (
+                <Button
+                  size="small"
+                  icon={<CheckOutlined />}
+                  loading={executeAction.isPending}
+                  onClick={() => handleDeliver(r)}
+                  className="bg-green-50 text-green-600 border-green-200"
+                >
+                  반품 완료 처리
+                </Button>
+              )}
+            </>
           )}
-          {(r.status === "inspecting" ||
-            r.status === "exchange_preparing") && (
+          {r.status === "inspection_completed" && (
+            <>
+              {getActiveClaimType(r) === "exchange" && (
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<SendOutlined />}
+                  loading={executeAction.isPending}
+                  onClick={() => handlePrepareReship(r)}
+                  className="bg-purple-50 text-purple-600 border-purple-200"
+                >
+                  교환 상품준비 처리
+                </Button>
+              )}
+              {getActiveClaimType(r) === "return" && (
+                <Button
+                  size="small"
+                  icon={<CheckOutlined />}
+                  loading={executeAction.isPending}
+                  onClick={() => handleDeliver(r)}
+                  className="bg-green-50 text-green-600 border-green-200"
+                  title="검수 상태를 건너뛰고 반품을 완료합니다"
+                >
+                  반품 완료 처리
+                </Button>
+              )}
+            </>
+          )}
+          {(r.status === "inspecting" || r.status === "exchange_preparing") && (
             <Button
               size="small"
               type="primary"
@@ -1169,33 +1199,56 @@ function AdminOrders() {
                 </Button>
               )}
               {drawerOrder.status === "returned" && (
-                <Button
-                  block
-                  icon={
-                    drawerOrder.timeline?.some(
-                      (t) => t.status === "exchange_requested",
-                    ) ? (
-                      <DownloadOutlined />
-                    ) : (
-                      <CheckOutlined />
-                    )
-                  }
-                  loading={executeAction.isPending}
-                  onClick={() =>
-                    drawerOrder.timeline?.some(
-                      (t) => t.status === "exchange_requested",
-                    )
-                      ? handleInspectionComplete(drawerOrder)
-                      : handleDeliver(drawerOrder)
-                  }
-                  className="bg-blue-50 text-blue-600 border-blue-200"
-                >
-                  {drawerOrder.timeline?.some(
-                    (t) => t.status === "exchange_requested",
-                  )
-                    ? "반품완료 처리"
-                    : "반품 완료 처리"}
-                </Button>
+                <div className="flex gap-2">
+                  {getActiveClaimType(drawerOrder) === "exchange" && (
+                    <Button
+                      block
+                      icon={<DownloadOutlined />}
+                      loading={executeAction.isPending}
+                      onClick={() => handleInspectionComplete(drawerOrder)}
+                      className="bg-blue-50 text-blue-600 border-blue-200"
+                    >
+                      검수완료 처리
+                    </Button>
+                  )}
+                  {getActiveClaimType(drawerOrder) === "return" && (
+                    <Button
+                      block
+                      icon={<CheckOutlined />}
+                      loading={executeAction.isPending}
+                      onClick={() => handleDeliver(drawerOrder)}
+                      className="bg-green-50 text-green-600 border-green-200"
+                    >
+                      반품 완료 처리
+                    </Button>
+                  )}
+                </div>
+              )}
+              {drawerOrder.status === "inspection_completed" && (
+                <div className="flex gap-2">
+                  {getActiveClaimType(drawerOrder) === "exchange" && (
+                    <Button
+                      type="primary"
+                      block
+                      icon={<SendOutlined />}
+                      loading={executeAction.isPending}
+                      onClick={() => handlePrepareReship(drawerOrder)}
+                    >
+                      교환 상품준비 처리
+                    </Button>
+                  )}
+                  {getActiveClaimType(drawerOrder) === "return" && (
+                    <Button
+                      block
+                      icon={<CheckOutlined />}
+                      loading={executeAction.isPending}
+                      onClick={() => handleDeliver(drawerOrder)}
+                      className="bg-green-50 text-green-600 border-green-200"
+                    >
+                      반품 완료 처리
+                    </Button>
+                  )}
+                </div>
               )}
               {(drawerOrder.status === "inspecting" ||
                 drawerOrder.status === "exchange_preparing") && (
