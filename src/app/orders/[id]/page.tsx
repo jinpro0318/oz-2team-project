@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Steps, Tag, Spin, Alert } from "antd";
+import { Button, Steps, Tag, Spin, Alert, App } from "antd";
 import { PhoneOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useOrder } from "@/hooks/useOrders";
+import { useOrder, useUpdateOrderStatus } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
@@ -21,8 +21,12 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: order, isLoading } = useOrder(id);
+  const updateStatusMutation = useUpdateOrderStatus();
+  const { message } = App.useApp();
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // [v9.1] 배송 엔진으로부터 받은 실시간 단계 정보
   const [stepperData, setStepperData] = useState<{
@@ -109,15 +113,59 @@ export default function OrderDetailPage() {
       ? stepperData.steps
       : LogisticsStatusResolver.getUISteps(activeShipmentType);
 
-  // 3. [v12.8] 모듈 상태 동기화: 하단 버튼들도 DB의 정적 상태(order.status)가 아닌, 실시간 통합 엔진 상태(currentStep)를 따르도록 역산출
-  // (단, claim_rejected 같은 특수 상태는 원본 order.status를 보존합니다)
+  // (단, claim_rejected, cancelled, cancel_requested 같은 특수 상태는 원본 order.status를 보존합니다)
   const engineStatus =
-    order.status === "claim_rejected"
-      ? "claim_rejected"
+    ["claim_rejected", "cancelled", "cancel_requested"].includes(order.status)
+      ? order.status
       : LogisticsStatusResolver.getStatusFromIndex(
           currentStep,
           activeShipmentType,
         ) || order.status;
+
+  const handleConfirmCancel = async () => {
+    setShowCancelModal(false);
+    try {
+      const targetStatus = engineStatus === "payment_complete" ? "cancelled" : "cancel_requested";
+      const targetLabel = engineStatus === "payment_complete" ? "주문 취소" : "주문 취소 요청";
+      const desc = engineStatus === "payment_complete" 
+        ? "단순 변심으로 인한 주문 취소 (결제완료 전 단계 즉시 취소)" 
+        : "상품 준비 중 단계에서의 취소 요청 (판매자 승인 대기)";
+
+      await updateStatusMutation.mutateAsync({
+        id: order.id,
+        status: targetStatus,
+        timelineEntry: {
+          status: targetStatus,
+          label: targetLabel,
+          date: new Date().toISOString(),
+          description: desc,
+        },
+      });
+      message.success(targetStatus === "cancelled" ? "주문이 정상적으로 취소되었습니다." : "취소 요청이 접수되었습니다.");
+    } catch (e) {
+      console.error(e);
+      message.error("처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleRevertCancelRequest = async () => {
+    try {
+      await updateStatusMutation.mutateAsync({
+        id: order.id,
+        status: "preparing",
+        timelineEntry: {
+          status: "preparing",
+          label: "취소 요청 철회",
+          date: new Date().toISOString(),
+          description: "구매자가 주문 취소 요청을 철회했습니다.",
+        },
+      });
+      message.success("주문 취소 요청이 철회되었습니다.");
+    } catch (e) {
+      console.error(e);
+      message.error("처리 중 오류가 발생했습니다.");
+    }
+  };
 
   // [추가] 반려 사유 추출
   const rejectionReason = order.timeline?.find(
@@ -280,11 +328,21 @@ export default function OrderDetailPage() {
             <Button
               block
               danger
-              onClick={() => router.push(`/orders/${order.id}/cancel`)}
+              onClick={() => setShowCancelModal(true)}
             >
               주문 취소 신청
             </Button>
           )}
+
+        {/* [NEW] 취소 요청 중일 때, 구매자가 직접 취소 요청을 철회할 수 있는 기능 */}
+        {engineStatus === "cancel_requested" && (
+          <Button
+            block
+            onClick={handleRevertCancelRequest}
+          >
+            취소 신청 철회
+          </Button>
+        )}
 
         {/* [v13.13] 구매 결정: (배송완료+클레임없음) OR 교환완료(DB/실시간) OR 반려됨 일 때 노출 */}
         {((order.status === "delivered" && !claimType) ||
@@ -318,6 +376,32 @@ export default function OrderDetailPage() {
           고객센터 1588-1234
         </Button>
       </div>
+
+      {/* 커스텀 중앙 정렬 취소 모달 */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-[320px] rounded-[20px] bg-white p-6 text-center shadow-xl animate-in zoom-in-95 duration-200">
+            <h3 className="mb-2 text-lg font-bold text-[#111]">주문 취소</h3>
+            <p className="mb-6 text-[15px] font-medium text-text-secondary leading-snug">
+              정말 주문 취소를<br />진행하시겠습니까?
+            </p>
+            <div className="flex gap-2.5">
+              <button
+                className="flex h-12 flex-1 cursor-pointer items-center justify-center rounded-xl border border-border bg-white text-[15px] font-bold text-[#111] transition-all hover:bg-gray-50 active:scale-95"
+                onClick={() => setShowCancelModal(false)}
+              >
+                아니오
+              </button>
+              <button
+                className="flex h-12 flex-1 cursor-pointer items-center justify-center rounded-xl border-none bg-[#F1416C] text-[15px] font-bold text-white shadow-md shadow-red-100 transition-all active:scale-95"
+                onClick={handleConfirmCancel}
+              >
+                예
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

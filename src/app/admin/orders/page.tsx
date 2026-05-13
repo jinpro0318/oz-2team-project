@@ -77,7 +77,11 @@ const statusTabs = [
     statuses: ["return_requested", "returning", "returned"],
     type: "return",
   },
-  { key: "cancelled", label: "취소" },
+  {
+    key: "cancelled",
+    label: "취소",
+    statuses: ["cancel_requested", "cancelled"],
+  },
 ];
 
 const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
@@ -86,7 +90,8 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   preparing: { label: "준비중", color: "orange" },
   shipping: { label: "배송중", color: "green" },
   delivered: { label: "배송완료", color: "cyan" },
-  cancelled: { label: "주문취소", color: "red" },
+  cancelled: { label: "취소완료", color: "red" },
+  cancel_requested: { label: "취소요청", color: "orange" },
   exchange_requested: { label: "교환요청", color: "purple" },
   return_requested: { label: "반품요청", color: "purple" },
   returning: { label: "수거중", color: "volcano" },
@@ -375,6 +380,42 @@ function AdminOrders() {
       message.success("주문이 취소되었습니다");
     } catch (err: any) {
       message.error("취소 실패: " + err.message);
+    }
+  };
+
+  const handleApproveCancel = async (order: Order) => {
+    try {
+      await updateStatus.mutateAsync({
+        id: order.id,
+        status: "cancelled",
+        timelineEntry: {
+          status: "cancelled",
+          label: "취소 승인됨",
+          date: new Date().toISOString(),
+          description: "판매자가 취소 요청을 승인했습니다.",
+        },
+      });
+      message.success("취소 요청이 승인되었습니다.");
+    } catch (err: any) {
+      message.error("승인 실패");
+    }
+  };
+
+  const handleRejectCancel = async (order: Order) => {
+    try {
+      await updateStatus.mutateAsync({
+        id: order.id,
+        status: "preparing",
+        timelineEntry: {
+          status: "preparing",
+          label: "취소 거절",
+          date: new Date().toISOString(),
+          description: "판매자가 취소 요청을 거절하고 상품 준비를 계속합니다.",
+        },
+      });
+      message.warning("취소 요청이 거절되었습니다.");
+    } catch (err: any) {
+      message.error("거절 실패");
     }
   };
 
@@ -916,6 +957,26 @@ function AdminOrders() {
               </Button>
             </Space>
           )}
+          {r.status === "cancel_requested" && (
+            <Space size={4}>
+              <Button
+                size="small"
+                type="primary"
+                danger
+                loading={updateStatus.isPending}
+                onClick={() => handleApproveCancel(r)}
+              >
+                취소 승인
+              </Button>
+              <Button
+                size="small"
+                loading={updateStatus.isPending}
+                onClick={() => handleRejectCancel(r)}
+              >
+                취소 거절
+              </Button>
+            </Space>
+          )}
           {r.status === "returning" && (
             <Button
               size="small"
@@ -1006,11 +1067,7 @@ function AdminOrders() {
               교환 배송완료 처리
             </Button>
           )}
-          {r.status === "cancelled" && (
-            <Button size="small" danger onClick={() => handleCancel(r)}>
-              주문 취소
-            </Button>
-          )}
+          {/* 취소완료(cancelled) 상태에서는 더 이상 취소 버튼을 노출하지 않음 */}
           {(r.status === "payment_complete" || r.status === "preparing") && (
             <Popconfirm
               title="주문을 취소하시겠습니까?"

@@ -67,8 +67,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
-    setBottomNavVisible(false);
-    return () => setBottomNavVisible(true);
+    setBottomNavVisible(true);
   }, [setBottomNavVisible]);
 
   const [zipCode, setZipCode] = useState("");
@@ -142,14 +141,12 @@ export default function CheckoutPage() {
         shippingFee,
       });
 
-      // 2. Initialize TossPayments
+      // 2. Request payment via standard SDK (V2 syntax)
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
-
-      // 3. Request payment
       const payment = tossPayments.payment({
-        customerKey: user.id,
+        customerKey: user.id.replace(/[^a-zA-Z0-9\-_=.@]/g, "") || "ANONYMOUS"
       });
-
+      
       const redirectUrl = `${window.location.origin}/order-complete`;
 
       await payment.requestPayment({
@@ -181,10 +178,10 @@ export default function CheckoutPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface">
+    <div className="flex flex-col bg-surface">
       <BackTopBar title="주문/결제" />
 
-      <div className="flex-1 space-y-2 overflow-y-auto">
+      <div className="space-y-2 pb-32">
         <section className="bg-surface px-3 py-4">
           <h3 className="mb-3 text-[15px] font-bold">배송 정보</h3>
           <div className="space-y-2.5">
@@ -314,7 +311,7 @@ export default function CheckoutPage() {
         </section>
       </div>
 
-      <div className="sticky bottom-0 border-t border-border bg-surface px-3 py-3">
+      <div className="sticky bottom-[49px] border-t border-border bg-surface px-3 py-3 z-40">
         <div className="mb-2 flex justify-between text-base font-bold">
           <span>총 결제 금액</span>
           <span>{mounted ? `₩${formatPrice(finalTotal, mounted)}` : "-"}</span>

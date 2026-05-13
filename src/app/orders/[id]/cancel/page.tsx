@@ -117,14 +117,17 @@ export default function OrderCancelPage() {
     }
 
     try {
+      const targetStatus = order.status === "payment_complete" ? "cancelled" : "cancel_requested";
+      const targetLabel = order.status === "payment_complete" ? "주문 취소" : "주문 취소 요청";
+
       await updateStatusMutation.mutateAsync({
         id: order.id,
-        status: "cancelled",
+        status: targetStatus,
         timelineEntry: {
-          status: "cancelled",
-          label: "주문 취소",
+          status: targetStatus,
+          label: targetLabel,
           date: new Date().toISOString(),
-          description: `고객 요청으로 취소되었습니다: ${reason}${reason === "기타" ? ` (${reasonDetail})` : ""}`,
+          description: `고객 요청으로 취소${targetStatus === "cancelled" ? "되었습니다" : " 접수되었습니다"}: ${reason}${reason === "기타" ? ` (${reasonDetail})` : ""}`,
         },
       });
       setIsComplete(true);

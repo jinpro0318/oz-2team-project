@@ -437,7 +437,9 @@ export default function DeliveryTracking({
           {/* 2. 메인 인포 카드 (v12.7: 결제완료/준비중인 경우 강조 카드 노출) */}
           {orderStatus === "exchange_requested" ||
           orderStatus === "return_requested" ||
-          (rawShipment?.currentStep === 0 &&
+          orderStatus === "cancel_requested" ||
+          orderStatus === "cancelled" ||
+          ((rawShipment?.currentStep === 0 || rawShipment?.currentStep === 2) &&
             !rawShipment?.status?.includes("shipping")) ? (
             <div className="mb-4">
               <PendingStateCard
@@ -723,15 +725,31 @@ function PendingStateCard({
     claimType?.startsWith("MOCK-R") ||
     claimType?.startsWith("MOCK-EQ");
 
-  const isPreparing =
-    !isClaim &&
-    (orderStatus === "payment_complete" ||
-      orderStatus === "preparing" ||
-      currentStep === 0);
+  const isCancelled = orderStatus === "cancelled";
+  const isCancelRequested = orderStatus === "cancel_requested";
+  const isPreparing = currentStep === 2;
 
   let config;
 
-  if (isClaim) {
+  if (isCancelled) {
+    config = {
+      icon: "🚫",
+      title: "주문 취소가 완료되었습니다",
+      desc: "결제 취소 및 환불 절차가 완료되었습니다.\n이용해주셔서 감사합니다.",
+      bgColor: "bg-red-50",
+      textColor: "text-[#F1416C]", // 붉은색 계열
+      borderColor: "border-red-100",
+    };
+  } else if (isCancelRequested) {
+    config = {
+      icon: "🔍",
+      title: "취소 요청을 확인 중입니다",
+      desc: "판매자가 취소 요청 내용을 확인하고 있습니다.\n확인이 완료되면 환불 절차가 진행됩니다.",
+      bgColor: "bg-orange-50",
+      textColor: "text-orange-600",
+      borderColor: "border-orange-100",
+    };
+  } else if (isClaim) {
     config = {
       icon: "🔍",
       title: "요청 내용을 확인 중입니다",

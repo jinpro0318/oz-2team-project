@@ -113,6 +113,7 @@ export type OrderStatus =
   | "shipping"
   | "delivered"
   | "cancelled"
+  | "cancel_requested"
   | "exchange_requested"
   | "return_requested"
   | "returning"
