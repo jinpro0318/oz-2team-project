@@ -211,36 +211,12 @@ function AdminOrders() {
   }, [orders]);
 
   const handlePrepare = async (order: Order) => {
-    // [v11.0] 사용자 요청에 의한 강력한 검증(Validation) 로직 추가
-    const hasCarrier = !!order.carrierCode;
-    const hasTracking = !!order.trackingNumber;
-
-    if (!hasCarrier && !hasTracking) {
+    // [v14.0] 배송 정보 존재 여부 확인 (최소한의 가드)
+    if (!order.carrierCode || !order.trackingNumber) {
       modal.warning({
-        title: "배송 정보 누락",
-        content: "택배사, 송장번호를 입력해 주세요.",
+        title: "배송 정보 확인 필요",
+        content: "택배사와 송장번호를 먼저 지정해 주세요. (MOCK 송장 포함)",
         centered: true,
-        okText: "확인",
-      });
-      return;
-    }
-
-    if (!hasCarrier) {
-      modal.warning({
-        title: "택배사 미선택",
-        content: "택배사를 선택하세요.",
-        centered: true,
-        okText: "확인",
-      });
-      return;
-    }
-
-    if (!hasTracking) {
-      modal.warning({
-        title: "송장번호 미입력",
-        content: "송장번호를 입력하세요.",
-        centered: true,
-        okText: "확인",
       });
       return;
     }
@@ -252,9 +228,15 @@ function AdminOrders() {
         trackingNumber: order.trackingNumber,
         carrierCode: order.carrierCode,
       });
-      message.success("상품 준비중으로 변경되었습니다.");
+      message.success(`[${order.orderNumber}] 상품 준비중으로 전환되었습니다.`);
+      
+      // 드로어 열려있으면 즉시 반영 (낙관적 UI 보조)
+      if (drawerOrder?.id === order.id) {
+        setDrawerOrder({ ...order, status: "preparing" });
+      }
     } catch (err: any) {
-      message.error("상태 변경 실패");
+      console.error("[Admin] 준비중 처리 에러:", err);
+      message.error("준비중 상태 변경에 실패했습니다.");
     }
   };
 
@@ -851,7 +833,7 @@ function AdminOrders() {
             <Button
               size="small"
               icon={<EditOutlined />}
-              loading={updateStatus.isPending}
+              loading={executeAction.isPending}
               onClick={() => handlePrepare(r)}
               className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
             >
@@ -1203,7 +1185,7 @@ function AdminOrders() {
                 <Button
                   block
                   icon={<EditOutlined />}
-                  loading={updateStatus.isPending}
+                  loading={executeAction.isPending}
                   onClick={() => handlePrepare(drawerOrder)}
                   className="bg-orange-50 text-orange-600 border-orange-200"
                 >

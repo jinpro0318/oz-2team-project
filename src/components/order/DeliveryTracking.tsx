@@ -424,9 +424,10 @@ export default function DeliveryTracking({
       ) : data ? (
         <>
           {/* 2. 메인 인포 카드 (v12.7: 결제완료/준비중인 경우 강조 카드 노출) */}
-          {((["exchange_requested", "return_requested", "cancel_requested"].includes(orderStatus)) &&
-            (rawShipment?.currentStep === 0 || !rawShipment)) ||
-          orderStatus === "cancelled" ? (
+          {(orderStatus === "payment_complete" ||
+            (["exchange_requested", "return_requested", "cancel_requested"].includes(orderStatus) &&
+              (rawShipment?.currentStep === 0 || !rawShipment)) ||
+            orderStatus === "cancelled") ? (
             <div className="mb-4">
               <PendingStateCard
                 orderStatus={orderStatus}
