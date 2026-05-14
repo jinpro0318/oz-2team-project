@@ -2,8 +2,7 @@ import {
   getShipment, 
   createMockShipment, 
   MOCK_STANDARD_PATH, 
-  MOCK_RETURN_PATH,
-  applyRevealFilter
+  MOCK_RETURN_PATH
 } from "../../logistics";
 import { TrackingResult, TrackingHistory } from "../types";
 

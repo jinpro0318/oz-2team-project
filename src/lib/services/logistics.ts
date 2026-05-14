@@ -349,16 +349,8 @@ export async function getShipmentsByOrder(orderId: string): Promise<Shipment[]> 
   return list;
 }
 
-export function applyRevealFilter(path: PathStep[]) {
-  const now = new Date();
-  const revealed = path.filter(
-    (p) => p.estimatedTime && new Date(p.estimatedTime) <= now,
-  );
-  const pending = path.filter(
-    (p) => !p.estimatedTime || new Date(p.estimatedTime) > now,
-  );
-  return { revealed, pending };
-}
+// [v14.0] Reveal Engine(시간 기반 필터)은 더 이상 사용하지 않으므로 삭제되었습니다.
+// 모든 배송 단계의 노출은 DB의 currentStep 값에 의해 결정됩니다.
 
 export async function createMockShipment(params: {
   trackingNumber: string;
@@ -438,22 +430,9 @@ export async function createMockShipment(params: {
       newMessage = `${p.message} (담당: ${driverInfo.name} 기사님, ${driverInfo.vehicle}, ${driverInfo.phone})`;
     }
 
-    // [v13.20] 리얼 모드 보호 가드: MOCK이 아닌 경우 가상 타임스탬프를 생성하지 않음
-    let estTime = new Date(now.getTime());
-    const isMock =
-      params.carrierCode === "MOCK" ||
-      params.trackingNumber.startsWith("MOCK-");
-    if (!isMock) {
-      // 리얼 모드: 타임스탬프를 현재 시각으로 고정 (시뮬레이션 비활성화)
-      estTime = new Date(now.getTime());
-    } else if (idx <= params.targetStep) {
-      estTime = new Date(now.getTime() - (params.targetStep - idx) * 3600000);
-    } else {
-      estTime = new Date(
-        now.getTime() +
-          ((idx - params.targetStep) * 4 + scenario.delayHours) * 3600000,
-      );
-    }
+    // [v14.0] 시간 시스템 제거: 모든 단계를 현재 시각으로 고정 (자동 진행 방지)
+    // 여기서의 estimatedTime은 '예정 시간'이 아니라 해당 단계의 '확정/기록 시간'으로 활용됩니다.
+    const estTime = new Date(now.getTime());
 
     return {
       ...p,
