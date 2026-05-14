@@ -352,29 +352,33 @@ export default function OrderDetailPage() {
           </Button>
         )}
 
-        {/* [v13.13] 구매 결정: 최종 종료되지 않았고, (배송완료+클레임없음) OR 교환완료 OR 반려됨 일 때 노출 */}
+        {/* [v13.21] 구매 결정: 물건을 받은 상태(배송완료/교환완료/반려)에서만 노출 */}
         {!isFinished &&
-          ((order.status === "delivered" && !claimType) ||
+          (order.status === "delivered" ||
             order.status === "exchange_completed" ||
             engineStatus === "exchange_completed" ||
             order.status === "claim_rejected") && (
           <Button
             block
             type="primary"
-            style={{ background: "#262626" }}
+            style={{ background: "#262626", height: "48px", fontWeight: "bold" }}
             onClick={() => router.push(`/orders/${order.id}/confirm`)}
           >
             구매 결정하기
           </Button>
         )}
 
-        {/* [v13.16] 교환/반품 신청: 최종 종료되지 않았고, 배송완료 상태일 때 노출 (이미 진행 중인 클레임이 없을 때) */}
+        {/* [v13.21] 교환/반품 신청: 물건을 받은 상태에서만 노출하며, 이미 진행중인 클레임이 없을 때만 가능 (혹은 교환완료된 후 재신청) */}
         {!isFinished &&
-          !claimType &&
           (order.status === "delivered" ||
             order.status === "exchange_completed" ||
-            engineStatus === "exchange_completed") && (
-          <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
+            engineStatus === "exchange_completed" ||
+            order.status === "claim_rejected") && (
+          <Button 
+            block 
+            style={{ height: "48px", fontWeight: "bold" }}
+            onClick={() => router.push(`/exchange/${order.id}`)}
+          >
             교환/반품 신청
           </Button>
         )}
