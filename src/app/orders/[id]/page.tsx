@@ -328,8 +328,9 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="bg-surface px-3 py-4 space-y-2">
-        {/* [v13.13] 주문 취소: 결제완료/준비중이면서 클레임이 없을 때만 가능 */}
-        {!claimType &&
+        {/* [v13.13] 주문 취소: 최종 종료되지 않았고, 클레임이 없으며, 결제완료/준비중일 때만 가능 */}
+        {!isFinished &&
+          !claimType &&
           (engineStatus === "payment_complete" ||
             engineStatus === "preparing") && (
             <Button
@@ -351,11 +352,12 @@ export default function OrderDetailPage() {
           </Button>
         )}
 
-        {/* [v13.13] 구매 결정: (배송완료+클레임없음) OR 교환완료(DB/실시간) OR 반려됨 일 때 노출 */}
-        {((order.status === "delivered" && !claimType) ||
-          order.status === "exchange_completed" ||
-          engineStatus === "exchange_completed" ||
-          order.status === "claim_rejected") && (
+        {/* [v13.13] 구매 결정: 최종 종료되지 않았고, (배송완료+클레임없음) OR 교환완료 OR 반려됨 일 때 노출 */}
+        {!isFinished &&
+          ((order.status === "delivered" && !claimType) ||
+            order.status === "exchange_completed" ||
+            engineStatus === "exchange_completed" ||
+            order.status === "claim_rejected") && (
           <Button
             block
             type="primary"
@@ -366,10 +368,12 @@ export default function OrderDetailPage() {
           </Button>
         )}
 
-        {/* [v13.16] 교환/반품 신청: (배송완료+클레임없음) OR 교환완료(DB/실시간) 일 때 노출 */}
-        {((order.status === "delivered" && !claimType) ||
-          order.status === "exchange_completed" ||
-          engineStatus === "exchange_completed") && (
+        {/* [v13.16] 교환/반품 신청: 최종 종료되지 않았고, 배송완료 상태일 때 노출 (이미 진행 중인 클레임이 없을 때) */}
+        {!isFinished &&
+          !claimType &&
+          (order.status === "delivered" ||
+            order.status === "exchange_completed" ||
+            engineStatus === "exchange_completed") && (
           <Button block onClick={() => router.push(`/exchange/${order.id}`)}>
             교환/반품 신청
           </Button>
