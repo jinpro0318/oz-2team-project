@@ -222,7 +222,14 @@ export default function OrderDetailPage() {
           </div>
         )}
         <h3 className="mb-3 text-[15px] font-bold">배송 현황</h3>
-        <Steps current={currentStep} size="small" items={displaySteps} />
+        <Steps 
+          current={currentStep} 
+          size="small" 
+          items={displaySteps} 
+          responsive={false}
+          titlePlacement="vertical"
+          className="custom-horizontal-steps"
+        />
       </div>
 
       <div className="bg-surface px-3 py-4 border-b border-border">

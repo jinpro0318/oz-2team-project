@@ -49,36 +49,34 @@ export function useOrders() {
 export function useAllOrders() {
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    const unsub = subscribeAllOrders((data) => {
+      queryClient.setQueryData(["orders", "all"], data);
+    });
+    return () => unsub();
+  }, [queryClient]);
+
   return useQuery({
     queryKey: ["orders", "all"],
-    queryFn: async () => {
-      // 실시간 구독 설정
-      subscribeAllOrders((data) => {
-        queryClient.setQueryData(["orders", "all"], data);
-      });
-
-      return getAllOrders();
-    },
-    staleTime: Infinity, // 실시간으로 관리되므로 자동 만료 방지
+    queryFn: () => getAllOrders(),
+    staleTime: Infinity,
   });
 }
 
 export function useOrder(id: string) {
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    if (!id) return;
+    const unsub = subscribeOrder(id, (data) => {
+      queryClient.setQueryData(["orders", "detail", id], data);
+    });
+    return () => unsub();
+  }, [id, queryClient]);
+
   return useQuery({
     queryKey: ["orders", "detail", id],
-    queryFn: async () => {
-      if (!id) return null;
-
-      // 실시간 구독 설정
-      subscribeOrder(id, (data) => {
-        queryClient.setQueryData(["orders", "detail", id], data);
-        // 상세가 바뀌면 목록 데이터도 최신화를 위해 무효화하거나 업데이트 가능
-      });
-
-      return getOrder(id);
-    },
+    queryFn: () => (id ? getOrder(id) : null),
     enabled: !!id,
     staleTime: Infinity,
   });

@@ -77,14 +77,13 @@ async function enrichOrdersWithRealtimeStatus(orders: Order[]): Promise<Order[]>
         return order;
       }
 
+      /* [v9.1] 현재는 DB의 status가 단일 진실의 샘(SSOT)이므로, 
+         목록 조회 시마다 수백 건의 외부 조회를 수행할 필요가 없어 비활성화합니다. 
       try {
-        // [v9.1] 실시간 배송 조회는 참고용 데이터로만 활용합니다.
-        // DB의 'status'를 덮어쓰는 행위는 '단일 진실의 샘' 원칙을 위반하므로 중단합니다.
-        const trackResult = await deliveryService.track(order.carrierCode, order.trackingNumber, order.createdAt);
-        // 더 이상 order.status를 덮어쓰지 않고 원본 order를 그대로 반환하거나 필요 정보만 추가합니다.
+        await deliveryService.track(order.carrierCode, order.trackingNumber, order.createdAt);
       } catch (e) {
         console.error(`[Delivery Track Error] Order ${order.id}:`, e);
-      }
+      } */
       return order;
     })
   );
