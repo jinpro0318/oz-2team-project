@@ -194,20 +194,9 @@ export default function DeliveryTracking({
           const region =
             (shipData.receiverAddress || "").split(" ")[1] || "지역";
 
-          // [v11.20] Reveal Engine 적용: 과거/현재 기록과 미래 기록을 모두 병합합니다.
-          const now = new Date();
-          // computedStep: 현재 시각 기준으로 이미 도달했어야 할 스텝 (시간 기반)
-          const computedStep = path.reduce(
-            (acc: number, p: any, idx: number) => {
-              if (p.estimatedTime && new Date(p.estimatedTime) <= now)
-                return idx;
-              return acc;
-            },
-            0,
-          );
-
-          // 최종적으로 노출될 스텝은 엔진이 지정한 currentStep과 시간 기반 computedStep 중 큰 값
-          let effectiveStep = Math.max(currentStep, computedStep);
+          // [v14.0] 시간 기반 자동 시스템(Reveal Engine)은 완전히 제거되었습니다.
+          // 오직 DB의 currentStep(SSOT)에 의해서만 단계가 결정됩니다.
+          let effectiveStep = currentStep;
 
           // [v13.20] Phase Finalization: 송장 타입별 최대 단계를 초과하지 못하도록 안전 캡 적용
           const detectedType =
@@ -224,7 +213,7 @@ export default function DeliveryTracking({
           // [v13.14] UI 클린업: 아직 진행되지 않은 미래의 단계들은 리스트에서 제외합니다. (사용자 요청)
           let finalHistory = path
             .map((p: any, idx: number) => {
-              const isRevealed = idx <= effectiveStep;
+              const isCompleted = idx <= effectiveStep;
               return {
                 time: p.estimatedTime
                   ? dayjs(p.estimatedTime).format("YYYY-MM-DD HH:mm")
@@ -232,11 +221,11 @@ export default function DeliveryTracking({
                 location: p.location.replace("지역", region),
                 status: p.statusLabel,
                 description: p.message,
-                isRevealed,
+                isCompleted,
                 condition: p.condition || "normal",
               };
             })
-            .filter((item: any) => item.isRevealed); // 진행된 것만 남김
+            .filter((item: any) => item.isCompleted); // 완료된 단계만 리스트에 노출
 
           // 현재 진행 중인 노드 찾기 (UI 인디케이터 용)
           let activeIdx = effectiveStep;
@@ -541,20 +530,20 @@ export default function DeliveryTracking({
             </div>
           )}
 
-          {/* 3. 시각적 타임라인 (Reveal Engine 적용) */}
+          {/* 3. 시각적 타임라인 (DB 기반 히스토리) */}
           <div className="rounded-[20px] bg-white border border-[#E4E6EF] p-7 shadow-sm">
             <div className="relative">
               {[...data.history].reverse().map((item: any, idx) => {
                 const isLast = idx === data.history.length - 1;
-                const opacityClass = item.isRevealed
+                const opacityClass = item.isCompleted
                   ? "opacity-100"
                   : "opacity-40 blur-[1px]";
 
                 const isLatest = idx === 0; // 역순 정렬이므로 첫 번째 아이템이 현재 단계
-                const dotBorderColor = item.isRevealed
+                const dotBorderColor = item.isCompleted
                   ? "border-[#181C32]"
                   : "border-[#E4E6EF]";
-                const textColor = item.isRevealed
+                const textColor = item.isCompleted
                   ? "text-[#181C32]"
                   : "text-[#A1A5B7]";
 
