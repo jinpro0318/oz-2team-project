@@ -35,6 +35,10 @@ const AUDIT_STATUS_MAP: Record<string, string> = {
   exchange_completed: "교환 완료",
   return_completed: "반품 완료",
   claim_rejected: "클레임 반려",
+  inspection_completed: "검수 완료",
+  exchange_requested: "교환 접수",
+  return_requested: "반품 접수",
+  exchange_preparing: "교환 상품 준비 중",
 };
 
 interface TrackingResult {
@@ -289,16 +293,12 @@ export default function DeliveryTracking({
     return () => unsub();
   }, [carrierCode, activeTrackingNumber, onStatusChange]);
 
-  const fetchDetailedLogs = async () => {
-    if (showDetails) {
-      setShowDetails(false);
-      return;
-    }
-
+  // [v14.1] 상세 기록(Audit Trail) 데이터만 새로고침하는 내부 함수
+  const refreshDetailedLogs = async (targetId: string) => {
     setLoadingDetails(true);
     try {
       const q = query(
-        collection(db, "shipments", activeTrackingNumber, "logs"),
+        collection(db, "shipments", targetId, "logs"),
         orderBy("timestamp", "desc"),
       );
       const snap = await getDocs(q);
@@ -314,13 +314,28 @@ export default function DeliveryTracking({
         };
       });
       setDetailedLogs(logs);
-      setShowDetails(true);
     } catch (err) {
-      console.error("Failed to fetch detailed logs:", err);
+      console.error("Failed to refresh detailed logs:", err);
     } finally {
       setLoadingDetails(false);
     }
   };
+
+  const fetchDetailedLogs = async () => {
+    if (showDetails) {
+      setShowDetails(false);
+      return;
+    }
+    await refreshDetailedLogs(activeTrackingNumber);
+    setShowDetails(true);
+  };
+
+  // [v14.1] 자동 갱신 트리거: 송장이 바뀌었을 때 상세 로그 창이 열려있다면 즉시 데이터 갱신
+  useEffect(() => {
+    if (showDetails && activeTrackingNumber) {
+      refreshDetailedLogs(activeTrackingNumber);
+    }
+  }, [activeTrackingNumber]);
 
   const executeAction = useExecuteOrderAction();
 

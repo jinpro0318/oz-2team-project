@@ -17,8 +17,6 @@ export default function BottomNav() {
 
   if (
     pathname?.startsWith("/admin") ||
-    pathname?.endsWith("/confirm") ||
-    pathname?.endsWith("/cancel") ||
     !isBottomNavVisible
   )
     return null;

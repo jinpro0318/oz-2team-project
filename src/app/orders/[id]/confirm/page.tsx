@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, App, Spin } from "antd";
 import { CheckCircleFilled, GiftOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
+import BottomNav from "@/components/common/BottomNav";
 import { useOrder, useExecuteOrderAction } from "@/hooks/useOrders";
 import { addUserPoints } from "@/lib/services/user";
 import { useAuthStore } from "@/stores/authStore";
@@ -106,6 +107,7 @@ export default function PurchaseConfirmPage() {
             </Button>
           </div>
         </div>
+        <BottomNav />
       </div>
     );
   }
@@ -114,7 +116,7 @@ export default function PurchaseConfirmPage() {
     <div className="mx-auto flex min-h-dvh max-w-[390px] flex-col bg-bg">
       <BackTopBar title="구매 결정" />
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6 pb-32">
         <div className="mb-6 text-center">
           <h2 className="text-lg font-bold">구매하신 상품은 만족하시나요?</h2>
           <p className="mt-1 text-sm text-text-secondary">구매 결정을 하시면 반품/교환 신청이 불가합니다.</p>
@@ -156,7 +158,7 @@ export default function PurchaseConfirmPage() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 border-t border-border bg-surface px-4 py-3">
+      <div className="sticky bottom-[49px] border-t border-border bg-surface px-4 py-3">
         <Button
           type="primary"
           block
@@ -169,6 +171,8 @@ export default function PurchaseConfirmPage() {
           구매 결정하기
         </Button>
       </div>
+
+      <BottomNav />
     </div>
   );
 }

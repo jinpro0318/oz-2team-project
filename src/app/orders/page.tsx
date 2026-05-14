@@ -18,6 +18,7 @@ const statusConfig: Record<OrderStatus, { label: string; icon: string; className
   shipping: { label: "배송중", icon: "🚚", className: "text-blue-600" },
   delivered: { label: "배송완료", icon: "✓", className: "text-green-600" },
   cancelled: { label: "주문취소", icon: "✕", className: "text-red-500" },
+  cancel_requested: { label: "취소요청", icon: "⌛", className: "text-orange-500" },
   exchange_requested: { label: "교환요청", icon: "🔄", className: "text-purple-500" },
   return_requested: { label: "반품요청", icon: "↩️", className: "text-purple-500" },
   returning: { label: "반송중", icon: "🚚", className: "text-orange-500" },

@@ -229,7 +229,7 @@ function AdminOrders() {
         carrierCode: order.carrierCode,
       });
       message.success(`[${order.orderNumber}] 상품 준비중으로 전환되었습니다.`);
-      
+
       // 드로어 열려있으면 즉시 반영 (낙관적 UI 보조)
       if (drawerOrder?.id === order.id) {
         setDrawerOrder({ ...order, status: "preparing" });
@@ -857,20 +857,10 @@ function AdminOrders() {
                 size="small"
                 icon={<CheckOutlined />}
                 loading={updateStatus.isPending}
-                disabled={r.trackingNumber?.startsWith("MOCK-")}
                 onClick={() => handleDeliver(r)}
-                className={
-                  r.trackingNumber?.startsWith("MOCK-")
-                    ? ""
-                    : "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
-                }
-                title={
-                  r.trackingNumber?.startsWith("MOCK-")
-                    ? "MOCK 송장은 자동 처리됩니다"
-                    : ""
-                }
+                className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
               >
-                완료
+                배송완료 처리
               </Button>
             )}
           {r.status === "delivered" &&
