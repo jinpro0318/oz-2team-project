@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Spin, Button as AntdButton } from "antd";
-import { SyncOutlined } from "@ant-design/icons";
+import { SyncOutlined, RightOutlined } from "@ant-design/icons";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -93,6 +93,7 @@ export default function DeliveryTracking({
   const [error, setError] = useState<string | null>(null);
   const [skipping, setSkipping] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   // [v13.23] 수동 동기화(갱신) 핸들러
   const handleRefresh = async () => {
@@ -183,7 +184,9 @@ export default function DeliveryTracking({
       return;
     }
 
-    setLoading(true);
+    // [v14.3] 스크롤 점프 방지: 이미 데이터가 있는 상태에서 송장 번호만 바꿀 때는 전체 로딩바를 띄우지 않습니다.
+    // 이를 통해 레이아웃 높이가 유지되어 브라우저 스크롤이 상단으로 튀는 현상을 막습니다.
+    if (!data) setLoading(true);
     const unsub = onSnapshot(
       doc(db, "shipments", activeTrackingNumber),
       (snap) => {
@@ -372,11 +375,12 @@ export default function DeliveryTracking({
   return (
     <div className="flex flex-col gap-5 p-2 animate-in fade-in duration-500">
       {/* 1. 송장 타입 인디케이터 (배송/교환/반품) */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex gap-2 justify-center pb-1">
         {[
           { type: "배송", icon: "🚚", match: ["MOCK-S"] },
           { type: "교환", icon: "🔄", match: ["MOCK-EQ", "MOCK-ES", "MOCK-E"] },
           { type: "반품", icon: "📦", match: ["MOCK-R"] },
+          { type: "취소", icon: "🚫", match: [] },
         ].map((tab) => {
           let isActive = false;
           const claimType = rawShipment?.claimType || "";
@@ -393,13 +397,18 @@ export default function DeliveryTracking({
             orderStatus === "return_completed" ||
             activeTrackingNumber?.startsWith("MOCK-R");
 
+          const isCancelled =
+            orderStatus === "cancelled" || orderStatus === "cancel_requested";
+
           const isS = activeTrackingNumber?.startsWith("MOCK-S");
           const isEQ =
             activeTrackingNumber?.startsWith("MOCK-EQ") ||
             activeTrackingNumber?.startsWith("MOCK-ES");
           const isR = activeTrackingNumber?.startsWith("MOCK-R");
 
-          if (isS) {
+          if (isCancelled) {
+            isActive = tab.type === "취소";
+          } else if (isS) {
             isActive = tab.type === "배송";
           } else if (isEQ) {
             isActive = tab.type === "교환";
@@ -421,7 +430,7 @@ export default function DeliveryTracking({
           return (
             <div
               key={tab.type}
-              className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-5 py-2 rounded-[10px] text-[13px] font-bold transition-all whitespace-nowrap cursor-default ${colorClass}`}
+              className={`flex-1 flex items-center justify-center gap-1 px-1 py-2 rounded-[10px] text-[12px] font-bold transition-all whitespace-nowrap cursor-default ${colorClass}`}
             >
               <span>{tab.icon}</span> {tab.type}
             </div>
@@ -487,35 +496,60 @@ export default function DeliveryTracking({
 
               <div className="flex justify-between items-start relative z-10">
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-black text-[#A1A5B7] uppercase tracking-[0.1em] mb-1">
+                  <span className="text-[10px] font-bold text-[#B5B5C3] uppercase tracking-wider mb-1.5">
                     Carrier
                   </span>
-                  <h2 className="text-[17px] font-black text-[#3699FF] tracking-tighter leading-none">
+                  <h2 className="text-[17px] font-black text-[#3699FF] tracking-tighter leading-none mt-[2px]">
                     CODE 로지스틱스
                   </h2>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-[#B5B5C3] uppercase tracking-wider mb-1.5">
-                    Tracking No.
-                  </span>
+                  <div 
+                    className={`flex items-center gap-1 mb-1.5 ${shipmentHistory.length > 1 ? 'cursor-pointer group' : ''}`}
+                    onClick={() => shipmentHistory.length > 1 && setIsHistoryExpanded(!isHistoryExpanded)}
+                  >
+                    <span className="text-[10px] font-bold text-[#B5B5C3] uppercase tracking-wider">
+                      Tracking No.
+                    </span>
+                    {shipmentHistory.length > 1 && (
+                      <RightOutlined 
+                        style={{ 
+                          fontSize: '8px', 
+                          color: '#B5B5C3',
+                          transform: isHistoryExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.3s'
+                        }}
+                        className="group-hover:text-[#3699FF]"
+                      />
+                    )}
+                  </div>
                   <div className="flex flex-col items-end w-full">
                     {shipmentHistory.length > 0 ? (
                       shipmentHistory.map((s, idx) => {
                         const isActive = activeTrackingNumber === s.shipmentId;
+                        const isVisible = isHistoryExpanded || isActive;
+                        
                         return (
-                          <span
+                          <div
                             key={s.shipmentId}
-                            onClick={() =>
-                              setActiveTrackingNumber(s.shipmentId)
-                            }
-                            className={`cursor-pointer transition-all leading-snug tracking-tight block ${
-                              isActive
-                                ? "text-[15px] font-bold text-[#181C32] mb-0.5"
-                                : `text-[12px] font-medium text-[#A1A5B7] hover:text-[#7E8299] ${idx > 0 ? "mt-0.5" : ""}`
-                            }`}
+                            className="w-full flex justify-end overflow-hidden transition-all duration-500 ease-in-out"
+                            style={{
+                              maxHeight: isVisible ? '40px' : '0px',
+                              opacity: isVisible ? 1 : 0,
+                              marginTop: isVisible && idx > 0 && isHistoryExpanded ? '6px' : '0px'
+                            }}
                           >
-                            {s.shipmentId}
-                          </span>
+                            <span
+                              onClick={() => setActiveTrackingNumber(s.shipmentId)}
+                              className={`cursor-pointer transition-colors duration-300 leading-snug tracking-tight block ${
+                                isActive
+                                  ? "text-[15px] font-bold text-[#181C32]"
+                                  : "text-[12px] font-medium text-[#A1A5B7] hover:text-[#7E8299]"
+                              }`}
+                            >
+                              {s.shipmentId}
+                            </span>
+                          </div>
                         );
                       })
                     ) : (

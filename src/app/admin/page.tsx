@@ -19,11 +19,21 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   payment_pending: { label: "결제대기", color: "default" },
   preparing: { label: "준비중", color: "orange" },
   shipping: { label: "배송중", color: "green" },
-  delivered: { label: "배송완료", color: "default" },
+  delivered: { label: "배송완료", color: "cyan" },
   cancelled: { label: "주문취소", color: "red" },
+  cancel_requested: { label: "취소요청", color: "orange" },
   exchange_requested: { label: "교환요청", color: "purple" },
   return_requested: { label: "반품요청", color: "purple" },
-  purchase_confirmed: { label: "구매확정", color: "cyan" },
+  returning: { label: "수거중", color: "volcano" },
+  returned: { label: "수거완료", color: "magenta" },
+  inspecting: { label: "검수중", color: "gold" },
+  inspection_completed: { label: "검수완료", color: "geekblue" },
+  exchange_preparing: { label: "상품준비", color: "orange" },
+  exchange_completed: { label: "교환완료", color: "geekblue" },
+  return_completed: { label: "반품완료", color: "gray" },
+  purchase_confirmed: { label: "구매확정", color: "green" },
+  claim_rejected: { label: "클레임반려", color: "red" },
+  reshipping: { label: "교환재발송", color: "geekblue" },
 };
 
 export default function AdminDashboard() {

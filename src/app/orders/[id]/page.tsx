@@ -181,7 +181,7 @@ export default function OrderDetailPage() {
           <p className="text-xs text-text-secondary">주문번호</p>
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold">{order.orderNumber}</p>
-            {claimType && !isFinished && (
+            {claimType && !isFinished && order.status !== "claim_rejected" && (
               <Tag
                 color="volcano"
                 className="m-0 text-[10px] py-0 px-1 border-none font-bold"
@@ -372,8 +372,7 @@ export default function OrderDetailPage() {
         {!isFinished &&
           (order.status === "delivered" ||
             order.status === "exchange_completed" ||
-            engineStatus === "exchange_completed" ||
-            order.status === "claim_rejected") && (
+            engineStatus === "exchange_completed") && (
           <Button 
             block 
             style={{ height: "48px", fontWeight: "bold" }}
