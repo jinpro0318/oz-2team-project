@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Input, Radio, App } from "antd";
 import BackTopBar from "@/components/common/BackTopBar";
@@ -26,7 +26,7 @@ function formatPrice(n: number, mounted: boolean) {
   return n.toLocaleString("ko-KR");
 }
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { message } = App.useApp();
@@ -336,5 +336,24 @@ export default function CheckoutPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * [효진] Next.js 15에서 useSearchParams() 는 정적 prerender 시점에 Suspense 경계 필수.
+ * force-dynamic 만으로는 부족해서 inner 컴포넌트를 Suspense 로 감싸는 패턴 적용
+ * (order-complete, login 페이지와 동일한 구조).
+ */
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center">
+          로딩 중...
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }
