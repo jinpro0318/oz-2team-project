@@ -811,7 +811,21 @@ function AdminOrders() {
       dataIndex: "status",
       key: "status",
       width: 90,
-      render: (v: OrderStatus) => {
+      render: (v: OrderStatus, r: Order) => {
+        const isRejectedThenConfirmed = 
+          v === 'purchase_confirmed' && 
+          r.timeline?.some((t) => t.status === 'claim_rejected');
+        
+        if (isRejectedThenConfirmed) {
+          const claimType = getActiveClaimType(r);
+          const claimLabel = claimType === 'exchange' ? '교환' : '반품';
+          return (
+            <Tag color="red" className="font-bold">
+              {claimLabel} 반려 - 구매확정 ✕
+            </Tag>
+          );
+        }
+
         const c = statusConfig[v] ?? { label: v, color: "default" };
         return <Tag color={c.color}>{c.label}</Tag>;
       },
@@ -1136,11 +1150,27 @@ function AdminOrders() {
         title={
           <div className="flex items-center gap-2">
             <span className="font-bold">주문 상세</span>
-            {drawerOrder && (
-              <Tag color={statusConfig[drawerOrder.status]?.color ?? "default"}>
-                {statusConfig[drawerOrder.status]?.label ?? drawerOrder.status}
-              </Tag>
-            )}
+            {drawerOrder && (() => {
+              const isRejectedThenConfirmed = 
+                drawerOrder.status === 'purchase_confirmed' && 
+                drawerOrder.timeline?.some((t) => t.status === 'claim_rejected');
+              
+              if (isRejectedThenConfirmed) {
+                const claimType = getActiveClaimType(drawerOrder);
+                const claimLabel = claimType === 'exchange' ? '교환' : '반품';
+                return (
+                  <Tag color="red" className="font-bold">
+                    {claimLabel} 반려 - 구매확정 ✕
+                  </Tag>
+                );
+              }
+
+              return (
+                <Tag color={statusConfig[drawerOrder.status]?.color ?? "default"}>
+                  {statusConfig[drawerOrder.status]?.label ?? drawerOrder.status}
+                </Tag>
+              );
+            })()}
           </div>
         }
         open={!!drawerOrder}
