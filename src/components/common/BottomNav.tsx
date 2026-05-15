@@ -1,11 +1,13 @@
 "use client";
 
-import { Home, Search, Star, User } from "lucide-react";
+import { Home, Search, ShoppingCart, Star, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useUIStore } from "@/stores/uiStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useCartStore } from "@/stores/cartStore";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -14,6 +16,13 @@ export default function BottomNav() {
   const { user: authUser } = useAuthStore();
   const isBottomNavVisible = useUIStore((s) => s.isBottomNavVisible);
   const hasNewWishlistItem = useUIStore((s) => s.hasNewWishlistItem);
+
+  // [효진] 장바구니 수량 배지 — TopBar에서 이관, 하이드레이션 회피용 mounted 패턴 사용
+  const cartCount = useCartStore((s) => s.getTotalCount());
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (
     pathname?.startsWith("/admin") ||
@@ -67,6 +76,23 @@ export default function BottomNav() {
           <span className="absolute top-2.5 right-[calc(50%-10px)] w-[7px] h-[7px] rounded-full bg-red border-[1.5px] border-white" />
         )}
       </button>
+
+      {/* [효진] 장바구니 — TopBar에서 이관 */}
+      <Link
+        href="/cart"
+        className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity relative"
+        aria-label="장바구니"
+      >
+        <ShoppingCart
+          className="w-[23px] h-[23px] text-text"
+          strokeWidth={isActive("/cart") ? 2.5 : 1.8}
+        />
+        {mounted && cartCount > 0 && (
+          <span className="absolute top-1.5 right-[calc(50%-16px)] min-w-[16px] h-[16px] rounded-full bg-red px-1 text-[10px] font-bold text-white flex items-center justify-center border-[1.5px] border-white">
+            {cartCount > 99 ? "99+" : cartCount}
+          </span>
+        )}
+      </Link>
 
       {/* 마이페이지 */}
       <button

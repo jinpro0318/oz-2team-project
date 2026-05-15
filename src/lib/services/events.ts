@@ -1,17 +1,49 @@
-import { getDocuments, getDocument } from "@/lib/firestore";
-import type { AppEvent } from "@/types";
+import {
+  getDocuments,
+  getDocument,
+  createDocument,
+  updateDocument,
+  deleteDocument,
+  orderBy,
+} from "@/lib/firestore";
+import type { AppEvent, EventFormData } from "@/types";
 
+// [효진] 어드민 이벤트 관리: 전체 이벤트 조회 (priority 내림차순)
+export async function getAllEvents(): Promise<AppEvent[]> {
+  return getDocuments<AppEvent>("events", [orderBy("priority", "desc")]);
+}
+
+// 진행 중(노출 + 기간 매칭) 이벤트만 조회 — 메인/배너용
 export async function getActiveEvents(): Promise<AppEvent[]> {
-  const all = await getDocuments<AppEvent>("events");
+  const all = await getAllEvents();
   const now = new Date().toISOString();
   return all.filter(
     (e) =>
       e.isActive &&
-      (!e.startDate || e.startDate <= now) &&
-      (!e.endDate || e.endDate >= now)
+      (!e.startAt || e.startAt <= now) &&
+      (!e.endAt || e.endAt >= now)
   );
 }
 
+// 단일 이벤트 조회 — 상세 페이지/수정 prefill 등에서 사용
 export async function getEvent(id: string): Promise<AppEvent | null> {
   return getDocument<AppEvent>("events", id);
+}
+
+// [효진] 이벤트 등록 (어드민)
+export async function createEvent(data: EventFormData): Promise<string> {
+  return createDocument("events", data);
+}
+
+// [효진] 이벤트 수정 (어드민)
+export async function updateEvent(
+  id: string,
+  data: Partial<EventFormData>
+): Promise<void> {
+  return updateDocument("events", id, data);
+}
+
+// [효진] 이벤트 삭제 (어드민)
+export async function deleteEvent(id: string): Promise<void> {
+  return deleteDocument("events", id);
 }

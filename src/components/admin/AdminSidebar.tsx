@@ -44,6 +44,16 @@ const menuItems = [
       </svg>
     ),
   },
+  // [효진] 이벤트 관리 메뉴 추가
+  {
+    key: "/admin/events",
+    label: "이벤트 관리",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[17px] w-[17px] shrink-0">
+        <path d="M3 11l18-8v18l-18-8z M11 19v3 M3 11v3" />
+      </svg>
+    ),
+  },
   {
     key: "/admin/analytics",
     label: "매출 분석",

@@ -242,13 +242,38 @@ export interface CelebrityFormData {
   order?: number; // [효진] 추가
 }
 
+// [효진] 어드민 이벤트 관리 도입에 따라 필드 재정비
+// - description → content (마크다운 본문)
+// - imageUrl → thumbnail (대표 이미지)
+// - startDate/endDate → startAt/endAt (게시 기간)
+// - productIds[], priority 신규 추가
 export interface AppEvent {
   id: string;
   title: string;
-  description: string;
-  imageUrl: string;
-  startDate: string; // ISO string
-  endDate: string;   // ISO string
+  content: string;        // 본문 (마크다운/플레인 텍스트)
+  thumbnail: string;      // 프로필 이미지 (메인 피드 EventCard 카드용)
+  bannerImage: string;    // [효진] 홍보 이미지 (이벤트 상세 페이지 상단 hero)
+  startAt: string;        // 게시 시작일 (ISO string)
+  endAt: string;          // 게시 종료일 (ISO string)
+  productIds: string[];   // 연결 상품 ID 목록
+  isActive: boolean;      // 노출 여부
+  priority: number;       // 노출 우선순위 (높을수록 상단)
+}
+
+/**
+ * [효진] 이벤트 등록/수정 폼 데이터 타입
+ * - 어드민 이벤트 관리 페이지 Modal + Form에서 사용
+ * - AppEvent 와 거의 동일하지만 id는 포함하지 않음
+ */
+export interface EventFormData {
+  title: string;
+  content: string;
+  thumbnail: string;     // 프로필 이미지
+  bannerImage: string;   // [효진] 홍보 이미지
+  startAt: string;
+  endAt: string;
+  productIds: string[];
   isActive: boolean;
+  priority: number;
 }
 

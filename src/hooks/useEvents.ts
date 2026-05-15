@@ -1,8 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { getActiveEvents, getEvent } from "@/lib/services/events";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getActiveEvents,
+  getAllEvents,
+  getEvent,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+} from "@/lib/services/events";
+import type { EventFormData } from "@/types";
 
+// 메인/배너용: 진행 중인 이벤트만
 export function useEvents() {
   return useQuery({
     queryKey: ["events", "active"],
@@ -11,10 +20,54 @@ export function useEvents() {
   });
 }
 
+// [효진] 어드민 목록용: 모든 이벤트 (예정 + 진행중 + 종료)
+export function useAllEvents() {
+  return useQuery({
+    queryKey: ["events", "all"],
+    queryFn: getAllEvents,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// 단일 이벤트 조회 — 상세 페이지 등
 export function useEvent(id: string) {
   return useQuery({
     queryKey: ["events", id],
     queryFn: () => getEvent(id),
     enabled: !!id,
+  });
+}
+
+// [효진] 이벤트 등록 mutation
+export function useCreateEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: EventFormData) => createEvent(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+// [효진] 이벤트 수정 mutation
+export function useUpdateEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<EventFormData> }) =>
+      updateEvent(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+// [효진] 이벤트 삭제 mutation
+export function useDeleteEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+    },
   });
 }

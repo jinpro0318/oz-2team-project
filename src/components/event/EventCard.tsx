@@ -21,9 +21,9 @@ export default function EventCard({ event }: EventCardProps) {
       href={`/event/${event.id}`}
       className="flex-shrink-0 relative w-[220px] h-[130px] rounded-xl overflow-hidden block"
     >
-      {event.imageUrl ? (
+      {event.thumbnail ? (
         <img
-          src={event.imageUrl}
+          src={event.thumbnail}
           alt={event.title}
           className="w-full h-full object-cover"
         />
@@ -41,7 +41,7 @@ export default function EventCard({ event }: EventCardProps) {
           {event.title}
         </p>
         <p className="text-white/70 text-[10px] mt-0.5">
-          {formatDateRange(event.startDate, event.endDate)}
+          {formatDateRange(event.startAt, event.endAt)}
         </p>
       </div>
     </Link>

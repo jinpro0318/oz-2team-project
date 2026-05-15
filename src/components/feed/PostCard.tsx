@@ -1,9 +1,10 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import HotspotImage from "./HotspotImage";
 import { InstagramBar } from "./InstagramBar";
-import type { Post, Celebrity } from "@/types";
+import type { Post, Celebrity, Hotspot } from "@/types";
 
 interface PostCardProps {
   post: Post;
@@ -23,6 +24,97 @@ function getPostLocation(post: Post, celebrity: Celebrity): string {
   let hash = 0;
   for (let i = 0; i < celebrity.id.length; i++) hash = (hash * 31 + celebrity.id.charCodeAt(i)) >>> 0;
   return fallbacks[hash % fallbacks.length];
+}
+
+/**
+ * [효진] 포스트 내부 다중 이미지 캐러셀
+ * - state 기반 idx (스와이프/드래그·도트 클릭으로 전환)
+ * - 활성 도트는 가로로 늘어남
+ * - HotspotImage 의 imageIndex 필터 유지
+ */
+function ImageCarousel({
+  images,
+  hotspots,
+  gradient,
+  celebName,
+}: {
+  images: string[];
+  hotspots: Hotspot[];
+  gradient: string;
+  celebName: string;
+}) {
+  const [idx, setIdx] = useState(0);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+
+  const goTo = (next: number) =>
+    setIdx(Math.max(0, Math.min(images.length - 1, next)));
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    dragging.current = true;
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    const dx = startX.current - e.clientX;
+    const dy = startY.current - e.clientY;
+    // 수평 이동량이 수직보다 크고 50px 이상일 때만 전환 (세로 스크롤과 충돌 방지)
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      goTo(idx + (dx > 0 ? 1 : -1));
+    }
+  };
+
+  const onPointerLeave = () => {
+    dragging.current = false;
+  };
+
+  return (
+    <div
+      className="relative"
+      style={{ touchAction: "pan-y", userSelect: "none" }}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+    >
+      <div className="overflow-hidden">
+        <div
+          className="flex transition-transform duration-300 ease-out will-change-transform"
+          style={{ transform: `translateX(-${idx * 100}%)` }}
+        >
+          {images.map((url, i) => (
+            <div key={i} className="w-full shrink-0">
+              <HotspotImage
+                imageUrl={url}
+                hotspots={hotspots.filter((h) => (h.imageIndex ?? 0) === i)}
+                gradient={gradient}
+                celebName={celebName}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {images.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setIdx(i)}
+              aria-label={`${i + 1}번째 이미지로 이동`}
+              className={`rounded-full transition-all duration-200 shadow-sm ${
+                i === idx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PostCard({ post, celebrity }: PostCardProps) {
@@ -57,35 +149,17 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         </button>
       </div>
 
-      {/* Image with Hotspots / Carousel */}
-      <div className="relative">
-        <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide no-scrollbar">
-          {/* [효진] 모든 이미지를 HotspotImage로 감싸고, 각 인덱스에 맞는 핫스팟만 전달 */}
-          {(post.imageUrls && post.imageUrls.length > 0 ? post.imageUrls : [post.imageUrl]).map((url, idx) => (
-            <div key={idx} className="w-full shrink-0 snap-center relative">
-              <HotspotImage
-                imageUrl={url}
-                // [효진] 해당 이미지 인덱스에 속하는 핫스팟만 필터링
-                hotspots={(post.hotspots || []).filter(h => (h.imageIndex ?? 0) === idx)}
-                gradient={celebrity.gradient}
-                celebName={celebrity.name}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Indicator Dots */}
-        {(post.imageUrls?.length || 1) > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
-            {(post.imageUrls || [post.imageUrl]).map((_, i) => (
-              <div 
-                key={i} 
-                className="w-1.5 h-1.5 rounded-full bg-white/50 shadow-sm"
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* [효진] 포스트 내부 이미지 캐러셀 (다중 이미지 시 좌우 스와이프 + 클릭 가능한 도트) */}
+      <ImageCarousel
+        images={
+          post.imageUrls && post.imageUrls.length > 0
+            ? post.imageUrls
+            : [post.imageUrl]
+        }
+        hotspots={post.hotspots || []}
+        gradient={celebrity.gradient}
+        celebName={celebrity.name}
+      />
 
 
 

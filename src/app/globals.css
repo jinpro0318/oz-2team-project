@@ -53,6 +53,17 @@
     );
   }
 
+  /* [효진] 이벤트 스토리 전용 — 인스타그램 '친한 친구' 그린 톤
+     셀럽 스토리(instagram-gradient)와 시각적으로 분리 */
+  .event-story-gradient {
+    background: linear-gradient(
+      45deg,
+      #3ddc84,
+      #2dc06a,
+      #1aaf57
+    );
+  }
+
   .hotspot-pulse {
     animation: pulse-hotspot 2.4s ease-in-out infinite;
   }
