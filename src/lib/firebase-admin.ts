@@ -7,7 +7,48 @@ import * as admin from "firebase-admin";
 
 const project_id = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const client_email = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-const private_key = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+/**
+ * [효진] Vercel 호환을 위한 private key 파서.
+ *
+ * Vercel 환경 변수는 따옴표/줄바꿈 처리가 까다로워서 흔히 깨진다.
+ * 다음 두 가지 입력 형태를 모두 지원하도록 보강:
+ *
+ *  1) FIREBASE_ADMIN_PRIVATE_KEY_BASE64 (권장)
+ *     - JSON의 private_key 값 전체를 base64로 인코딩해서 한 줄로 넣기
+ *     - 따옴표·escape 문제 발생 X
+ *     - macOS:  echo -n "$(cat key.txt)" | base64 | pbcopy
+ *     - 또는 Node: Buffer.from(jsonValue).toString('base64')
+ *
+ *  2) FIREBASE_ADMIN_PRIVATE_KEY (기존 호환)
+ *     - 양 끝 따옴표를 잘못 포함했어도 자동으로 떼어냄
+ *     - "\n" literal 시퀀스를 실제 줄바꿈으로 치환
+ */
+function resolvePrivateKey(): string | undefined {
+  const b64 = process.env.FIREBASE_ADMIN_PRIVATE_KEY_BASE64;
+  if (b64 && b64.trim()) {
+    try {
+      return Buffer.from(b64.trim(), "base64").toString("utf-8");
+    } catch (e) {
+      console.error("[Firebase Admin] BASE64 디코딩 실패:", e);
+    }
+  }
+
+  let raw = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  if (!raw) return undefined;
+  raw = raw.trim();
+  // Vercel UI에 따옴표째 붙여넣었을 경우 제거
+  if (
+    (raw.startsWith('"') && raw.endsWith('"')) ||
+    (raw.startsWith("'") && raw.endsWith("'"))
+  ) {
+    raw = raw.slice(1, -1);
+  }
+  // 단일 라인 형태("...\n...")로 들어왔다면 실제 개행으로 치환
+  return raw.replace(/\\n/g, "\n");
+}
+
+const private_key = resolvePrivateKey();
 
 function getAdminApp() {
   if (admin.apps.length > 0) {

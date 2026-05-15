@@ -16,6 +16,11 @@ import { buildProductPriceMap, resolveUnitPrice } from "@/lib/utils/price";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
+// [효진] /checkout 은 cart, user, useSearchParams 모두 client 동적 상태에 의존.
+// Next.js 가 정적 prerender 시도하면 useSearchParams Suspense 에러로 빌드 실패하므로
+// 페이지 자체를 강제 동적 렌더로 표기 (Vercel 빌드 통과용).
+export const dynamic = "force-dynamic";
+
 function formatPrice(n: number, mounted: boolean) {
   if (!mounted) return n.toString();
   return n.toLocaleString("ko-KR");
