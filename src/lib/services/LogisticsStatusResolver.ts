@@ -284,10 +284,15 @@ export class LogisticsStatusResolver {
           shipmentType === "EQ" || shipmentType === "ES" || shipmentType === "R"
             ? 3
             : 4;
+        
+        // [v14.7] 논리 교정: 반품(R)이나 교환수거(EQ) 중에는 구매 확정을 하더라도 
+        // 해당 수거용 송장을 '반품완료'로 만들지 않습니다. (구매 확정은 물건을 가지는 것이기 때문)
+        const shouldUpdate = shipmentType !== "R" && shipmentType !== "EQ";
+
         return {
           status: "purchase_confirmed",
           step: lastStep,
-          shouldUpdateShipment: true,
+          shouldUpdateShipment: shouldUpdate,
         };
       case "CLAIM_REJECT":
         return { status: "claim_rejected", shouldUpdateShipment: false };

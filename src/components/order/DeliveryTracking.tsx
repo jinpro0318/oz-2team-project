@@ -284,6 +284,8 @@ export default function DeliveryTracking({
               current: effectiveStep,
               steps: uiSteps,
               type: virtualType,
+              // [v14.5] 로직 보강: 목록이 아직 로드 전이면 최신으로 간주(true), 로드 후에는 ID를 엄격히 비교
+              isLatest: shipmentHistory.length === 0 || activeTrackingNumber === shipmentHistory[0]?.shipmentId,
             });
           }
           setLoading(false);
@@ -294,7 +296,7 @@ export default function DeliveryTracking({
       },
     );
     return () => unsub();
-  }, [carrierCode, activeTrackingNumber, onStatusChange]);
+  }, [carrierCode, activeTrackingNumber, onStatusChange, shipmentHistory]);
 
   // [v14.1] 상세 기록(Audit Trail) 데이터만 새로고침하는 내부 함수
   const refreshDetailedLogs = async (targetId: string) => {

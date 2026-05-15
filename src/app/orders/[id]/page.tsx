@@ -33,22 +33,29 @@ export default function OrderDetailPage() {
     current: number;
     steps: any[];
     type?: string;
+    isLatest?: boolean; // [v14.4] 최신 송장 여부 추가
   } | null>(null);
 
   // [v9.1] 콜백 안정화: 무한 루프 방지 핵심 로직
   const handleStatusChange = useCallback(
-    (status: string, extra?: { current: number; steps: any[]; type?: string }) => {
+    (status: string, extra?: { current: number; steps: any[]; type?: string; isLatest?: boolean }) => {
       if (extra) {
         setStepperData((prev) => {
           // 불필요한 상태 업데이트 방지 (값 비교)
           if (
             prev?.current === extra.current &&
             prev?.steps.length === extra.steps.length &&
-            prev?.type === extra.type
+            prev?.type === extra.type &&
+            prev?.isLatest === extra.isLatest
           ) {
             return prev;
           }
-          return { current: extra.current, steps: extra.steps, type: extra.type };
+          return { 
+            current: extra.current, 
+            steps: extra.steps, 
+            type: extra.type,
+            isLatest: extra.isLatest
+          };
         });
       }
     },
@@ -81,25 +88,24 @@ export default function OrderDetailPage() {
   const claimType = getActiveClaimType(order);
   const isFinished = isFinishedStatus(order.status);
 
-  // 현재 접수 대기 상태 (수거 지시 전)
-  const isPendingReturn =
-    ["exchange_requested", "return_requested"].includes(order.status) &&
-    !order.timeline?.some((t) => t.status === "returning");
-
   // [v14.0] 4+4 Phase Finalization: 교환 시 7단계 레거시(E)를 제거하고 현재 페이즈(EQ/ES)를 자동 판별합니다.
   const isReshipping = [
     "exchange_preparing",
     "reshipping",
     "exchange_completed",
   ].includes(order.status);
+
+  // [v14.8] 최종 확정 시에는 클레임 여부와 상관없이 무조건 정상 배송(S/ES) 경로를 보여줍니다.
   const shipmentType =
-    claimType === "return"
-      ? "R"
-      : claimType === "exchange"
-        ? isReshipping
-          ? "ES"
-          : "EQ"
-        : "S";
+    order.status === "purchase_confirmed"
+      ? (order.timeline?.some(t => t.status === 'exchange_completed') ? "ES" : "S")
+      : claimType === "return"
+        ? "R"
+        : claimType === "exchange"
+          ? isReshipping
+            ? "ES"
+            : "EQ"
+          : "S";
 
   // 1. [v12.5 복원] 하단 물류 엔진의 실시간 계산 결과(stepperData)를 1순위로 반영하여 "순간이동" 등 지능형 복구를 수용합니다.
   const activeShipmentType = stepperData?.type || shipmentType;
@@ -189,6 +195,18 @@ export default function OrderDetailPage() {
                 {claimType === "exchange" ? "교환 진행중" : "반품 진행중"}
               </Tag>
             )}
+            {order.status === "purchase_confirmed" &&
+              order.timeline?.some((t) => t.status === "claim_rejected") && (
+                <Tag
+                  color="error"
+                  className="m-0 text-[10px] py-0 px-1 border-none font-bold"
+                >
+                  {getActiveClaimType(order) === "exchange"
+                    ? "교환 반려"
+                    : "반품 반려"}{" "}
+                  - 구매확정
+                </Tag>
+              )}
           </div>
         </div>
         <Tag className="bg-gray-100 border-none text-text-secondary">
@@ -354,6 +372,7 @@ export default function OrderDetailPage() {
 
         {/* [v13.21] 구매 결정: 물건을 받은 상태(배송완료/교환완료/반려)에서만 노출 */}
         {!isFinished &&
+          stepperData?.isLatest !== false &&
           (order.status === "delivered" ||
             order.status === "exchange_completed" ||
             engineStatus === "exchange_completed" ||
@@ -370,6 +389,7 @@ export default function OrderDetailPage() {
 
         {/* [v13.21] 교환/반품 신청: 물건을 받은 상태에서만 노출하며, 이미 진행중인 클레임이 없을 때만 가능 (혹은 교환완료된 후 재신청) */}
         {!isFinished &&
+          stepperData?.isLatest !== false &&
           (order.status === "delivered" ||
             order.status === "exchange_completed" ||
             engineStatus === "exchange_completed") && (

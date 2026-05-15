@@ -9,6 +9,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useAuthStore } from "@/stores/authStore";
 import { updateUserLastChecked } from "@/lib/services/user";
+import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
 import type { OrderStatus } from "@/types";
 
@@ -164,9 +165,27 @@ function OrderCard({ order, initialLastChecked }: { order: any; initialLastCheck
             </span>
           )}
         </div>
-        <p className={`text-[13px] font-bold ${sc.className}`}>
-          {sc.label} {sc.icon}
-        </p>
+        {(() => {
+          const isRejectedThenConfirmed = 
+            status === 'purchase_confirmed' && 
+            order.timeline?.some((t: any) => t.status === 'claim_rejected');
+          
+          if (isRejectedThenConfirmed) {
+            const claimType = getActiveClaimType(order);
+            const claimLabel = claimType === 'exchange' ? '교환' : '반품';
+            return (
+              <p className="text-[13px] font-bold text-red-500">
+                {claimLabel} 반려 - 구매확정 ✕
+              </p>
+            );
+          }
+
+          return (
+            <p className={`text-[13px] font-bold ${sc.className}`}>
+              {sc.label} {sc.icon}
+            </p>
+          );
+        })()}
       </div>
 
       {/* Product Rows */}
