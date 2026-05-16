@@ -25,6 +25,9 @@ export class CodeFulfillmentEngine {
       carrierCode?: string;
       claimType?: string;
       reason?: string;
+      paymentKey?: string;
+      refundAmount?: number;
+      cancelMetadata?: any;
     },
   ): Promise<void> {
     if (!orderId || !intent)
@@ -63,6 +66,9 @@ export class CodeFulfillmentEngine {
           currentStep = shipmentSnap.data().currentStep ?? 0;
         }
       }
+
+      // [v15.0] 취소/환불 시 재고 복구를 위한 상품(Product) 데이터 사전 조회 배열 (실제 조회는 정책 해석 후에 수행)
+      let productsToRestore: { ref: any; snap: any; quantity: number }[] = [];
 
       // [v12.5] 전역 설정에서 쇼핑몰 출발지 주소 로드 (반드시 모든 Write 전에 수행되어야 함)
       let senderAddress = "경기도 고양시 일산동구";
@@ -115,6 +121,25 @@ export class CodeFulfillmentEngine {
         shipmentType,
       );
 
+      // --- [STAGE 2-B: POST-RESOLUTION READS] 정책 결정 후 추가 읽기 ---
+      // [v15.1] 일반 취소뿐만 아니라 '반품 완료(return_completed)' 시점에도 재고를 복구하기 위해 읽기를 수행합니다.
+      const isCancellationOrReturn = 
+        intent === "CANCEL" || 
+        intent === "APPROVE_CANCEL" || 
+        resolved.status === "return_completed";
+
+      if (isCancellationOrReturn) {
+        if (orderData.items && Array.isArray(orderData.items)) {
+          for (const item of orderData.items) {
+            if (item.productId) {
+              const pRef = doc(db, "products", item.productId);
+              const snap = await transaction.get(pRef);
+              productsToRestore.push({ ref: pRef, snap, quantity: item.quantity || 1 });
+            }
+          }
+        }
+      }
+
       // --- [v11.8] 물류 삭제 특별 분기 (Early Return) ---
       if (intent === "DELETE_LOGISTICS") {
         const resetUpdates: any = {
@@ -148,6 +173,14 @@ export class CodeFulfillmentEngine {
 
       // 3. 주문(orders) 컬렉션 업데이트 준비
       const orderUpdates: any = { updatedAt: new Date().toISOString() };
+
+      // [v15.1] 고도화된 취소/환불 데이터(Schema) 영구 기록
+      if (intent === "APPROVE_CANCEL") {
+        orderUpdates.cancelledAt = new Date().toISOString();
+        if (extraData?.refundAmount) orderUpdates.refundAmount = extraData.refundAmount;
+        if (extraData?.cancelMetadata) orderUpdates.cancelMetadata = extraData.cancelMetadata;
+        if (extraData?.reason) orderUpdates.cancelReason = extraData.reason;
+      }
 
       // [v10.5 No-Trick] 정책 모듈의 지시(requiresNewShipment)에 따라 송장 교체 여부 결정
       let finalTrackingNumber = trackingNumber;
@@ -218,6 +251,9 @@ export class CodeFulfillmentEngine {
         if (extraData?.carrierCode && !orderUpdates.carrierCode) {
           orderUpdates.carrierCode = extraData.carrierCode;
         }
+        if (extraData?.paymentKey && !orderUpdates.paymentKey) {
+          orderUpdates.paymentKey = extraData.paymentKey;
+        }
       }
 
       if (resolved.status) {
@@ -286,6 +322,17 @@ export class CodeFulfillmentEngine {
             updatedAt: serverTimestamp(),
           });
         }
+      }
+
+      // [v15.1] 취소/환불 및 반품 완료 시 재고 원상복구 처리 (WRITE)
+      if (isCancellationOrReturn && productsToRestore.length > 0) {
+        productsToRestore.forEach((p) => {
+          if (p.snap.exists()) {
+            const currentStock = p.snap.data().stock || 0;
+            transaction.update(p.ref, { stock: currentStock + p.quantity });
+            console.log(`[CodeFulfillmentEngine] 재고 복구(사유: ${resolved.status || intent}): ${p.ref.id} (+${p.quantity}) -> 총 ${currentStock + p.quantity}`);
+          }
+        });
       }
 
       transaction.update(orderRef, orderUpdates);
@@ -443,8 +490,11 @@ export class CodeFulfillmentEngine {
       inspecting: "상품 검수중",
       reshipping: "교환품 재발송",
       exchange_completed: "교환 완료",
+      exchange_completed: "교환 완료",
       claim_rejected: "클레임 반려",
       purchase_confirmed: "구매 확정",
+      cancelled: "주문 취소 완료",
+      cancel_requested: "취소 요청됨",
     };
     return map[status] || "상태 변경";
   }

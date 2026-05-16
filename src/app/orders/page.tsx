@@ -78,6 +78,9 @@ export default function OrdersPage() {
   }, [user?.id]);
 
   const filteredOrders = orders.filter((order) => {
+    // [보안/무결성] 결제대기(유령 주문) 상태는 사용자 화면에서 완벽히 숨깁니다.
+    if (order.status === "payment_pending") return false;
+
     if (activeFilter === "all") return true;
 
     if (activeFilter === "shipping") return order.status === "shipping" || order.status === "preparing";

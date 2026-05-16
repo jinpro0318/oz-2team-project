@@ -111,6 +111,9 @@ function CheckoutContent() {
       return;
     }
 
+    let createdOrderId = ""; // [무결성] catch 블록에서도 ID를 기억하기 위함
+    let heartbeatInterval: NodeJS.Timeout | undefined;
+
     try {
       // 1. Create order in our database
       const order = await createOrderMutation.mutateAsync({
@@ -146,7 +149,18 @@ function CheckoutContent() {
         shippingFee,
       });
 
-      // 2. Request payment via standard SDK (V2 syntax)
+      createdOrderId = order.id;
+
+      // [결제 무결성] 2. 토스 SDK 호출 전 하트비트(생존 신고) 타이머 가동 (30초 간격)
+      heartbeatInterval = setInterval(() => {
+        fetch("/api/payment/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: createdOrderId }),
+        }).catch(() => {}); // 조용히 무시
+      }, 30000);
+
+      // 3. Request payment via standard SDK (V2 syntax)
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
       const payment = tossPayments.payment({
         customerKey: user.id.replace(/[^a-zA-Z0-9\-_=.@]/g, "") || "ANONYMOUS"
@@ -171,8 +185,20 @@ function CheckoutContent() {
         customerName: recipient,
       });
     } catch (error: any) {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+
       if (error.code === "USER_CANCEL") {
         message.info("결제가 취소되었습니다");
+        
+        // [결제 무결성] 취소 즉시 파기 명령 하달
+        if (createdOrderId) {
+          fetch("/api/payment/cleanup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: createdOrderId }), 
+          }).catch(console.error);
+        }
+
       } else {
         console.error(error);
         message.error("주문 처리 중 오류가 발생했습니다");

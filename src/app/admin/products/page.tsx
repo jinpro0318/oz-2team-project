@@ -205,6 +205,18 @@ function AdminProducts() {
       ),
     },
     {
+      title: "재고",
+      dataIndex: "stock",
+      key: "stock",
+      width: 80,
+      sorter: (a: Product, b: Product) => (a.stock || 0) - (b.stock || 0),
+      render: (v: number) => (
+        <span className={`text-xs font-bold ${v < 10 ? 'text-red-500' : 'text-gray-700'}`}>
+          {(v || 0).toLocaleString("ko-KR")}
+        </span>
+      ),
+    },
+    {
       title: "노출",
       dataIndex: "isVisible",
       key: "visible",

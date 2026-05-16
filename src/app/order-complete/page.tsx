@@ -52,8 +52,9 @@ function OrderCompleteContent() {
             const orderDoc = await getOrderByNumber(orderNumber);
             if (orderDoc) {
               // [v11.2] 단순 상태 업데이트를 버리고 물류 엔진을 공식 가동 (PAYMENT_DONE)
+              // [v14.9] 결제 취소를 위한 paymentKey를 엔진에 전달하여 DB에 영구 저장
               const { CodeFulfillmentEngine } = await import("@/lib/services/CodeFulfillmentEngine");
-              await CodeFulfillmentEngine.executeAction(orderDoc.id, "PAYMENT_DONE");
+              await CodeFulfillmentEngine.executeAction(orderDoc.id, "PAYMENT_DONE", { paymentKey });
             }
           }
           clearCart();

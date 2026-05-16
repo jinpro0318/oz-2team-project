@@ -14,6 +14,7 @@ import type { Order, OrderStatus, OrderItem, Address, OrderTimeline } from "@/ty
 import { LogisticsMasterService } from "./LogisticsMasterService";
 import { getShipmentTypeFromTracking } from "./logistics";
 import { LogisticsStatusResolver } from "./LogisticsStatusResolver";
+import { Timestamp } from "firebase/firestore";
 
 export interface CreateOrderInput {
   userId: string;
@@ -36,6 +37,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     },
   ];
 
+  const expireDate = new Date();
+  expireDate.setMinutes(expireDate.getMinutes() + 60);
+
   const orderData = {
     orderNumber,
     userId: input.userId,
@@ -49,6 +53,10 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     trackingNumber: "",
     updatedAt: now,
     timeline,
+    // [보안/무결성] 실시간 하트비트 및 60분 자동 폭파(TTL) 필드 추가
+    lastActive: Timestamp.now(),
+    expiresAt: Timestamp.fromDate(expireDate),
+    pendingSessionId: `sess_${Date.now()}`,
   };
 
   const id = await createDocument("orders", orderData);

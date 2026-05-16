@@ -8,6 +8,9 @@ import {
 
 export type OrderActionIntent =
   | "PAYMENT_DONE" // 👈 [v11.1] 결제 완료 시 엔진을 깨우는 최초의 트리거
+  | "CANCEL" // 👈 [v15.0] 결제 즉시 취소 요청
+  | "APPROVE_CANCEL" // 👈 [v15.0] 관리자 취소 승인 (환불 수반)
+  | "REJECT_CANCEL" // 👈 [v15.0] 관리자 취소 거절
   | "DELETE_LOGISTICS" // 👈 [v11.8] 물류 정보(송장) 초기화 명령
   | "ASSIGN_TRACKING" // 👈 [v11.11] 송장 부여 명령
   | "PREPARE"
@@ -211,6 +214,21 @@ export class LogisticsStatusResolver {
         // [v11.8] 송장 삭제 시 상태는 건드리지 않고(null), 송장 업데이트를 막습니다.
         // 삭제 로직의 본체는 엔진에서 intent를 확인하여 수행합니다.
         return { status: null, step: undefined, shouldUpdateShipment: false };
+      case "CANCEL":
+      case "APPROVE_CANCEL":
+        // [v15.0] 취소 완료 시 송장 업데이트를 막고 최종 취소 상태로 변경
+        return {
+          status: "cancelled",
+          step: 0,
+          shouldUpdateShipment: false,
+        };
+      case "REJECT_CANCEL":
+        // [v15.0] 취소 거절 시 기존의 '상품 준비중' 상태로 복귀
+        return {
+          status: "preparing",
+          step: 1,
+          shouldUpdateShipment: false,
+        };
       case "CLAIM_REQUEST":
         // [v13.5] 클레임 요청: 완전히 새로운 사이클의 시작. 무조건 0단계부터 대기.
         return { status: null, step: 0, shouldUpdateShipment: true };

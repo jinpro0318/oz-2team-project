@@ -10,6 +10,7 @@ import { useProducts } from "@/hooks/useProducts";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
 import { buildProductPriceMap } from "@/lib/utils/price";
+import { useAuthStore } from "@/stores/authStore";
 
 import { LogisticsStatusResolver } from "@/lib/services/LogisticsStatusResolver";
 
@@ -25,6 +26,7 @@ export default function OrderDetailPage() {
   const { message } = App.useApp();
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
+  const { user } = useAuthStore();
 
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -131,26 +133,50 @@ export default function OrderDetailPage() {
   const handleConfirmCancel = async () => {
     setShowCancelModal(false);
     try {
-      const targetStatus = engineStatus === "payment_complete" ? "cancelled" : "cancel_requested";
-      const targetLabel = engineStatus === "payment_complete" ? "주문 취소" : "주문 취소 요청";
-      const desc = engineStatus === "payment_complete" 
-        ? "단순 변심으로 인한 주문 취소 (결제완료 전 단계 즉시 취소)" 
-        : "상품 준비 중 단계에서의 취소 요청 (판매자 승인 대기)";
+      if (engineStatus === "payment_complete") {
+        // [v15.0] 결제완료 단계: 즉시 서버 API를 호출하여 PG사 환불 및 엔진 동기화 진행
+        const res = await fetch("/api/payment/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: order.id,
+            userId: user?.id,
+            reason: "단순 변심으로 인한 주문 취소 (결제완료 전 단계 즉시 취소)",
+          }),
+        });
 
-      await updateStatusMutation.mutateAsync({
-        id: order.id,
-        status: targetStatus,
-        timelineEntry: {
-          status: targetStatus,
-          label: targetLabel,
-          date: new Date().toISOString(),
-          description: desc,
-        },
-      });
-      message.success(targetStatus === "cancelled" ? "주문이 정상적으로 취소되었습니다." : "취소 요청이 접수되었습니다.");
-    } catch (e) {
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || "환불 처리 중 오류가 발생했습니다.");
+        }
+        
+        if (res.status === 207) {
+          message.warning(data.message);
+        } else {
+          message.success("주문이 정상적으로 취소 및 환불되었습니다.");
+        }
+        
+        // 새로고침하여 반영된 상태 확인
+        router.refresh();
+        window.location.reload(); // 강제 캐시 무효화를 위해 리로드
+      } else {
+        // [v15.0] 상품준비중 단계: 취소 신청만 접수하고 관리자 승인 대기
+        await updateStatusMutation.mutateAsync({
+          id: order.id,
+          status: "cancel_requested",
+          timelineEntry: {
+            status: "cancel_requested",
+            label: "주문 취소 요청",
+            date: new Date().toISOString(),
+            description: "상품 준비 중 단계에서의 취소 요청 (판매자 승인 대기)",
+          },
+        });
+        message.success("취소 요청이 접수되었습니다.");
+      }
+    } catch (e: any) {
       console.error(e);
-      message.error("처리 중 오류가 발생했습니다.");
+      message.error(e.message || "처리 중 오류가 발생했습니다.");
     }
   };
 

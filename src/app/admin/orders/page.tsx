@@ -173,6 +173,9 @@ function AdminOrders() {
   const executeAction = useExecuteOrderAction();
 
   const filteredOrders = orders.filter((o) => {
+    // [보안/무결성] 결제대기(유령 주문) 상태는 관리자 화면에서 완벽히 숨깁니다.
+    if (o.status === "payment_pending") return false;
+
     if (activeTab === "all") return true;
 
     const claimType = getActiveClaimType(o);
@@ -184,6 +187,11 @@ function AdminOrders() {
     // 클레임 진행 중인 건은 일반 탭에서 제외
     if (isClaimInProgress(o)) return false;
 
+    // [v15.0] 취소 탭은 취소 요청과 취소 완료를 모두 포함
+    if (activeTab === "cancelled") {
+      return ["cancel_requested", "cancelled"].includes(o.status);
+    }
+
     return o.status === activeTab;
   });
 
@@ -191,7 +199,7 @@ function AdminOrders() {
     const acc: Record<string, number> = {};
     statusTabs.forEach((tab) => {
       if (tab.key === "all") {
-        acc[tab.key] = orders.length;
+        acc[tab.key] = orders.filter(o => o.status !== "payment_pending").length;
       } else if (tab.key === "exchange" || tab.key === "return") {
         acc[tab.key] = orders.filter(
           (o) =>
@@ -200,6 +208,10 @@ function AdminOrders() {
       } else if (tab.key === "purchase_confirmed") {
         acc[tab.key] = orders.filter(
           (o) => o.status === "purchase_confirmed",
+        ).length;
+      } else if (tab.key === "cancelled") {
+        acc[tab.key] = orders.filter((o) =>
+          ["cancel_requested", "cancelled"].includes(o.status),
         ).length;
       } else {
         acc[tab.key] = orders.filter(
@@ -365,41 +377,7 @@ function AdminOrders() {
     }
   };
 
-  const handleApproveCancel = async (order: Order) => {
-    try {
-      await updateStatus.mutateAsync({
-        id: order.id,
-        status: "cancelled",
-        timelineEntry: {
-          status: "cancelled",
-          label: "취소 승인됨",
-          date: new Date().toISOString(),
-          description: "판매자가 취소 요청을 승인했습니다.",
-        },
-      });
-      message.success("취소 요청이 승인되었습니다.");
-    } catch (err: any) {
-      message.error("승인 실패");
-    }
-  };
 
-  const handleRejectCancel = async (order: Order) => {
-    try {
-      await updateStatus.mutateAsync({
-        id: order.id,
-        status: "preparing",
-        timelineEntry: {
-          status: "preparing",
-          label: "취소 거절",
-          date: new Date().toISOString(),
-          description: "판매자가 취소 요청을 거절하고 상품 준비를 계속합니다.",
-        },
-      });
-      message.warning("취소 요청이 거절되었습니다.");
-    } catch (err: any) {
-      message.error("거절 실패");
-    }
-  };
 
   const handleExchangeComplete = async (order: Order) => {
     try {
@@ -449,6 +427,76 @@ function AdminOrders() {
       if (drawerOrder?.id === order.id)
         setDrawerOrder({ ...order, status: "claim_rejected" });
     } catch (err: any) {
+      message.error("처리 실패");
+    }
+  };
+
+  const handleApproveCancel = async (order: Order) => {
+    try {
+      // [v15.0] 취소 승인: 서버 API를 호출하여 토스 환불 및 엔진 동기화를 수행
+      const res = await fetch("/api/payment/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          userId: "admin", // 관리자 권한 우회
+          reason: "판매자 승인에 의한 결제 취소",
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || "환불 처리 중 오류가 발생했습니다.");
+      }
+
+      if (res.status === 207) {
+        message.warning(data.message);
+      } else {
+        message.success("취소 승인 및 환불 처리가 완료되었습니다.");
+      }
+      
+      if (drawerOrder?.id === order.id) {
+        setDrawerOrder({ ...order, status: "cancelled" });
+      }
+    } catch (err: any) {
+      console.error(err);
+      message.error(err.message || "처리 실패");
+    }
+  };
+
+  const handleRejectCancel = async (order: Order) => {
+    const reason = window.prompt(
+      "취소 거절 사유를 입력해주세요:",
+      "이미 상품 포장이 완료되어 출고 대기 중입니다.",
+    );
+    if (!reason) return;
+
+    try {
+      await updateStatus.mutateAsync({
+        id: order.id,
+        status: "preparing",
+        timelineEntry: {
+          status: "preparing",
+          label: "취소 요청 거절됨",
+          date: new Date().toISOString(),
+          description: `판매자가 취소 요청을 거절했습니다. 사유: ${reason}`,
+        },
+      });
+      
+      // 상태 업데이트 후 로지스틱 엔진에 명시적으로 REJECT_CANCEL 하달 (엔진 무결성)
+      await executeAction.mutateAsync({
+        id: order.id,
+        action: "REJECT_CANCEL",
+        extraData: { reason },
+      });
+
+      message.warning("취소 요청이 거절되어 '상품 준비중' 상태로 복귀했습니다.");
+      if (drawerOrder?.id === order.id) {
+        setDrawerOrder({ ...order, status: "preparing" });
+      }
+    } catch (err: any) {
+      console.error(err);
       message.error("처리 실패");
     }
   };
@@ -786,9 +834,16 @@ function AdminOrders() {
       key: "amount",
       width: 110,
       render: (_: unknown, r: Order) => (
-        <span className="text-xs font-semibold">
-          ₩{computeOrderTotal(r).toLocaleString("ko-KR")}
-        </span>
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold">
+            ₩{computeOrderTotal(r).toLocaleString("ko-KR")}
+          </span>
+          {r.status === "cancelled" && r.refundAmount && (
+            <span className="text-[10px] font-medium text-rose-500">
+              (환불: ₩{r.refundAmount.toLocaleString()})
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -1222,6 +1277,26 @@ function AdminOrders() {
                 >
                   출고 처리
                 </Button>
+              )}
+              {drawerOrder.status === "cancel_requested" && (
+                <Space orientation="vertical" className="w-full" size={8}>
+                  <Button
+                    block
+                    icon={<CheckOutlined />}
+                    loading={executeAction.isPending}
+                    onClick={() => handleApproveCancel(drawerOrder)}
+                    className="bg-red-50 text-red-600 border-red-200"
+                  >
+                    취소 승인 (환불 실행)
+                  </Button>
+                  <Button
+                    block
+                    loading={executeAction.isPending || updateStatus.isPending}
+                    onClick={() => handleRejectCancel(drawerOrder)}
+                  >
+                    취소 거절 (출고 진행)
+                  </Button>
+                </Space>
               )}
               {(drawerOrder.status === "exchange_requested" ||
                 drawerOrder.status === "return_requested") && (

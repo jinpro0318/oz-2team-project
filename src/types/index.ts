@@ -59,6 +59,7 @@ export interface Product {
   salesCount: number;
   isVisible: boolean;
   category: string;
+  stock: number; // [Master Map] 재고 필드 추가
 }
 
 export interface Address {
@@ -156,6 +157,12 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   timeline: OrderTimeline[];
+  
+  // [Master Map] 취소/환불 관련 메타데이터 필드 공식화
+  paymentKey?: string;
+  cancelledAt?: string;
+  refundAmount?: number;
+  cancelReason?: string;
 }
 
 export interface OrderTimeline {
