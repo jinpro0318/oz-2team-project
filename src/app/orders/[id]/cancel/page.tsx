@@ -9,7 +9,7 @@ import {
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useOrder, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useOrder, useExecuteOrderAction } from "@/hooks/useOrders";
 import { useUIStore } from "@/stores/uiStore";
 
 const cancelReasons = [
@@ -30,7 +30,7 @@ export default function OrderCancelPage() {
   const router = useRouter();
   const { message } = App.useApp();
   const { data: order, isLoading } = useOrder(id);
-  const updateStatusMutation = useUpdateOrderStatus();
+  const executeActionMutation = useExecuteOrderAction();
 
   const setBottomNavVisible = useUIStore((s) => s.setBottomNavVisible);
 
@@ -117,19 +117,28 @@ export default function OrderCancelPage() {
     }
 
     try {
-      const targetStatus = order.status === "payment_complete" ? "cancelled" : "cancel_requested";
-      const targetLabel = order.status === "payment_complete" ? "주문 취소" : "주문 취소 요청";
+      const fullReason = `${reason}${reason === "기타" ? ` (${reasonDetail})` : ""}`;
 
-      await updateStatusMutation.mutateAsync({
-        id: order.id,
-        status: targetStatus,
-        timelineEntry: {
-          status: targetStatus,
-          label: targetLabel,
-          date: new Date().toISOString(),
-          description: `고객 요청으로 취소${targetStatus === "cancelled" ? "되었습니다" : " 접수되었습니다"}: ${reason}${reason === "기타" ? ` (${reasonDetail})` : ""}`,
-        },
-      });
+      if (order.status === "payment_complete") {
+        // [v15.0] 결제완료 단계 즉시 취소: 토스 환불 API 직접 호출 (환불 및 엔진 동기화)
+        const res = await fetch("/api/payment/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: order.id,
+            userId: "user",
+            reason: `고객 직접 취소: ${fullReason}`,
+          }),
+        });
+        if (!res.ok) throw new Error("환불 처리 중 오류가 발생했습니다.");
+      } else {
+        // [v15.0] 상품준비중 단계: 엔진을 통해 취소 접수(CANCEL_REQUEST)만 수행
+        await executeActionMutation.mutateAsync({
+          id: order.id,
+          action: "CANCEL_REQUEST",
+          extraData: { reason: `고객 취소 요청: ${fullReason}` },
+        });
+      }
       setIsComplete(true);
     } catch {
       message.error("취소 처리 중 오류가 발생했습니다");
@@ -285,7 +294,7 @@ export default function OrderCancelPage() {
           block
           size="large"
           className="font-bold h-13 rounded-xl bg-[#262626] border-none shadow-md"
-          loading={updateStatusMutation.isPending}
+          loading={executeActionMutation.isPending}
           onClick={handleCancel}
         >
           취소 신청 완료하기

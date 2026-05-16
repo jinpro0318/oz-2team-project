@@ -11,6 +11,7 @@ export type OrderActionIntent =
   | "CANCEL" // 👈 [v15.0] 결제 즉시 취소 요청
   | "APPROVE_CANCEL" // 👈 [v15.0] 관리자 취소 승인 (환불 수반)
   | "REJECT_CANCEL" // 👈 [v15.0] 관리자 취소 거절
+  | "CANCEL_REQUEST" // 👈 구매자 취소 요청
   | "DELETE_LOGISTICS" // 👈 [v11.8] 물류 정보(송장) 초기화 명령
   | "ASSIGN_TRACKING" // 👈 [v11.11] 송장 부여 명령
   | "PREPARE"
@@ -226,6 +227,13 @@ export class LogisticsStatusResolver {
         // [v15.0] 취소 거절 시 기존의 '상품 준비중' 상태로 복귀
         return {
           status: "preparing",
+          step: 1,
+          shouldUpdateShipment: false,
+        };
+      case "CANCEL_REQUEST":
+        // 구매자가 취소를 요청할 때 송장 발급 없이 상태만 변경
+        return {
+          status: "cancel_requested",
           step: 1,
           shouldUpdateShipment: false,
         };

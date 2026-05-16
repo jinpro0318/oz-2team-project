@@ -272,7 +272,7 @@ export class CodeFulfillmentEngine {
           status: resolved.status,
           label: this.getLabelForStatus(resolved.status),
           date: new Date().toISOString(),
-          description: `시스템 의도(${intent})에 의한 자동 업데이트${isNew ? ` (교환용 새 송장 발급: ${finalTrackingNumber})` : ""}`,
+          description: extraData?.reason || `시스템 의도(${intent})에 의한 자동 업데이트${isNew ? ` (교환용 새 송장 발급: ${finalTrackingNumber})` : ""}`,
         });
         orderUpdates.timeline = timeline;
       }

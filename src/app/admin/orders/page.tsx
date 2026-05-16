@@ -365,17 +365,7 @@ function AdminOrders() {
     }
   };
 
-  const handleCancel = async (order: Order) => {
-    try {
-      await updateStatus.mutateAsync({
-        id: order.id,
-        status: "cancelled",
-      });
-      message.success("주문이 취소되었습니다");
-    } catch (err: any) {
-      message.error("취소 실패: " + err.message);
-    }
-  };
+
 
 
 
@@ -411,16 +401,11 @@ function AdminOrders() {
     if (!reason) return;
 
     try {
-      await updateStatus.mutateAsync({
+      await executeAction.mutateAsync({
         id: order.id,
-        status: "claim_rejected",
-        timelineEntry: {
-          status: "claim_rejected",
-          label: "클레임 반려",
-          date: new Date().toISOString(),
-          description: `판매자가 클레임을 반려했습니다. 사유: ${reason}`,
-        },
-      });
+        action: "CLAIM_REJECT" as any,
+        extraData: { reason: `판매자가 클레임을 반려했습니다. 사유: ${reason}` },
+      } as any);
       message.warning(
         "클레임이 반려되어 '클레임 반려' 목록으로 이동되었습니다.",
       );
@@ -431,7 +416,7 @@ function AdminOrders() {
     }
   };
 
-  const handleApproveCancel = async (order: Order) => {
+  const handleCancel = async (order: Order) => {
     try {
       // [v15.0] 취소 승인: 서버 API를 호출하여 토스 환불 및 엔진 동기화를 수행
       const res = await fetch("/api/payment/cancel", {
@@ -473,23 +458,12 @@ function AdminOrders() {
     if (!reason) return;
 
     try {
-      await updateStatus.mutateAsync({
-        id: order.id,
-        status: "preparing",
-        timelineEntry: {
-          status: "preparing",
-          label: "취소 요청 거절됨",
-          date: new Date().toISOString(),
-          description: `판매자가 취소 요청을 거절했습니다. 사유: ${reason}`,
-        },
-      });
-      
-      // 상태 업데이트 후 로지스틱 엔진에 명시적으로 REJECT_CANCEL 하달 (엔진 무결성)
+      // 로지스틱 엔진에 명시적으로 REJECT_CANCEL 하달 (엔진 무결성 보장)
       await executeAction.mutateAsync({
         id: order.id,
         action: "REJECT_CANCEL",
-        extraData: { reason },
-      });
+        extraData: { reason: `판매자가 취소 요청을 거절했습니다. 사유: ${reason}` },
+      } as any);
 
       message.warning("취소 요청이 거절되어 '상품 준비중' 상태로 복귀했습니다.");
       if (drawerOrder?.id === order.id) {
@@ -1005,7 +979,7 @@ function AdminOrders() {
                 type="primary"
                 danger
                 loading={updateStatus.isPending}
-                onClick={() => handleApproveCancel(r)}
+                onClick={() => handleCancel(r)}
               >
                 취소 승인
               </Button>
@@ -1284,7 +1258,7 @@ function AdminOrders() {
                     block
                     icon={<CheckOutlined />}
                     loading={executeAction.isPending}
-                    onClick={() => handleApproveCancel(drawerOrder)}
+                    onClick={() => handleCancel(drawerOrder)}
                     className="bg-red-50 text-red-600 border-red-200"
                   >
                     취소 승인 (환불 실행)

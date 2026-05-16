@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Steps, Tag, Spin, Alert, App } from "antd";
 import { PhoneOutlined } from "@ant-design/icons";
 import BackTopBar from "@/components/common/BackTopBar";
-import { useOrder, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useOrder, useExecuteOrderAction } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import DeliveryTracking from "@/components/order/DeliveryTracking";
 import { isFinishedStatus, getActiveClaimType } from "@/lib/utils/order";
@@ -22,7 +22,7 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: order, isLoading } = useOrder(id);
-  const updateStatusMutation = useUpdateOrderStatus();
+  const executeActionMutation = useExecuteOrderAction();
   const { message } = App.useApp();
   const { data: products = [] } = useProducts();
   const priceMap = buildProductPriceMap(products);
@@ -162,15 +162,10 @@ export default function OrderDetailPage() {
         window.location.reload(); // 강제 캐시 무효화를 위해 리로드
       } else {
         // [v15.0] 상품준비중 단계: 취소 신청만 접수하고 관리자 승인 대기
-        await updateStatusMutation.mutateAsync({
+        await executeActionMutation.mutateAsync({
           id: order.id,
-          status: "cancel_requested",
-          timelineEntry: {
-            status: "cancel_requested",
-            label: "주문 취소 요청",
-            date: new Date().toISOString(),
-            description: "상품 준비 중 단계에서의 취소 요청 (판매자 승인 대기)",
-          },
+          action: "CANCEL_REQUEST",
+          extraData: { reason: "상품 준비 중 단계에서의 취소 요청 (판매자 승인 대기)" },
         });
         message.success("취소 요청이 접수되었습니다.");
       }
@@ -182,16 +177,11 @@ export default function OrderDetailPage() {
 
   const handleRevertCancelRequest = async () => {
     try {
-      await updateStatusMutation.mutateAsync({
-        id: order.id,
-        status: "preparing",
-        timelineEntry: {
-          status: "preparing",
-          label: "취소 요청 철회",
-          date: new Date().toISOString(),
-          description: "구매자가 주문 취소 요청을 철회했습니다.",
-        },
-      });
+      await executeActionMutation.mutateAsync({
+          id: order.id,
+          action: "REJECT_CANCEL",
+          extraData: { reason: "구매자가 주문 취소 요청을 철회했습니다." },
+        });
       message.success("주문 취소 요청이 철회되었습니다.");
     } catch (e) {
       console.error(e);

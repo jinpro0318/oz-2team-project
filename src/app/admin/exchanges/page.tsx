@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, Table, Tag, Button, Space, Spin, App } from "antd";
 import { RetweetOutlined, CheckCircleOutlined } from "@ant-design/icons";
-import { useAllExchanges, useUpdateExchangeStatus, useUpdateOrderStatus } from "@/hooks/useOrders";
+import { useAllExchanges, useUpdateExchangeStatus, useExecuteOrderAction } from "@/hooks/useOrders";
 import type { Exchange } from "@/types";
 import dayjs from "dayjs";
 
@@ -22,23 +22,17 @@ function AdminExchanges() {
   const { message } = App.useApp();
   const { data: exchanges = [], isLoading } = useAllExchanges();
   const updateExchangeStatus = useUpdateExchangeStatus();
-  const updateOrderStatus = useUpdateOrderStatus();
+  const executeAction = useExecuteOrderAction();
 
   const handleApprove = async (exchange: Exchange) => {
     try {
       // 1. 교환/반품 상태를 '처리중'으로 변경
       await updateExchangeStatus.mutateAsync({ id: exchange.id, status: "processing" });
       
-      // 2. 연관된 주문 상태를 '반송중' 또는 적절한 상태로 변경 (프로세스 연동)
-      await updateOrderStatus.mutateAsync({
+      // 2. 엔진을 통해 수거 지시 및 물류 상태 동기화
+      await executeAction.mutateAsync({
         id: exchange.orderId,
-        status: exchange.type === "exchange" ? "returning" : "returning", // 반품/교환 모두 일단 수거 시작
-        timelineEntry: {
-          status: "processing_claim",
-          label: exchange.type === "exchange" ? "교환 승인" : "반품 승인",
-          date: new Date().toISOString(),
-          description: "관리자가 요청을 승인했습니다. 상품 수거가 진행될 예정입니다.",
-        },
+        action: "RETURN_PICKUP",
       });
 
       message.success("요청이 승인되었습니다.");
@@ -52,16 +46,10 @@ function AdminExchanges() {
       // 1. 교환/반품 상태를 '완료됨'으로 변경
       await updateExchangeStatus.mutateAsync({ id: exchange.id, status: "completed" });
       
-      // 2. 주문 상태 최종 업데이트
-      await updateOrderStatus.mutateAsync({
+      // 2. 엔진을 통해 물류 및 재고 상태 최종 업데이트
+      await executeAction.mutateAsync({
         id: exchange.orderId,
-        status: exchange.type === "exchange" ? "exchange_completed" : "return_completed",
-        timelineEntry: {
-          status: "claim_completed",
-          label: exchange.type === "exchange" ? "교환 완료" : "반품 완료",
-          date: new Date().toISOString(),
-          description: "모든 처리가 완료되었습니다.",
-        },
+        action: exchange.type === "exchange" ? "EXCHANGE_DONE" : "DELIVER",
       });
 
       message.success("처리가 완료되었습니다.");
@@ -134,7 +122,7 @@ function AdminExchanges() {
             <Button 
               size="small" 
               type="primary" 
-              loading={updateExchangeStatus.isPending || updateOrderStatus.isPending}
+              loading={updateExchangeStatus.isPending || executeAction.isPending}
               onClick={() => handleApprove(r)}
             >
               승인
@@ -144,7 +132,7 @@ function AdminExchanges() {
             <Button 
               size="small" 
               icon={<CheckCircleOutlined />} 
-              loading={updateExchangeStatus.isPending || updateOrderStatus.isPending}
+              loading={updateExchangeStatus.isPending || executeAction.isPending}
               onClick={() => handleComplete(r)}
             >
               완료 처리

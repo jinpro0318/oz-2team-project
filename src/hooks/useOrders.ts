@@ -8,7 +8,7 @@ import {
   getAllOrdersForAnalytics, // [효진] 추가
   getOrder,
   createOrder,
-  updateOrderStatus,
+
   subscribeOrder,
   subscribeOrders,
   subscribeAllOrders,
@@ -93,28 +93,7 @@ export function useCreateOrder() {
   });
 }
 
-export function useUpdateOrderStatus() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (params: {
-      id: string;
-      status: OrderStatus;
-      timelineEntry?: OrderTimeline;
-      trackingNumber?: string;
-      carrierCode?: string;
-    }) =>
-      updateOrderStatus(
-        params.id,
-        params.status,
-        params.timelineEntry,
-        params.trackingNumber,
-        params.carrierCode,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    },
-  });
-}
+
 
 export function useExecuteOrderAction() {
   const queryClient = useQueryClient();
