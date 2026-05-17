@@ -4,6 +4,34 @@ import type { Exchange, Order, Product } from "@/types";
 
 export const dynamic = "force-dynamic";
 
+// Firestore Timestamp 등 Non-Plain Object를 재귀적으로 안전하게 직렬화하는 헬퍼 함수
+function serializeFirestoreData<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+
+  // Firestore Timestamp 객체 감지 및 ISO 문자열 변환
+  if (typeof (data as any).toDate === "function") {
+    return (data as any).toDate().toISOString() as any;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map((item) => serializeFirestoreData(item)) as any;
+  }
+
+  if (typeof data === "object") {
+    const serialized: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        serialized[key] = serializeFirestoreData(data[key]);
+      }
+    }
+    return serialized as T;
+  }
+
+  return data;
+}
+
 export default async function AdminExchangesPage() {
   let initialExchanges: Exchange[] = [];
   let initialOrders: Order[] = [];
@@ -17,47 +45,38 @@ export default async function AdminExchangesPage() {
         .orderBy("createdAt", "desc")
         .get();
 
-      initialExchanges = exchangesSnap.docs.map((d) => {
-        const data = d.data();
+      const rawExchanges = exchangesSnap.docs.map((d) => {
         return {
           id: d.id,
-          ...data,
-          createdAt: data.createdAt?.toDate
-            ? data.createdAt.toDate().toISOString()
-            : data.createdAt,
-        } as Exchange;
+          ...d.data(),
+        };
       });
+      initialExchanges = serializeFirestoreData(rawExchanges) as Exchange[];
 
-      // 2. 관련 주문 조회 (선택 사항 - 여기선 전체 최근 주문을 가져오거나 캐싱)
+      // 2. 관련 주문 조회
       const ordersSnap = await adminDb
         .collection("orders")
         .orderBy("createdAt", "desc")
         .limit(100)
         .get();
         
-      initialOrders = ordersSnap.docs.map((d) => {
-        const data = d.data();
+      const rawOrders = ordersSnap.docs.map((d) => {
         return {
           id: d.id,
-          ...data,
-          createdAt: data.createdAt?.toDate
-            ? data.createdAt.toDate().toISOString()
-            : data.createdAt,
-        } as Order;
+          ...d.data(),
+        };
       });
+      initialOrders = serializeFirestoreData(rawOrders) as Order[];
 
       // 3. 관련 상품 조회
       const productsSnap = await adminDb.collection("products").get();
-      initialProducts = productsSnap.docs.map((d) => {
-        const data = d.data();
+      const rawProducts = productsSnap.docs.map((d) => {
         return {
           id: d.id,
-          ...data,
-          createdAt: data.createdAt?.toDate
-            ? data.createdAt.toDate().toISOString()
-            : data.createdAt,
-        } as Product;
+          ...d.data(),
+        };
       });
+      initialProducts = serializeFirestoreData(rawProducts) as Product[];
     }
   } catch (err) {
     console.error("[RSC] Failed to fetch initial data for exchanges on server:", err);
