@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Drawer } from "antd";
@@ -52,7 +53,16 @@ export default function MyPage() {
     <div className="flex flex-col bg-surface flex-1 pb-[60px]">
       {/* Custom TopBar for MyPage */}
       <div className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border bg-surface px-3">
-        <div className="text-[15px] font-bold text-text">{user?.nickname || username}</div>
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/feed"
+            className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+          >
+            C.O.D.E.
+          </Link>
+          <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
+          <div className="truncate text-[13px] font-semibold text-text">{user?.nickname || username}</div>
+        </div>
         <div className="flex gap-[15px] items-center">
           <AdminLinkButtons variant="mall" />
           <div className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">

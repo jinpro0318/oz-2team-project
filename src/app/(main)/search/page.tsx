@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input, Spin } from "antd";
 import { SearchOutlined, CloseCircleFilled, RightOutlined } from "@ant-design/icons";
 import BottomNav from "@/components/common/BottomNav";
+import AdminLinkButtons from "@/components/common/AdminLinkButtons";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useProducts } from "@/hooks/useProducts";
 
@@ -67,6 +69,15 @@ export default function SearchPage() {
 
   return (
     <div className="flex min-h-dvh flex-col pb-[49px]">
+      <header className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border-light bg-surface px-3">
+        <Link
+          href="/feed"
+          className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+        >
+          C.O.D.E.
+        </Link>
+        <AdminLinkButtons variant="mall" />
+      </header>
       <div className="flex items-center gap-2 bg-surface px-3 py-2">
         <Input
           prefix={<SearchOutlined className="text-text-muted" />}

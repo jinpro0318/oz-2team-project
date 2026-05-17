@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LeftOutlined } from "@ant-design/icons";
 import AdminLinkButtons from "./AdminLinkButtons";
@@ -23,9 +24,16 @@ export default function BackTopBar({ title, rightAction, backUrl }: BackTopBarPr
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-11 items-center gap-2.5 border-b border-border bg-surface px-3">
-      <LeftOutlined className="cursor-pointer text-base" onClick={handleBack} />
-      <h2 className="flex-1 text-[15px] font-bold">{title}</h2>
+    <header className="sticky top-0 z-30 flex h-11 items-center gap-2 border-b border-border bg-surface px-3">
+      <LeftOutlined className="cursor-pointer text-base shrink-0" onClick={handleBack} />
+      <Link
+        href="/feed"
+        className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+      >
+        C.O.D.E.
+      </Link>
+      <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
+      <h2 className="flex-1 truncate text-[13px] font-semibold text-text">{title}</h2>
       <AdminLinkButtons variant="mall" />
       {rightAction}
     </header>
