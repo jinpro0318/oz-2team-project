@@ -46,8 +46,6 @@ function getAdminApp() {
       console.log("[Firebase Admin] Attempting to initialize with Project ID:", project_id);
       console.log("[Firebase Admin] Client Email:", client_email);
       console.log("[Firebase Admin] Private Key Length:", private_key.length);
-    try {
-      console.log("[Firebase Admin] Attempting to initialize with Project ID:", project_id);
       
       const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
