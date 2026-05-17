@@ -1,11 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button, Spin, App } from "antd";
 import { CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { Suspense, useEffect, useState } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { getOrderByNumber, updateOrderStatus } from "@/lib/services/order";
+
+function OrderCompleteHeader() {
+  return (
+    <header className="sticky top-0 z-30 flex h-11 items-center border-b border-border-light bg-surface px-3">
+      <Link
+        href="/feed"
+        className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+      >
+        C.O.D.E.
+      </Link>
+    </header>
+  );
+}
 
 function OrderCompleteContent() {
   const searchParams = useSearchParams();
@@ -83,31 +97,39 @@ function OrderCompleteContent() {
 
   if (isConfirming) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-surface">
-        <Spin size="large" description="결제 확인 중..." />
-      </div>
+      <>
+        <OrderCompleteHeader />
+        <div className="flex flex-1 flex-col items-center justify-center bg-surface">
+          <Spin size="large" description="결제 확인 중..." />
+        </div>
+      </>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
-        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
-          <CloseCircleFilled className="text-3xl text-error" />
+      <>
+        <OrderCompleteHeader />
+        <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
+            <CloseCircleFilled className="text-3xl text-error" />
+          </div>
+          <h1 className="mb-2 text-xl font-bold">결제 실패</h1>
+          <p className="mb-8 text-center text-sm text-text-secondary">
+            결제 처리 중 오류가 발생했습니다.<br />고객센터로 문의해주세요.
+          </p>
+          <Button block size="large" type="primary" onClick={() => router.push("/checkout")}>
+            다시 시도하기
+          </Button>
         </div>
-        <h1 className="mb-2 text-xl font-bold">결제 실패</h1>
-        <p className="mb-8 text-center text-sm text-text-secondary">
-          결제 처리 중 오류가 발생했습니다.<br />고객센터로 문의해주세요.
-        </p>
-        <Button block size="large" type="primary" onClick={() => router.push("/checkout")}>
-          다시 시도하기
-        </Button>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
+    <>
+      <OrderCompleteHeader />
+      <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6">
       <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
         <CheckCircleFilled className="text-3xl text-success" />
       </div>
@@ -144,7 +166,8 @@ function OrderCompleteContent() {
           쇼핑 계속하기
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -61,8 +61,16 @@ export default function RegisterPage() {
 
   return (
     <div className="flex-1 flex flex-col bg-surface">
+      <header className="sticky top-0 z-30 flex h-11 items-center border-b border-border-light bg-surface px-3">
+        <Link
+          href="/feed"
+          className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+        >
+          C.O.D.E.
+        </Link>
+      </header>
       {/* 뒤로가기 */}
-      <div 
+      <div
         className="px-4 pt-3.5 flex items-center gap-1.5 cursor-pointer"
         onClick={() => router.back()}
       >

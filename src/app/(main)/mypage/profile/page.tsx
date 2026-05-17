@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { App, Drawer } from "antd";
@@ -201,16 +202,23 @@ export default function ProfileEditPage() {
   return (
     <div className="flex flex-col bg-surface flex-1 pb-[60px]">
       {/* Top Bar (G-3 Style) */}
-      <div className="sticky top-0 z-10 flex h-[50px] items-center border-b border-border bg-surface px-3">
-        <div 
-          className="flex h-10 w-10 cursor-pointer items-center justify-center -ml-2"
+      <div className="sticky top-0 z-10 flex h-[50px] items-center gap-2 border-b border-border bg-surface px-3">
+        <div
+          className="flex h-10 w-10 cursor-pointer items-center justify-center -ml-2 shrink-0"
           onClick={() => router.back()}
         >
           <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-text stroke-[2px]">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </div>
-        <h1 className="flex-1 text-[15px] font-bold text-text ml-1">프로필 편집</h1>
+        <Link
+          href="/feed"
+          className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+        >
+          C.O.D.E.
+        </Link>
+        <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
+        <h1 className="flex-1 truncate text-[13px] font-semibold text-text">프로필 편집</h1>
         <button 
           className="text-[14px] font-bold text-[#0095F6] hover:opacity-70 transition-opacity"
           onClick={handleSave}
