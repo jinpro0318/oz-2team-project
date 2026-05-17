@@ -27,16 +27,21 @@ export default function LoginPromptSheet() {
       closable={false}
       getContainer={false}
       styles={{
-        wrapper: { 
+        mask: {
+          position: "fixed",
+          inset: 0,
+        },
+        wrapper: {
           height: "auto",
-          width: "calc(100% + 2px)",
-          marginLeft: "-1px",
-          position: "absolute",
+          width: "min(100vw, 390px)",
+          position: "fixed",
           bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
         },
         section: {
           borderRadius: "20px 20px 0 0",
-          overflow: "hidden"
+          overflow: "hidden",
         },
         body: { padding: 0 },
       }}
@@ -52,7 +57,7 @@ export default function LoginPromptSheet() {
           </div>
           <div className="flex-1 text-left">
             <h2 className="text-lg font-bold text-text">로그인이 필요해요</h2>
-            <p className="text-sm text-text-secondary">로그인 후 사용할 수 있어요</p>
+            <p className="text-sm text-text-secondary">회원가입 또는 로그인하시겠습니까?</p>
           </div>
         </div>
 

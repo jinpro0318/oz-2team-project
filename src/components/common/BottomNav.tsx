@@ -76,9 +76,9 @@ export default function BottomNav() {
         )}
       </button>
 
-      
-      <Link
-        href="/cart"
+      {/* 장바구니 */}
+      <button
+        onClick={() => requireAuth(() => router.push("/cart"))}
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity relative"
         aria-label="장바구니"
       >
@@ -91,7 +91,7 @@ export default function BottomNav() {
             {cartCount > 99 ? "99+" : cartCount}
           </span>
         )}
-      </Link>
+      </button>
 
       {/* 마이페이지 */}
       <button
