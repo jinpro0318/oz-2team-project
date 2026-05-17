@@ -1,23 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, App } from "antd"; // [효진] App 추가
+import { Upload, App } from "antd";
 import { LoadingOutlined, PlusOutlined } from "@ant-design/icons";
 import { uploadImage } from "@/lib/services/upload";
 import type { UploadChangeParam, UploadFile, UploadProps } from "antd/es/upload";
 
 interface ImageUploadProps {
-  value?: string | string[]; // [효진] 단일 URL 또는 URL 배열 지원
+  value?: string | string[];
   onChange?: (val: any) => void;
   folder?: string;
-  multiple?: boolean; // [효진] 다중 업로드 모드 추가
+  multiple?: boolean;
   maxCount?: number;
 }
 
-/**
- * [효진] 관리자용 공통 이미지 업로드 컴포넌트 (다중 업로드 지원)
- * Ant Design Upload를 사용하여 Firebase Storage에 이미지를 업로드하고 URL을 반환함
- */
+
 export default function ImageUpload({ 
   value, 
   onChange, 

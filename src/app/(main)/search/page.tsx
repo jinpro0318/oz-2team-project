@@ -16,7 +16,6 @@ export default function SearchPage() {
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useProducts();
 
-  // [효진] 인기 검색어는 노출 중인 상품을 누적 판매량 순으로 정렬해 동적으로 구성
   const popularSearches = useMemo(() => {
     const tokens: string[] = [];
     const seen = new Set<string>();

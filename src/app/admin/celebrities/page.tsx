@@ -35,8 +35,8 @@ import {
   usePostsByCelebrity,
   useUpdatePostHotspots,
   useCreatePost,
-  useUpdatePost, // [효진] 추가
-  useDeletePost, // [효진] 추가
+  useUpdatePost,
+  useDeletePost,
 } from "@/hooks/useCelebrities";
 
 import { useAllProducts } from "@/hooks/useProducts";
@@ -51,9 +51,7 @@ const GRADIENTS = [
   "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
 ];
 
-/**
- * [효진] 핫스팟 상세 편집기 (통합 관리 UI 내에서 사용)
- */
+
 function HotspotEditor({
   post,
   products,
@@ -67,7 +65,7 @@ function HotspotEditor({
 }) {
   const { message } = App.useApp();
   const [hotspots, setHotspots] = useState<Hotspot[]>(post.hotspots ?? []);
-  const [activeImgIdx, setActiveImgIdx] = useState(0); // [효진] 현재 편집 중인 이미지 번호
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
   const [activeHsIdx, setActiveHsIdx] = useState<number | null>(null);
 
   // 현재 선택된 이미지의 이미지 URL
@@ -81,7 +79,6 @@ function HotspotEditor({
       message.info("편집할 핫스팟 항목을 먼저 선택하거나 추가해주세요.");
       return;
     }
-    // [효진] 클릭한 핫스팟이 현재 이미지의 것인지 확인 후 좌표 업데이트
     const hsToUpdate = hotspots[activeHsIdx];
     if ((hsToUpdate.imageIndex ?? 0) !== activeImgIdx) {
       message.warning("현재 선택된 이미지의 핫스팟이 아닙니다.");
@@ -105,7 +102,7 @@ function HotspotEditor({
       price: "", 
       top: 50, 
       left: 50,
-      imageIndex: activeImgIdx // [효진] 현재 이미지 인덱스 할당
+      imageIndex: activeImgIdx
     };
     const newIdx = hotspots.length;
     setHotspots([...hotspots, newHs]);
@@ -144,7 +141,7 @@ function HotspotEditor({
           <span className="font-bold text-[#181C32]">"{post.caption}" 핫스팟 편집</span>
         </div>
         
-        {/* [효진] 이미지 선택 탭 */}
+        
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
           {(post.imageUrls || [post.imageUrl]).map((_, i) => (
             <button
@@ -163,7 +160,7 @@ function HotspotEditor({
         <div className="flex-1 relative bg-black rounded-lg overflow-hidden flex items-center justify-center">
           <div className="relative cursor-crosshair max-h-full" onClick={handleImageClick}>
             <img src={currentImgUrl} alt="Preview" className="max-w-full max-h-full block object-contain" />
-            {/* [효진] 현재 이미지의 핫스팟만 화면에 표시 */}
+            
             {hotspots.map((hs, i) => {
               if ((hs.imageIndex ?? 0) !== activeImgIdx) return null;
               return (
@@ -192,7 +189,6 @@ function HotspotEditor({
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {hotspots.map((hs, i) => {
-              // [효진] 리스트에서도 현재 이미지의 것만 보여주거나, 전체를 보여주되 구분 필요
               // 여기서는 관리 편의상 현재 이미지의 것만 필터링해서 보여주되 인덱스 유지
               if ((hs.imageIndex ?? 0) !== activeImgIdx) return null;
 
@@ -242,9 +238,6 @@ function HotspotEditor({
 }
 
 
-/**
- * [효진] 셀럽 통합 관리 드로어 (프로필 + 착장 + 핫스팟)
- */
 function CelebrityManageDrawer({
   celeb,
   products,
@@ -260,7 +253,7 @@ function CelebrityManageDrawer({
   const [activeTab, setActiveTab] = useState("profile");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isAddingPost, setIsAddingPost] = useState(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null); // [효진] 수정 중인 포스트 상태 추가
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [form] = Form.useForm();
   const [postForm] = Form.useForm();
 
@@ -268,8 +261,8 @@ function CelebrityManageDrawer({
   const { data: posts = [], isLoading: postsLoading } = usePostsByCelebrity(celeb?.id ?? "");
   const updateCelebrity = useUpdateCelebrity();
   const createPost = useCreatePost();
-  const deletePost = useDeletePost(); // [효진] 삭제 mutation 추가
-  const updatePost = useUpdatePost(); // [효진] 수정 mutation 추가
+  const deletePost = useDeletePost();
+  const updatePost = useUpdatePost();
   const updateHotspots = useUpdatePostHotspots();
 
 
@@ -287,7 +280,6 @@ function CelebrityManageDrawer({
         order: celeb.order || 0,
       });
     }
-
 
 
   });

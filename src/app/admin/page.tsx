@@ -9,9 +9,9 @@ import {
   DownloadOutlined,
   ArrowUpOutlined,
 } from "@ant-design/icons";
-import { useAllOrders } from "@/hooks/useOrders"; // [효진] 전체 주문 조회 (어드민 전용)
+import { useAllOrders } from "@/hooks/useOrders";
 import { useCelebrities } from "@/hooks/useCelebrities";
-import { useAllProducts } from "@/hooks/useProducts"; // [효진] 신규: 전체 상품 조회
+import { useAllProducts } from "@/hooks/useProducts";
 import type { Order } from "@/types";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -88,7 +88,6 @@ export default function AdminDashboard() {
   }));
   const maxAmount = Math.max(...dailyData.map((d) => d.amount), 1);
 
-  // [효진] KPI 카드 데이터 구성 (총매출, 오늘 주문, 등록 상품, 셀럽 수)
   const kpiCards = [
     {
       title: "총 매출",
@@ -112,7 +111,7 @@ export default function AdminDashboard() {
       icon: <AppstoreOutlined />,
       color: "#FF6B35",
       bg: "#FFF3EE",
-      sub: `노출 ${products.filter((p) => p.isVisible).length}개`, // [효진] 노출 중인 상품 수 표시
+      sub: `노출 ${products.filter((p) => p.isVisible).length}개`,
     },
     {
       title: "셀럽 수",
@@ -120,7 +119,7 @@ export default function AdminDashboard() {
       icon: <TeamOutlined />,
       color: "#ED4956",
       bg: "#FEF0F1",
-      sub: `활성 ${celebrities.filter((c) => c.isActive).length}명`, // [효진] 활성 상태 셀럽 수 표시
+      sub: `활성 ${celebrities.filter((c) => c.isActive).length}명`,
     },
   ];
 
@@ -145,7 +144,7 @@ export default function AdminDashboard() {
         </Button>
       </div>
 
-      {/* [효진] 4개 KPI 카드 렌더링 */}
+      
       <div className="mb-6 grid grid-cols-4 gap-4">
         {kpiCards.map((kpi) => (
           <div
@@ -172,7 +171,7 @@ export default function AdminDashboard() {
 
       {/* 차트 & 테이블 */}
       <div className="grid grid-cols-3 gap-4">
-        {/* [효진] 셀럽별 매출 비중 프로그레스 바 차트 */}
+        
         <Card title="셀럽별 매출" size="small" className="border-[#E4E6EF]">
           <div className="space-y-4">
             {celebSales.map((cs) => {
@@ -203,7 +202,7 @@ export default function AdminDashboard() {
           </div>
         </Card>
 
-        {/* [효진] 요일별 매출 막대 차트 (CSS/SVG 커스텀) */}
+        
         <Card title="요일별 매출" size="small" className="border-[#E4E6EF]">
           <div className="flex h-44 items-end gap-1.5">
             {dailyData.map((d) => (
@@ -223,7 +222,7 @@ export default function AdminDashboard() {
           </div>
         </Card>
 
-        {/* [효진] 최근 주문 5건 요약 리스트 */}
+        
         <Card title="최근 주문" size="small" className="border-[#E4E6EF]">
           <div className="space-y-2">
             {orders.slice(0, 5).map((order: Order) => {

@@ -22,7 +22,6 @@ export default function LoginInducementModal({ open, onClose }: LoginInducementM
     router.push("/login");
   };
 
-  // [효진] 버그 수정 | 2026-04-29
   // 원인: Ant Design 6.x에서 Modal styles의 'content' 키가 제거됨
   //       → 'body' 키를 사용해야 하며, 위치 관련 스타일은 'style' prop으로 분리해야 함
   // 수정:

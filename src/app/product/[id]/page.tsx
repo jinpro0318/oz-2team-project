@@ -65,7 +65,6 @@ export default function ProductDetailPage() {
   const activeColor = selectedColor || product.colors[0]?.name || "";
   const colorData = product.colors.find(c => c.name === activeColor);
 
-  // [효진] 선택된 색상에 연결된 이미지가 있으면 우선 노출, 없으면 기본 이미지 노출
   const mainImageUrl = colorData?.imageUrl || product.imageUrls?.[0];
 
   const handleAddToCart = () => {
@@ -231,7 +230,7 @@ export default function ProductDetailPage() {
         <h4 className="mb-2 text-[13px] font-bold">상품 설명</h4>
         <p className="text-[13px] leading-relaxed text-text-secondary whitespace-pre-wrap">{product.description}</p>
 
-        {/* [효진] 추가 이미지들을 상세 설명 영역에 순차적으로 노출 */}
+        
         {product.imageUrls && product.imageUrls.length > 1 && (
           <div className="mt-6 space-y-2">
             {product.imageUrls.slice(1).map((url, idx) => (
@@ -256,7 +255,6 @@ export default function ProductDetailPage() {
           <p className="text-xs text-text-muted py-2">등록된 상세 정보가 없습니다.</p>
         )}
       </div>
-
 
 
       <div className="border-b border-border px-3 py-3.5">

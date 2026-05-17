@@ -8,7 +8,7 @@ interface StoryStripProps {
   celebrities: Celebrity[];
   activeCelebId: string;
   onSelect: (id: string) => void;
-  events?: AppEvent[]; // [효진] 진행 중인 이벤트 — 셀럽 스토리 좌측에 노출
+  events?: AppEvent[];
 }
 
 export default function StoryStrip({

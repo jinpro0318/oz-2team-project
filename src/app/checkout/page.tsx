@@ -16,7 +16,6 @@ import { buildProductPriceMap, resolveUnitPrice } from "@/lib/utils/price";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
-// [효진] /checkout 은 cart, user, useSearchParams 모두 client 동적 상태에 의존.
 // Next.js 가 정적 prerender 시도하면 useSearchParams Suspense 에러로 빌드 실패하므로
 // 페이지 자체를 강제 동적 렌더로 표기 (Vercel 빌드 통과용).
 export const dynamic = "force-dynamic";
@@ -65,6 +64,11 @@ function CheckoutContent() {
 
   const getUnitPrice = (item: (typeof checkoutItems)[number]) =>
     resolveUnitPrice(item.productId, item.product.price, priceMap);
+
+  const getDisplayImage = (item: (typeof checkoutItems)[number]) => {
+    const colorImage = item.product.colors?.find((c) => c.name === item.color)?.imageUrl;
+    return colorImage || item.product.imageUrls?.[0];
+  };
 
   const [mounted, setMounted] = useState(false);
   const [recipient, setRecipient] = useState(user?.nickname || "");
@@ -299,9 +303,9 @@ function CheckoutContent() {
               className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0"
             >
               <div className="h-14 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
-                {item.product.imageUrls?.[0] ? (
+                {getDisplayImage(item) ? (
                   <img
-                    src={item.product.imageUrls[0]}
+                    src={getDisplayImage(item)}
                     alt={item.product.name}
                     className="h-full w-full object-cover"
                   />
@@ -365,11 +369,7 @@ function CheckoutContent() {
   );
 }
 
-/**
- * [효진] Next.js 15에서 useSearchParams() 는 정적 prerender 시점에 Suspense 경계 필수.
- * force-dynamic 만으로는 부족해서 inner 컴포넌트를 Suspense 로 감싸는 패턴 적용
- * (order-complete, login 페이지와 동일한 구조).
- */
+
 export default function CheckoutPage() {
   return (
     <Suspense

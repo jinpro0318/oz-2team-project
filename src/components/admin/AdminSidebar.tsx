@@ -2,9 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "antd";
-import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 주문 배지 카운트용으로 추가
+import { useAllOrders } from "@/hooks/useOrders";
 
-// [효진] Ant Design icons → 와이어프레임 기반 SVG 아이콘으로 교체
 // showBadge: true인 항목(주문 관리)에만 미처리 건수 배지 표시
 const menuItems = [
   {
@@ -24,7 +23,7 @@ const menuItems = [
         <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6h18" />
       </svg>
     ),
-    showBadge: true, // [효진] 미처리 주문 배지 표시 대상
+    showBadge: true,
   },
   {
     key: "/admin/products",
@@ -44,7 +43,6 @@ const menuItems = [
       </svg>
     ),
   },
-  // [효진] 이벤트 관리 메뉴 추가
   {
     key: "/admin/events",
     label: "이벤트 관리",
@@ -99,7 +97,6 @@ export default function AdminSidebar() {
   const router = useRouter();
   const { data: orders = [] } = useAllOrders();
 
-  // [효진] 결제완료+준비중 주문만 카운트 (기존: 하드코딩 숫자 12)
   const pendingOrders = orders.filter(
     (o) => o.status === "payment_complete" || o.status === "preparing"
   ).length;
@@ -120,7 +117,6 @@ export default function AdminSidebar() {
           return (
             <button
               key={item.key}
-              // [효진] 활성 스타일: bg-[#3699FF] (기존: bg-[#3699FF]/20)
               className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13px] font-medium transition-all ${
                 isActive
                   ? "bg-[#3699FF] text-white"
@@ -130,7 +126,7 @@ export default function AdminSidebar() {
             >
               <span className={isActive ? "text-white" : "text-white/50"}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
-              {/* [효진] 미처리 주문 배지: 실시간 pendingOrders 값 표시 */}
+              
               {item.showBadge && pendingOrders > 0 && (
                 <span className="flex min-w-[18px] items-center justify-center rounded-full bg-[#F64E60] px-1.5 py-0 text-[10px] font-bold text-white">
                   {pendingOrders}
@@ -141,7 +137,7 @@ export default function AdminSidebar() {
         })}
       </nav>
 
-      {/* [효진] 관리자 정보 영역 추가 */}
+      
       <div className="border-t border-white/[0.08] px-2.5 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3699FF] text-[13px] font-bold text-white">

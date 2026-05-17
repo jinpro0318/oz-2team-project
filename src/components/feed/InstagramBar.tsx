@@ -38,58 +38,61 @@ export function InstagramBar({ post, celebrity }: InstagramBarProps) {
   const addItem = useCartStore((s) => s.addItem);
   const { message } = App.useApp();
 
-  const firstProductId = post.hotspots?.[0]?.productId;
-  const firstProduct = firstProductId
-    ? products.find((p) => p.id === firstProductId)
-    : undefined;
-  const wishlisted = firstProduct ? isWishlisted(firstProduct.id) : false;
+  const hotspotProductIds = Array.from(
+    new Set((post.hotspots ?? []).map((h) => h.productId).filter(Boolean))
+  );
+  const hotspotProducts = hotspotProductIds
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p): p is Product => Boolean(p));
+  const wishlisted =
+    hotspotProducts.length > 0 && hotspotProducts.every((p) => isWishlisted(p.id));
 
   const handleWishlist = () => {
-    if (!firstProduct) {
-      message.info("등록된 상품이 없습니다");
-      return;
-    }
-    toggleWishlist(firstProduct);
-  };
-
-  // [효진] 피드의 핫스팟에 연결된 모든 상품을 장바구니에 한 번에 담음
-  const handleCart = () => {
     requireAuth(() => {
-      // 핫스팟이 같은 상품을 여러 번 가리킬 수 있으니 중복 제거
-      const productIds = Array.from(
-        new Set(
-          (post.hotspots ?? []).map((h) => h.productId).filter(Boolean)
-        )
-      );
-      if (productIds.length === 0) {
+      if (hotspotProductIds.length === 0) {
         message.info("등록된 상품이 없습니다");
         return;
       }
-      const matched = productIds
-        .map((id) => products.find((p) => p.id === id))
-        .filter((p): p is Product => Boolean(p));
+      if (hotspotProducts.length === 0) {
+        message.info("상품 정보를 불러오지 못했습니다");
+        return;
+      }
+      hotspotProducts.forEach((product) => toggleWishlist(product));
+    });
+  };
 
-      if (matched.length === 0) {
+  const handleCart = () => {
+    requireAuth(() => {
+      if (hotspotProductIds.length === 0) {
+        message.info("등록된 상품이 없습니다");
+        return;
+      }
+      if (hotspotProducts.length === 0) {
         message.info("상품 정보를 불러오지 못했습니다");
         return;
       }
 
       // 옵션 미지정 → 첫 번째 색상·사이즈를 기본값으로 사용
-      matched.forEach((product) => {
+      hotspotProducts.forEach((product) => {
         const color = product.colors?.[0]?.name ?? "default";
         const size = product.sizes?.[0] ?? "FREE_SIZE";
         addItem(product, color, size, 1);
       });
 
-      message.success(`${matched.length}개 상품이 장바구니에 담겼습니다`);
+      message.success(`${hotspotProducts.length}개 상품이 장바구니에 담겼습니다`);
     });
   };
 
   const handleShare = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}/feed?celebrityId=${encodeURIComponent(celebrity.id)}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${celebrity.name}의 착장`, url });
+        await navigator.share({
+          title: `${celebrity.name}의 착장 | CODE`,
+          text: `${celebrity.name}의 착장을 CODE에서 확인해보세요`,
+          url,
+        });
       } else {
         await navigator.clipboard.writeText(url);
         message.success("링크가 복사됐습니다");

@@ -15,7 +15,7 @@ import {
   InputNumber,
   Switch,
   Popconfirm,
-  App, // [효진] App 추가
+  App,
 } from "antd";
 import {
   PlusOutlined,
@@ -31,7 +31,7 @@ import {
   useToggleProductVisibility 
 } from "@/hooks/useProducts";
 import { useCelebrities } from "@/hooks/useCelebrities";
-import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 판매량 계산용 추가
+import { useAllOrders } from "@/hooks/useOrders";
 import type { Product, ProductFormData } from "@/types";
 import ImageUpload from "@/components/admin/ImageUpload";
 
@@ -52,10 +52,7 @@ const defaultFormValues: ProductFormData = {
   category: "",
 };
 
-/**
- * [효진] 상품 관리 페이지 래퍼
- * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
- */
+
 export default function AdminProductsPage() {
   return (
     <App>
@@ -65,16 +62,15 @@ export default function AdminProductsPage() {
 }
 
 function AdminProducts() {
-  const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
+  const { message } = App.useApp();
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
-  const { data: orders = [] } = useAllOrders(); // [효진] 전체 주문 데이터 로드
+  const { data: orders = [] } = useAllOrders();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const toggleVisibility = useToggleProductVisibility();
 
-  // [효진] 실제 판매된 데이터 기반으로 상품별 판매수 계산
   const salesMap = orders.reduce((acc, order) => {
     if (order.status === "cancelled") return acc;
     order.items.forEach((item) => {
@@ -123,7 +119,7 @@ function AdminProducts() {
     try {
       const values = await form.validateFields();
       const submitData = { ...values };
-      console.log("[효진] 상품 데이터 저장 시도:", submitData);
+      console.log("상품 데이터 저장 시도:", submitData);
 
       
       if (editTarget) {
@@ -135,7 +131,7 @@ function AdminProducts() {
       }
       setModalOpen(false);
     } catch (err: any) {
-      console.error("[효진] 상품 저장 실패:", err);
+      console.error("상품 저장 실패:", err);
       message.error("상품 저장 중 오류가 발생했습니다.");
     }
   };
@@ -342,7 +338,6 @@ function AdminProducts() {
           layout="vertical" 
           className="mt-4"
           onValuesChange={(changed, all) => {
-            // [효진] 정가나 할인율 변경 시 판매가 자동 계산
             if (changed.originalPrice !== undefined || changed.discount !== undefined) {
               const orig = all.originalPrice || 0;
               const disc = all.discount || 0;
@@ -351,7 +346,7 @@ function AdminProducts() {
             }
           }}
         >
-          {/* [효진] 노출 상태를 가장 상단으로 이동 */}
+          
           <div className="mb-4 flex items-center justify-between rounded-lg bg-gray-50 p-3">
             <span className="text-sm font-bold text-[#181C32]">상품 노출 상태</span>
             <Form.Item name="isVisible" valuePropName="checked" noStyle>
@@ -425,10 +420,11 @@ function AdminProducts() {
             <ImageUpload folder="products" multiple maxCount={8} />
           </Form.Item>
 
-          {/* [효진] 사이즈 선택형으로 변경 및 신발 사이즈 추가 */}
+          
           <Form.Item name="sizes" label="사이즈 선택 (다중 선택 가능)">
             <Select mode="multiple" placeholder="사이즈를 선택하세요" allowClear>
               <Select.OptGroup label="의류">
+                <Select.Option value="XS">XS</Select.Option>
                 <Select.Option value="S">S</Select.Option>
                 <Select.Option value="M">M</Select.Option>
                 <Select.Option value="L">L</Select.Option>
@@ -439,6 +435,11 @@ function AdminProducts() {
               <Select.OptGroup label="신발">
                 {["220", "225", "230", "235", "240", "245", "250", "255", "260", "265", "270", "275", "280"].map(s => (
                   <Select.Option key={s} value={s}>{s}</Select.Option>
+                ))}
+              </Select.OptGroup>
+              <Select.OptGroup label="바지 (허리 인치)">
+                {["26", "27", "28", "29", "30", "31", "32", "33", "34", "36", "38"].map(s => (
+                  <Select.Option key={`pants-${s}`} value={`${s}인치`}>{s}인치</Select.Option>
                 ))}
               </Select.OptGroup>
             </Select>

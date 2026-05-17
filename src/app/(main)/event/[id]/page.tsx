@@ -43,10 +43,10 @@ export default function EventDetailPage() {
 
   return (
     <div className="w-full max-w-screen-md mx-auto pb-[80px] bg-white min-h-screen">
-      {/* [효진] 상단 헤더 — 뒤로가기 + 이벤트 제목 */}
+      
       <BackTopBar title={eventData.title} />
 
-      {/* [효진] 1. 상단 홍보 이미지 — 크롭 없이 전체 비율 그대로 노출 */}
+      
       <div className="w-full bg-gray-50">
         {heroImage ? (
           <img
@@ -59,7 +59,7 @@ export default function EventDetailPage() {
         )}
       </div>
 
-      {/* [효진] 2. 제목 + 본문 — 이미지 하단에 작게 정렬 */}
+      
       <div className="px-4 py-4 border-b border-gray-100">
         <h1 className="text-base font-bold text-gray-900 mb-1.5">
           {eventData.title}
@@ -69,7 +69,7 @@ export default function EventDetailPage() {
         </p>
       </div>
 
-      {/* [효진] 3. 연결 상품 — 카드 자체가 클릭 가능, 누르면 해당 상품 상세로 이동 */}
+      
       <div className="px-4 py-4">
         <h2 className="text-[13px] font-bold text-gray-900 mb-3">
           이벤트 관련 상품

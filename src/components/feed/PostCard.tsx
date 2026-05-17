@@ -26,12 +26,7 @@ function getPostLocation(post: Post, celebrity: Celebrity): string {
   return fallbacks[hash % fallbacks.length];
 }
 
-/**
- * [효진] 포스트 내부 다중 이미지 캐러셀
- * - state 기반 idx (스와이프/드래그·도트 클릭으로 전환)
- * - 활성 도트는 가로로 늘어남
- * - HotspotImage 의 imageIndex 필터 유지
- */
+
 function ImageCarousel({
   images,
   hotspots,
@@ -149,7 +144,7 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         </button>
       </div>
 
-      {/* [효진] 포스트 내부 이미지 캐러셀 (다중 이미지 시 좌우 스와이프 + 클릭 가능한 도트) */}
+      
       <ImageCarousel
         images={
           post.imageUrls && post.imageUrls.length > 0
@@ -160,7 +155,6 @@ export default function PostCard({ post, celebrity }: PostCardProps) {
         gradient={celebrity.gradient}
         celebName={celebrity.name}
       />
-
 
 
       {/* Actions */}

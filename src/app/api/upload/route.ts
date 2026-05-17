@@ -66,8 +66,6 @@ export async function POST(req: Request) {
 
     // 0. DDoS Rate Limiting Guard
     if (configs.enableDdosRateLimit) {
-      // In Next.js App Router, extracting IP can be tricky depending on the host. 
-      // We check common headers. Fallback to a generic bucket if IP is completely hidden.
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown_ip";
       const now = Date.now();
       

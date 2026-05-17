@@ -75,10 +75,7 @@ const defaultFormValues: EventFormValues = {
   priority: 0,
 };
 
-/**
- * [효진] 어드민 이벤트 관리 페이지
- * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 래핑
- */
+
 export default function AdminEventsPage() {
   return (
     <App>
@@ -164,7 +161,7 @@ function AdminEvents() {
       // Form.validateFields() 실패 시에도 여기로 떨어짐 — 이때는 antd가 자체 표시
       const hasErrorFields = (err as { errorFields?: unknown[] })?.errorFields;
       if (!hasErrorFields) {
-        console.error("[효진] 이벤트 저장 실패:", err);
+        console.error("이벤트 저장 실패:", err);
         message.error("이벤트 저장 중 오류가 발생했습니다.");
       }
     }

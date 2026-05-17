@@ -6,12 +6,12 @@ import {
   getVisibleProducts,
   getProduct,
   getProductsByCelebrity,
-  createProduct,      // [효진] 추가
-  updateProduct,      // [효진] 추가
-  deleteProduct,      // [효진] 추가
-  toggleProductVisibility, // [효진] 추가
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  toggleProductVisibility,
 } from "@/lib/services/product";
-import type { ProductFormData } from "@/types"; // [효진] 추가
+import type { ProductFormData } from "@/types";
 
 // 기존: 노출 상품만 조회 (일반 사용자 피드에서 사용)
 export function useProducts(visibleOnly = true) {
@@ -49,7 +49,6 @@ export function useProductsByCelebrity(celebrityId: string) {
   });
 }
 
-// [효진] 상품 등록 mutation (K2 상품 관리용)
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -60,7 +59,6 @@ export function useCreateProduct() {
   });
 }
 
-// [효진] 상품 수정 mutation (K2 상품 관리용)
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -72,7 +70,6 @@ export function useUpdateProduct() {
   });
 }
 
-// [효진] 상품 삭제 mutation (K2 상품 관리용)
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -83,7 +80,6 @@ export function useDeleteProduct() {
   });
 }
 
-// [효진] 상품 노출 토글 mutation (K2 상품 관리 Switch용)
 export function useToggleProductVisibility() {
   const queryClient = useQueryClient();
   return useMutation({

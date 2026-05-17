@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Select, Spin, App } from "antd"; // [효진] App 컴포넌트 추가
+import { Card, Select, Spin, App } from "antd";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
 import { useAllOrders, useAnalyticsOrders } from "@/hooks/useOrders";
@@ -15,7 +15,6 @@ import {
 
 const colors = ["#3699FF", "#00C851", "#FF6B35", "#ED4956", "#9B59B6"];
 
-// [효진] SVG 기반 커스텀 도넛 차트 (점유율 시각화용)
 function DonutChart({ data }: { data: { name: string; percent: number; color: string }[] }) {
   let cumulative = 0;
   const r = 50;
@@ -89,7 +88,6 @@ function AdminAnalytics() {
   const avgOrderAmount = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
   const totalSalesCount = products.reduce((sum, p) => sum + p.salesCount, 0);
 
-  // [효진] 셀럽별 매출은 실제 주문(취소 제외) 라인 합계 기준으로 산출
   const productCelebMap = new Map(products.map((p) => [p.id, p.celebrityId] as const));
   const celebSalesData = celebrities.map((celeb, i) => {
     const sales = orders.reduce((acc, o) => {
@@ -107,9 +105,9 @@ function AdminAnalytics() {
   const celebShare = celebSalesData
     .map((c) => ({
       ...c,
-      percent: totalCelebSales > 0 ? Math.round((c.sales / totalCelebSales) * 100) : 0, // [효진] 점유율 % 계산
+      percent: totalCelebSales > 0 ? Math.round((c.sales / totalCelebSales) * 100) : 0,
     }))
-    .sort((a, b) => b.percent - a.percent); // [효진] 점유율 높은 순 정렬
+    .sort((a, b) => b.percent - a.percent);
 
   // 요일별 매출
   const dayMap: Record<number, string> = {

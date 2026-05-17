@@ -1,7 +1,7 @@
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminHeader from "@/components/admin/AdminHeader";
 import AdminGuard from "@/components/admin/AdminGuard";
-import { App } from "antd"; // [효진] Ant Design App 컴포넌트 추가
+import { App } from "antd";
 
 export const metadata = {
   title: "C.O.D.E. Admin",

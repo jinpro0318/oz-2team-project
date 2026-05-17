@@ -63,10 +63,7 @@ export default function WishlistPage() {
 
   return (
     <div className="flex flex-col pb-[60px]">
-      <BackTopBar 
-        title="찜 목록" 
-        rightAction={<span className="text-[13px] text-text-secondary font-medium">{items.length}개</span>}
-      />
+      <BackTopBar title="찜 목록" />
 
       {items.length === 0 ? (
         <div className="flex flex-1 items-center justify-center py-20">
@@ -74,12 +71,17 @@ export default function WishlistPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 px-3 pt-2 pb-[60px]">
-          {items.map((item) => (
+          {items.map((item) => {
+            const liveProduct = products.find((p) => p.id === item.productId);
+            const colors = liveProduct?.colors ?? item.product.colors;
+            const imageUrls = liveProduct?.imageUrls ?? item.product.imageUrls;
+            const thumbnail = colors?.[0]?.imageUrl || imageUrls?.[0];
+            return (
             <div key={item.id} className="overflow-hidden rounded-lg border border-border bg-surface">
               <Link href={`/product/${item.productId}`}>
                 <div className="aspect-[3/4] w-full overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300">
-                  {item.product.imageUrls?.[0] && (
-                    <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+                  {thumbnail && (
+                    <img src={thumbnail} alt={item.product.name} className="h-full w-full object-cover" />
                   )}
                 </div>
               </Link>
@@ -118,7 +120,8 @@ export default function WishlistPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -24,16 +24,17 @@
 
 ## 기술 스택
 
-| 분류                | 기술                                            |
-| ------------------- | ----------------------------------------------- |
-| **프레임워크**      | Next.js 16 (App Router) + TypeScript            |
-| **스타일링**        | Tailwind CSS v4 + Ant Design 6                  |
-| **서버 상태**       | TanStack Query v5 (캐싱, 패칭, 뮤테이션)        |
-| **클라이언트 상태** | Zustand (순수 UI 상태만 — 로그인 프롬프트 등)   |
-| **BaaS**            | Firebase (Authentication + Firestore + Storage) |
-| **결제**            | TossPayments SDK (테스트 모드)                  |
-| **주소 검색**       | react-daum-postcode                             |
-| **배포**            | Vercel                                          |
+| 분류                | 기술                                                              |
+| ------------------- | ----------------------------------------------------------------- |
+| **프레임워크**      | Next.js 15.5 (App Router) + TypeScript 5                          |
+| **스타일링**        | Tailwind CSS v4 + Ant Design 6                                    |
+| **서버 상태**       | TanStack Query v5 (캐싱, 패칭, 뮤테이션)                          |
+| **클라이언트 상태** | Zustand (auth · cart · UI 상태)                                   |
+| **BaaS**            | Firebase 11 (Authentication + Firestore + Storage) + Admin SDK 13 |
+| **결제**            | TossPayments SDK (테스트 모드)                                    |
+| **주소 검색**       | react-daum-postcode                                               |
+| **애니메이션/아이콘** | motion + lucide-react                                           |
+| **배포**            | Vercel                                                            |
 
 ---
 
@@ -45,15 +46,16 @@
 │                                             │
 │  React Pages ──▶ TanStack Query ──▶ Firestore│
 │       │                                      │
-│       └──▶ Zustand (UI 상태: showLoginPrompt)│
+│       └──▶ Zustand (auth, cart, ui 스토어)   │
 │       │                                      │
 │       └──▶ Firebase Auth (로그인/회원가입)    │
 └─────────────────────────────────────────────┘
 ```
 
-- **모든 서버 데이터** (셀럽, 상품, 피드, 장바구니, 찜, 주문, 교환/반품)는 **Firestore + TanStack Query** 조합으로 관리합니다.
-- **Zustand**는 `showLoginPrompt`같은 순수 UI 상태에만 사용합니다.
-- 장바구니와 찜 목록은 Firestore 서브컬렉션(`users/{uid}/cart/`, `users/{uid}/wishlist/`)에 저장되므로 기기 간 동기화가 됩니다.
+- **모든 서버 데이터** (셀럽, 상품, 피드, 이벤트, 장바구니, 찜, 주문, 교환/반품, 정산)는 **Firestore + TanStack Query** 조합으로 관리합니다.
+- **Zustand**는 인증 세션(`authStore`), 장바구니(`cartStore`), UI 플래그(`uiStore`) 같은 클라이언트 상태에 사용합니다.
+- 찜 목록은 Firestore 서브컬렉션(`users/{uid}/wishlist/`)에 저장되어 기기 간 동기화가 됩니다.
+- 결제·물류 처리는 `src/app/api/` 하위 라우트(TossPayments 확인, 코드 물류 트래킹, 이미지 업로드)에서 서버 사이드로 수행합니다.
 
 ---
 
@@ -72,7 +74,7 @@
 ```bash
 # 1. 저장소 클론
 git clone <repository-url>
-cd oz02-code
+cd oz-2team-project
 
 # 2. 의존성 설치
 npm install
@@ -113,18 +115,19 @@ npm install
 | 컬렉션                  | 설명                      |
 | ----------------------- | ------------------------- |
 | `celebrities/{celebId}` | 셀럽 프로필               |
-| `products/{productId}`  | 상품 정보                 |
-| `posts/{postId}`        | 피드 포스트 (핫스팟 포함) |
+| `products/{productId}`  | 상품 정보 (색상/사이즈 옵션 포함) |
+| `posts/{postId}`        | 피드 포스트 (핫스팟·이미지 다중) |
+| `events/{eventId}`      | 진행 중 이벤트 (배너·노출 일정) |
 | `users/{userId}`        | 사용자 프로필             |
 
 앱 사용 중 자동 생성되는 컬렉션:
 
 | 컬렉션                                | 설명                  |
 | ------------------------------------- | --------------------- |
-| `users/{userId}/cart/{itemId}`        | 장바구니 (서브컬렉션) |
 | `users/{userId}/wishlist/{productId}` | 찜 목록 (서브컬렉션)  |
 | `orders/{orderId}`                    | 주문                  |
 | `exchanges/{exchangeId}`              | 교환/반품             |
+| `settlements/{settlementId}`          | 셀럽별 정산           |
 
 ---
 
@@ -139,13 +142,18 @@ cp .env.example .env.local
 ```
 
 ```env
-# Firebase (팀 리더에게 받은 값으로 채우기)
+# Firebase Client (팀 리더에게 받은 값으로 채우기)
 NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+
+# Firebase Admin SDK (서버 사이드 — API Route, 시드 스크립트용)
+FIREBASE_ADMIN_PROJECT_ID=your-project-id
+FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
 # TossPayments (선택 — 결제 테스트 시 필요)
 NEXT_PUBLIC_TOSS_CLIENT_KEY=test_ck_your_client_key
@@ -229,57 +237,79 @@ npm run dev
 ## 프로젝트 구조
 
 ```
-oz02-code/
+oz-2team-project/
 ├── scripts/
 │   └── seed.ts                  # Firebase 시드 데이터 스크립트
+├── public/                      # 정적 자산 (이미지, 폰트 등)
 ├── src/
 │   ├── app/                     # Next.js App Router 페이지
 │   │   ├── (auth)/              # 인증 페이지 (로그인, 회원가입)
-│   │   ├── (main)/              # 모바일 메인 페이지 (피드, 검색, 찜, 마이페이지)
+│   │   ├── (main)/              # 모바일 메인 (피드, 검색, 찜, 마이페이지, 이벤트 상세)
 │   │   ├── admin/               # 어드민 대시보드 (관리자 전용)
-│   │   ├── api/                 # API 라우트 (결제 확인 등)
+│   │   ├── api/                 # API 라우트 (결제 확인, 물류 트래킹, 업로드)
 │   │   ├── cart/                # 장바구니
 │   │   ├── checkout/            # 결제
-│   │   ├── exchange/            # 교환/반품
+│   │   ├── exchange/[orderId]/  # 교환/반품 신청
 │   │   ├── order-complete/      # 주문 완료
-│   │   ├── orders/              # 주문 내역/상세
-│   │   ├── product/             # 상품 상세
+│   │   ├── orders/              # 주문 내역/상세 (cancel·confirm 포함)
+│   │   ├── product/[id]/        # 상품 상세
+│   │   ├── error.tsx            # 전역 에러 바운더리
+│   │   ├── globals.css          # 전역 스타일 (Tailwind v4)
 │   │   ├── layout.tsx           # 루트 레이아웃
 │   │   └── page.tsx             # / → /feed 리디렉트
 │   ├── components/
-│   │   ├── admin/               # 어드민 컴포넌트 (AdminGuard, Sidebar, Header)
-│   │   ├── common/              # 공통 컴포넌트 (TopBar, BottomNav, Providers 등)
-│   │   └── feed/                # 피드 컴포넌트 (PostCard, StoryStrip, HotspotImage)
+│   │   ├── admin/               # 어드민 컴포넌트 (AdminGuard, Sidebar, Header, ImageUpload)
+│   │   ├── auth/                # 인증 보조 컴포넌트 (PasswordInputGroup 등)
+│   │   ├── common/              # 공통 컴포넌트 (TopBar, BottomNav, Providers, LoginInducement)
+│   │   ├── event/               # 이벤트 카드
+│   │   ├── feed/                # 피드 (PostCard, StoryStrip, HotspotImage, InstagramBar)
+│   │   ├── mypage/              # 마이페이지 보조 (AddressAddSheet, EmailProtector 등)
+│   │   └── order/               # 주문 (DeliveryTracking)
 │   ├── hooks/                   # TanStack Query 커스텀 훅
 │   │   ├── useAuth.ts           # 인증 가드 훅
-│   │   ├── useCart.ts           # 장바구니 CRUD (Firestore)
-│   │   ├── useCelebrities.ts    # 셀럽 목록/상세 조회
-│   │   ├── useOrders.ts         # 주문/교환 관련 훅
-│   │   ├── usePosts.ts          # 피드 포스트 조회
-│   │   ├── useProducts.ts       # 상품 목록/상세 조회
-│   │   └── useWishlist.ts       # 찜 목록 CRUD (Firestore)
+│   │   ├── useCart.ts           # 장바구니 CRUD
+│   │   ├── useCelebrities.ts    # 셀럽 목록/상세
+│   │   ├── useDaumPostcode.ts   # 다음 우편번호
+│   │   ├── useEvents.ts         # 이벤트 목록/상세
+│   │   ├── useOrders.ts         # 주문/교환 관련
+│   │   ├── usePosts.ts          # 피드 포스트
+│   │   ├── useProducts.ts       # 상품 목록/상세
+│   │   ├── useRequireAdmin.ts   # 어드민 권한 가드
+│   │   ├── useSettlements.ts    # 정산 데이터
+│   │   └── useWishlist.ts       # 찜 목록 CRUD
 │   ├── lib/
 │   │   ├── services/            # Firestore 서비스 레이어 (도메인별)
-│   │   │   ├── cart.ts          # users/{uid}/cart 서브컬렉션
-│   │   │   ├── celebrity.ts     # celebrities 컬렉션
-│   │   │   ├── exchange.ts      # exchanges 컬렉션
-│   │   │   ├── order.ts         # orders 컬렉션
-│   │   │   ├── post.ts          # posts 컬렉션
-│   │   │   ├── product.ts       # products 컬렉션
-│   │   │   └── wishlist.ts      # users/{uid}/wishlist 서브컬렉션
-│   │   ├── antdTheme.ts         # Ant Design 테마 설정
+│   │   │   ├── cart.ts          # users/{uid}/cart
+│   │   │   ├── celebrity.ts     # celebrities
+│   │   │   ├── events.ts        # events
+│   │   │   ├── exchange.ts      # exchanges
+│   │   │   ├── logistics.ts     # 코드 물류 처리 (클라이언트)
+│   │   │   ├── logistics-server.ts # 서버 사이드 물류 헬퍼
+│   │   │   ├── order.ts         # orders
+│   │   │   ├── post.ts          # posts
+│   │   │   ├── product.ts       # products
+│   │   │   ├── settings.ts      # 사이트 설정
+│   │   │   ├── settlement.ts    # 셀럽별 정산
+│   │   │   ├── upload.ts        # 이미지 압축/업로드
+│   │   │   ├── user.ts          # 사용자 프로필
+│   │   │   └── wishlist.ts      # users/{uid}/wishlist
+│   │   ├── utils/               # 가격 계산 등 유틸
+│   │   ├── antdTheme.ts         # Ant Design 테마
 │   │   ├── auth.ts              # Firebase Auth 함수
-│   │   ├── firebase.ts          # Firebase 초기화
-│   │   └── firestore.ts         # Firestore CRUD 헬퍼 (범용 + 서브컬렉션)
+│   │   ├── firebase.ts          # Firebase Client 초기화
+│   │   ├── firebase-admin.ts    # Firebase Admin SDK 초기화
+│   │   └── firestore.ts         # Firestore CRUD 헬퍼 (범용)
 │   ├── stores/
-│   │   └── authStore.ts         # Zustand (UI 상태만: user, loading, showLoginPrompt)
+│   │   ├── authStore.ts         # 세션·로그인 프롬프트 상태
+│   │   ├── cartStore.ts         # 장바구니 클라이언트 상태
+│   │   └── uiStore.ts           # 하단 네비 노출 등 UI 플래그
 │   └── types/
 │       └── index.ts             # TypeScript 인터페이스 정의
 ├── .env.example                 # 환경 변수 템플릿
 ├── .env.local                   # 환경 변수 (Git 제외)
 ├── next.config.ts               # Next.js 설정
 ├── package.json
-├── tailwind.config.ts
+├── postcss.config.mjs
 └── tsconfig.json
 ```
 
@@ -289,39 +319,54 @@ oz02-code/
 
 ### 모바일 (390px 기준)
 
-| 경로                  | 화면          | 설명                                         |
-| --------------------- | ------------- | -------------------------------------------- |
-| `/feed`               | 메인 피드     | 셀럽별 인스타 스타일 피드 + 핫스팟           |
-| `/login`              | 로그인        | 이메일/비밀번호                              |
-| `/register`           | 회원가입      | 2단계 폼 (이메일 → 닉네임)                   |
-| `/search`             | 검색          | 셀럽/상품 통합 검색                          |
-| `/product/[id]`       | 상품 상세     | 색상/사이즈 선택, 장바구니, 찜, 바로 구매    |
-| `/cart`               | 장바구니      | 수량 조절, 삭제, 결제 진행                   |
-| `/checkout`           | 주문/결제     | 배송지 입력 (다음 우편번호) + 결제 수단 선택 |
-| `/order-complete`     | 결제 완료     | 주문 확인                                    |
-| `/orders`             | 주문 내역     | 상태별 필터 (전체/배송중/배송완료/취소교환)  |
-| `/orders/[id]`        | 주문 상세     | 배송 추적 + 타임라인                         |
-| `/exchange/[orderId]` | 교환/반품     | 사유 선택 → Firestore에 저장                 |
-| `/wishlist`           | 찜 목록       | 그리드 레이아웃, 장바구니 담기               |
-| `/mypage`             | 마이페이지    | 프로필, 주문 내역, 고객센터 메뉴             |
-| `/mypage/profile`     | 프로필 편집   | 닉네임/연락처 수정 + 계정 탈퇴               |
-| `/mypage/password`    | 비밀번호 변경 | 현재 비밀번호 확인 + 강도 표시               |
-| `/mypage/support`     | 고객센터      | 전화 연결 + FAQ 아코디언                     |
+| 경로                     | 화면          | 설명                                                         |
+| ------------------------ | ------------- | ------------------------------------------------------------ |
+| `/feed`                  | 메인 피드     | 셀럽별 인스타 스타일 피드 + 핫스팟 (진입마다 순서 셔플)      |
+| `/event/[id]`            | 이벤트 상세   | 진행 이벤트 hero 배너 + 상세 페이지                          |
+| `/login`                 | 로그인        | 이메일/비밀번호                                              |
+| `/register`              | 회원가입      | 2단계 폼 (이메일 → 닉네임)                                   |
+| `/search`                | 검색          | 셀럽/상품 통합 검색                                          |
+| `/product/[id]`          | 상품 상세     | 색상/사이즈 선택, 장바구니, 찜, 바로 구매                    |
+| `/cart`                  | 장바구니      | 수량 조절, 삭제, 결제 진행 (색상 연결 이미지 우선 노출)      |
+| `/checkout`              | 주문/결제     | 배송지 입력 (다음 우편번호) + TossPayments 결제 수단         |
+| `/order-complete`        | 결제 완료     | 주문 확인                                                    |
+| `/orders`                | 주문 내역     | 상태별 필터 (전체/배송중/배송완료/취소교환)                  |
+| `/orders/[id]`           | 주문 상세     | 배송 추적 + 타임라인                                         |
+| `/orders/[id]/cancel`    | 주문 취소     | 취소 사유 입력 + 환불 안내                                   |
+| `/orders/[id]/confirm`   | 구매 확정     | 배송 완료 후 구매 확정 처리                                  |
+| `/exchange/[orderId]`    | 교환/반품     | 사유 선택 → Firestore 저장                                   |
+| `/wishlist`              | 찜 목록       | 그리드 레이아웃, 색상별 이미지 우선 표시                     |
+| `/mypage`                | 마이페이지    | 프로필, 주문 내역, 고객센터 메뉴                             |
+| `/mypage/profile`        | 프로필 편집   | 닉네임/연락처 수정 + 계정 탈퇴                               |
+| `/mypage/password`       | 비밀번호 변경 | 현재 비밀번호 확인 + 강도 표시                               |
+| `/mypage/support`        | 고객센터      | 전화 연결 + FAQ 아코디언                                     |
 
 ### 어드민 (데스크톱 1280px+, 관리자 권한 필요)
 
-| 경로                 | 화면      | 설명                               |
-| -------------------- | --------- | ---------------------------------- |
-| `/admin`             | 대시보드  | KPI 카드, 셀럽별 매출, 최근 주문   |
-| `/admin/products`    | 상품 관리 | 상품 테이블, 검색/필터             |
-| `/admin/orders`      | 주문 관리 | 주문 테이블, 상태 변경 (출고/완료) |
-| `/admin/celebrities` | 셀럽 관리 | 셀럽 카드, 판매액/커미션           |
-| `/admin/analytics`   | 매출 분석 | KPI, 요일별 매출 차트, 셀럽별 비중 |
-| `/admin/settlements` | 정산 관리 | 셀럽별 미지급 커미션 현황          |
+| 경로                  | 화면           | 설명                                                  |
+| --------------------- | -------------- | ----------------------------------------------------- |
+| `/admin`              | 대시보드       | KPI 카드, 셀럽별 매출, 요일별 매출, 최근 주문         |
+| `/admin/products`     | 상품 관리      | 상품 등록·수정 (색상/사이즈 옵션), 노출 상태 토글     |
+| `/admin/orders`       | 주문 관리      | 주문 테이블, 상태 변경 (출고/완료/취소)               |
+| `/admin/celebrities`  | 셀럽 관리      | 셀럽 통합 관리 드로어 (프로필 + 착장 + 핫스팟 편집)   |
+| `/admin/events`       | 이벤트 관리    | 이벤트 등록/수정, 배너 업로드, 노출 일정              |
+| `/admin/analytics`    | 매출 분석      | KPI, 요일별 매출 차트, 셀럽별 비중                    |
+| `/admin/settlements`  | 정산 관리      | 셀럽별 미지급 커미션 현황, 정산 처리                  |
+| `/admin/exchanges`    | 교환/반품 관리 | 교환·반품 신청 검토, 승인/반려                        |
 
-> 어드민 페이지는 `AdminGuard` 컴포넌트가 보호합니다.  
+> 어드민 페이지는 `AdminGuard` + `useRequireAdmin` 훅이 보호합니다.  
 > 비로그인 시 → `/login?redirect=/admin`으로 리디렉트  
 > 일반 사용자 → 403 접근 거부 화면 표시
+
+### API 라우트 (서버 사이드)
+
+| 경로                                                            | 설명                                |
+| --------------------------------------------------------------- | ----------------------------------- |
+| `/api/payment/confirm`                                          | TossPayments 결제 승인 확인         |
+| `/api/upload`                                                   | 이미지 압축 + Firebase Storage 업로드 |
+| `/api/code-logistics/[carrierCode]/[trackingNumber]`            | 코드 물류 트래킹 상태 조회          |
+| `/api/code-logistics/skip`                                      | 물류 단계 스킵 (테스트용)           |
+| `/api/debug/cleanup`                                            | 디버그용 데이터 정리                |
 
 ---
 

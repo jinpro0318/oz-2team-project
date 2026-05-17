@@ -8,22 +8,7 @@ import * as admin from "firebase-admin";
 const project_id = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const client_email = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 
-/**
- * [효진] Vercel 호환을 위한 private key 파서.
- *
- * Vercel 환경 변수는 따옴표/줄바꿈 처리가 까다로워서 흔히 깨진다.
- * 다음 두 가지 입력 형태를 모두 지원하도록 보강:
- *
- *  1) FIREBASE_ADMIN_PRIVATE_KEY_BASE64 (권장)
- *     - JSON의 private_key 값 전체를 base64로 인코딩해서 한 줄로 넣기
- *     - 따옴표·escape 문제 발생 X
- *     - macOS:  echo -n "$(cat key.txt)" | base64 | pbcopy
- *     - 또는 Node: Buffer.from(jsonValue).toString('base64')
- *
- *  2) FIREBASE_ADMIN_PRIVATE_KEY (기존 호환)
- *     - 양 끝 따옴표를 잘못 포함했어도 자동으로 떼어냄
- *     - "\n" literal 시퀀스를 실제 줄바꿈으로 치환
- */
+
 function resolvePrivateKey(): string | undefined {
   const b64 = process.env.FIREBASE_ADMIN_PRIVATE_KEY_BASE64;
   if (b64 && b64.trim()) {

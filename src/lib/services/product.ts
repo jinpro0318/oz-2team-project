@@ -26,17 +26,14 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
   return updateDocument("products", id, data);
 }
 
-// [효진] 상품 생성 (K2 상품 관리 등록 모달용)
 export async function createProduct(data: ProductFormData): Promise<string> {
   return createDocument("products", { ...data, salesCount: 0 }); // salesCount 0으로 초기화
 }
 
-// [효진] 상품 삭제 (K2 상품 관리 삭제 버튼용)
 export async function deleteProduct(id: string): Promise<void> {
   return deleteDocument("products", id);
 }
 
-// [효진] 상품 노출 상태 토글 (K2 상품 관리 테이블 Switch용)
 export async function toggleProductVisibility(id: string, isVisible: boolean): Promise<void> {
   return updateDocument("products", id, { isVisible });
 }

@@ -13,7 +13,6 @@ import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { useDaumPostcode } from "@/hooks/useDaumPostcode";
 import { getSystemSettings, updateSystemSettings } from "@/lib/services/settings";
 
-// [효진] pathname → 한글 페이지명 매핑 (브레드크럼에 표시)
 const pageLabels: Record<string, string> = {
   "/admin": "대시보드",
   "/admin/orders": "주문 관리",
@@ -30,8 +29,7 @@ export default function AdminHeader() {
   const { setUser } = useAuthStore();
   const { data: orders = [] } = useAllOrders();
 
-  const pageTitle = pageLabels[pathname] ?? "어드민"; // [효진] 브레드크럼: "Admin / {페이지명}"
-  // [효진] 결제완료·준비중 주문만 카운트 → 벨 배지에 표시 (기존: 하드코딩 3)
+  const pageTitle = pageLabels[pathname] ?? "어드민";
   const pendingCount = orders.filter(
     (o) => o.status === "payment_complete" || o.status === "preparing"
   ).length;
@@ -108,7 +106,6 @@ export default function AdminHeader() {
     return () => clearTimeout(timer);
   };
 
-  // [효진] 로그아웃 버튼 신규 추가: logoutUser() → authStore 초기화 → /login 이동
   const handleLogout = async () => {
     await logoutUser();
     setUser(null);
@@ -118,7 +115,7 @@ export default function AdminHeader() {
   return (
     <>
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#E4E6EF] bg-white px-6">
-        {/* [효진] 브레드크럼 네비게이션 추가 (기존: 검색창만 있었음) */}
+        
         <div className="flex items-center gap-1.5 text-sm">
           <span className="text-[#7E8299]">Admin</span>
           <span className="text-[#7E8299]">/</span>
@@ -155,7 +152,7 @@ export default function AdminHeader() {
             />
           </div>
 
-          {/* [효진] 벨 클릭 시 /admin/orders로 이동 연결 */}
+          
           <Badge count={pendingCount} size="small" color="#F64E60">
             <button
               className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-[#7E8299] transition-colors hover:bg-[#F5F6FA] hover:text-[#181C32]"
@@ -168,7 +165,7 @@ export default function AdminHeader() {
 
           <AdminLinkButtons variant="admin" />
 
-          {/* [효진] 로그아웃 버튼 추가 */}
+          
           <button
             className="flex items-center gap-1.5 text-xs text-[#7E8299] transition-colors hover:text-[#181C32]"
             onClick={handleLogout}
