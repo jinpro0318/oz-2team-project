@@ -47,7 +47,6 @@ export function InstagramBar({ post, celebrity }: InstagramBarProps) {
   const wishlisted =
     hotspotProducts.length > 0 && hotspotProducts.every((p) => isWishlisted(p.id));
 
-  // [효진] 장바구니와 동일하게 핫스팟에 연결된 모든 상품을 한 번에 찜에 담음
   const handleWishlist = () => {
     requireAuth(() => {
       if (hotspotProductIds.length === 0) {
@@ -62,7 +61,6 @@ export function InstagramBar({ post, celebrity }: InstagramBarProps) {
     });
   };
 
-  // [효진] 피드의 핫스팟에 연결된 모든 상품을 장바구니에 한 번에 담음
   const handleCart = () => {
     requireAuth(() => {
       if (hotspotProductIds.length === 0) {
@@ -85,7 +83,6 @@ export function InstagramBar({ post, celebrity }: InstagramBarProps) {
     });
   };
 
-  // [효진] 공유 URL은 CODE 사이트의 /feed?celebrityId=<id> 로 구성 → 받는 사람이 해당 셀럽 피드로 바로 진입
   const handleShare = async () => {
     if (typeof window === "undefined") return;
     const url = `${window.location.origin}/feed?celebrityId=${encodeURIComponent(celebrity.id)}`;

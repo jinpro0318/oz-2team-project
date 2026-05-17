@@ -20,7 +20,6 @@ export function useEvents() {
   });
 }
 
-// [효진] 어드민 목록용: 모든 이벤트 (예정 + 진행중 + 종료)
 export function useAllEvents() {
   return useQuery({
     queryKey: ["events", "all"],
@@ -38,7 +37,6 @@ export function useEvent(id: string) {
   });
 }
 
-// [효진] 이벤트 등록 mutation
 export function useCreateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -49,7 +47,6 @@ export function useCreateEvent() {
   });
 }
 
-// [효진] 이벤트 수정 mutation
 export function useUpdateEvent() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -61,7 +58,6 @@ export function useUpdateEvent() {
   });
 }
 
-// [효진] 이벤트 삭제 mutation
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({

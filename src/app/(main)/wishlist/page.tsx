@@ -72,7 +72,6 @@ export default function WishlistPage() {
       ) : (
         <div className="grid grid-cols-2 gap-2 px-3 pt-2 pb-[60px]">
           {items.map((item) => {
-            // [효진] 상품 상세 페이지와 동일하게 색상 연결 이미지(깔끔한 제품 컷)를 우선 사용
             const liveProduct = products.find((p) => p.id === item.productId);
             const colors = liveProduct?.colors ?? item.product.colors;
             const imageUrls = liveProduct?.imageUrls ?? item.product.imageUrls;

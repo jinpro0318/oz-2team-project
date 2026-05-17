@@ -1,19 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Table, Tag, Button, Spin, Popconfirm, App } from "antd"; // [효진] App 추가
+import { Card, Table, Tag, Button, Spin, Popconfirm, App } from "antd";
 import { DollarOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
-import { useAllOrders } from "@/hooks/useOrders"; // [효진] 실시간 정산액 계산용 추가
+import { useAllOrders } from "@/hooks/useOrders";
 import { useSettlements, useProcessSettlement, useCreateSettlement } from "@/hooks/useSettlements";
 import type { Celebrity, Product, Settlement } from "@/types";
 import dayjs from "dayjs";
 
-/**
- * [효진] 정산 관리 페이지 래퍼
- * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
- */
+
 export default function AdminSettlementsPage() {
   return (
     <App>
@@ -23,12 +20,12 @@ export default function AdminSettlementsPage() {
 }
 
 function AdminSettlements() {
-  const { message } = App.useApp(); // [효진] 컨텍스트 메시지 사용
+  const { message } = App.useApp();
   const [processing, setProcessing] = useState<string | null>(null);
 
   const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
   const { data: products = [], isLoading: prodLoading } = useAllProducts();
-  const { data: orders = [], isLoading: orderLoading } = useAllOrders(); // [효진] 실시간 판매 데이터 로드
+  const { data: orders = [], isLoading: orderLoading } = useAllOrders();
   const { data: settlements = [], isLoading: settlementLoading } = useSettlements();
   const processSettlement = useProcessSettlement();
   const createSettlement = useCreateSettlement();
@@ -39,7 +36,6 @@ function AdminSettlements() {
   const currentPeriod = dayjs().format("YYYY-MM");
 
   const settlementRows = celebrities.map((celeb) => {
-    // [효진] 실제 주문(취소 제외)에서 해당 셀럽의 상품 판매액 합산
     const totalSales = orders.reduce((sum, order) => {
       if (order.status === "cancelled") return sum;
       const celebItems = order.items.filter(item => {
@@ -101,7 +97,7 @@ function AdminSettlements() {
       }
       message.success(`${row.celebName} 정산 처리 완료`);
     } catch (err: any) {
-      console.error("[효진] 정산 에러:", err);
+      console.error("정산 에러:", err);
       message.error("정산 처리에 실패했습니다.");
     } finally {
       setProcessing(null);

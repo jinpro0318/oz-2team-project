@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getOrders,
   getAllOrders,
-  getAllOrdersForAnalytics, // [효진] 추가
+  getAllOrdersForAnalytics,
   getOrder,
   createOrder,
   updateOrderStatus,
@@ -18,7 +18,7 @@ import {
   createExchange,
   getExchangesByOrder,
   getAllExchanges,
-  updateExchangeStatus, // [효진] 추가
+  updateExchangeStatus,
   type CreateExchangeInput,
 } from "@/lib/services/exchange";
 
@@ -161,7 +161,6 @@ export function useExchangesByOrder(orderId: string) {
   });
 }
 
-// [효진] 어드민용 전체 교환/반품 조회 훅
 export function useAllExchanges() {
   return useQuery({
     queryKey: ["exchanges", "all"],
@@ -169,7 +168,6 @@ export function useAllExchanges() {
   });
 }
 
-// [효진] 통계용 주문 데이터 조회 훅
 export function useAnalyticsOrders() {
   return useQuery({
     queryKey: ["orders", "analytics"],
@@ -178,7 +176,6 @@ export function useAnalyticsOrders() {
   });
 }
 
-// [효진] 교환/반품 상태 업데이트 훅
 
 export function useUpdateExchangeStatus() {
   const queryClient = useQueryClient();

@@ -7,10 +7,8 @@ export interface Celebrity {
   commissionRate: number;
   isActive: boolean;
   gradient: string;
-  order?: number; // [효진] 노출 순서 (낮을수록 앞)
+  order?: number;
 }
-
-
 
 
 export interface Hotspot {
@@ -20,7 +18,7 @@ export interface Hotspot {
   price: string;
   top: number;
   left: number;
-  imageIndex?: number; // [효진] 여러 이미지 중 몇 번째 이미지의 핫스팟인지 구분 (0~2)
+  imageIndex?: number;
 }
 
 
@@ -28,7 +26,7 @@ export interface Post {
   id: string;
   celebrityId: string;
   imageUrl: string; // 대표 이미지 (호환성 유지)
-  imageUrls: string[]; // [효진] 착장 이미지 (최대 3장)
+  imageUrls: string[];
   caption: string;
 
   likes: number;
@@ -39,7 +37,7 @@ export interface Post {
 
 export interface ProductColor {
   name: string;
-  imageUrl?: string; // [효진] 색상별 연결 이미지
+  imageUrl?: string;
 }
 
 
@@ -72,7 +70,7 @@ export interface Address {
   isDefault: boolean;
 }
 
-export type ShippingAddress = Address; // [효진] 하위 호환성을 위해 추가
+export type ShippingAddress = Address;
 
 
 export interface User {
@@ -129,7 +127,6 @@ export type OrderStatus =
   | "reshipping";
 
 
-
 export interface OrderItem {
   productId: string;
   product: Product;
@@ -181,7 +178,6 @@ export interface Exchange {
   ticketNumber: string;
 }
 
-// [효진] 아래 타입들은 어드민 페이지(K2·K4·K7) 작업 시 신규 추가 (2026-04-29)
 
 /** 정산 상태 타입. "unpaid" = 미정산, "paid" = 정산완료 */
 export type SettlementStatus = "unpaid" | "paid";
@@ -239,10 +235,9 @@ export interface CelebrityFormData {
   commissionRate: number;
   isActive: boolean;
   gradient: string;
-  order?: number; // [효진] 추가
+  order?: number;
 }
 
-// [효진] 어드민 이벤트 관리 도입에 따라 필드 재정비
 // - description → content (마크다운 본문)
 // - imageUrl → thumbnail (대표 이미지)
 // - startDate/endDate → startAt/endAt (게시 기간)
@@ -252,7 +247,7 @@ export interface AppEvent {
   title: string;
   content: string;        // 본문 (마크다운/플레인 텍스트)
   thumbnail: string;      // 프로필 이미지 (메인 피드 EventCard 카드용)
-  bannerImage: string;    // [효진] 홍보 이미지 (이벤트 상세 페이지 상단 hero)
+  bannerImage: string;
   startAt: string;        // 게시 시작일 (ISO string)
   endAt: string;          // 게시 종료일 (ISO string)
   productIds: string[];   // 연결 상품 ID 목록
@@ -260,16 +255,12 @@ export interface AppEvent {
   priority: number;       // 노출 우선순위 (높을수록 상단)
 }
 
-/**
- * [효진] 이벤트 등록/수정 폼 데이터 타입
- * - 어드민 이벤트 관리 페이지 Modal + Form에서 사용
- * - AppEvent 와 거의 동일하지만 id는 포함하지 않음
- */
+
 export interface EventFormData {
   title: string;
   content: string;
   thumbnail: string;     // 프로필 이미지
-  bannerImage: string;   // [효진] 홍보 이미지
+  bannerImage: string;
   startAt: string;
   endAt: string;
   productIds: string[];

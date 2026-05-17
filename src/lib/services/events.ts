@@ -8,7 +8,6 @@ import {
 } from "@/lib/firestore";
 import type { AppEvent, EventFormData } from "@/types";
 
-// [효진] 어드민 이벤트 관리: 전체 이벤트 조회 (priority 내림차순)
 export async function getAllEvents(): Promise<AppEvent[]> {
   return getDocuments<AppEvent>("events", [orderBy("priority", "desc")]);
 }
@@ -30,12 +29,10 @@ export async function getEvent(id: string): Promise<AppEvent | null> {
   return getDocument<AppEvent>("events", id);
 }
 
-// [효진] 이벤트 등록 (어드민)
 export async function createEvent(data: EventFormData): Promise<string> {
   return createDocument("events", data);
 }
 
-// [효진] 이벤트 수정 (어드민)
 export async function updateEvent(
   id: string,
   data: Partial<EventFormData>
@@ -43,7 +40,6 @@ export async function updateEvent(
   return updateDocument("events", id, data);
 }
 
-// [효진] 이벤트 삭제 (어드민)
 export async function deleteEvent(id: string): Promise<void> {
   return deleteDocument("events", id);
 }

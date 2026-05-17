@@ -15,7 +15,7 @@ import {
   Typography,
   Select,
   Modal,
-} from "antd"; // [효진] App, Select, Modal 추가
+} from "antd";
 import {
   DownloadOutlined,
   EyeOutlined,
@@ -117,10 +117,7 @@ const CARRIERS = [
   { label: "CODE 로지스틱스", value: "MOCK" },
 ];
 
-/**
- * [효진] 주문 관리 페이지 래퍼
- * Ant Design 컨텍스트(message, modal) 안정성을 위해 App으로 감쌈
- */
+
 export default function AdminOrdersPage() {
   return <AdminOrders />;
 }
@@ -248,7 +245,7 @@ function AdminOrders() {
       });
       message.success("출고 처리 완료");
     } catch (err: any) {
-      console.error("[효진] 출고 에러:", err);
+      console.error("출고 에러:", err);
       message.error("출고 처리에 실패했습니다.");
     }
   };

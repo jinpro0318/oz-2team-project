@@ -8,7 +8,6 @@ import {
 } from "@/lib/services/settlement";
 import type { Settlement } from "@/types";
 
-// [효진] 전체 정산 내역 조회 (K7 정산 관리용)
 export function useSettlements() {
   return useQuery({
     queryKey: ["settlements"],
@@ -17,7 +16,6 @@ export function useSettlements() {
   });
 }
 
-// [효진] 정산 처리 mutation (K7 정산 처리 버튼용)
 export function useProcessSettlement() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -28,7 +26,6 @@ export function useProcessSettlement() {
   });
 }
 
-// [효진] 새 정산 레코드 생성 mutation (K7 정산 관리용)
 export function useCreateSettlement() {
   const queryClient = useQueryClient();
   return useMutation({

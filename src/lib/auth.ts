@@ -7,8 +7,8 @@ import {
   reauthenticateWithCredential,
   deleteUser,
   onAuthStateChanged,
-  setPersistence,           // [효진] 세션 유지 설정 추가
-  browserSessionPersistence, // [효진] 브라우저 종료 시 자동 로그아웃 설정 추가
+  setPersistence,
+  browserSessionPersistence,
   User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "./firebase";
@@ -35,7 +35,6 @@ export async function registerUser(
 }
 
 export async function loginUser(email: string, password: string): Promise<User | null> {
-  // [효진] 세션 기반 인증 설정 (브라우저 종료 시 자동 로그아웃)
   // Next.js SSR 환경에서 Firebase Auth 초기화 시 발생하는 에러를 방지하기 위해 window 체크를 수행합니다.
   if (typeof window !== "undefined") {
     await setPersistence(auth, browserSessionPersistence);

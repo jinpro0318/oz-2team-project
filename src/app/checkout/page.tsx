@@ -16,7 +16,6 @@ import { buildProductPriceMap, resolveUnitPrice } from "@/lib/utils/price";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY as string;
 
-// [효진] /checkout 은 cart, user, useSearchParams 모두 client 동적 상태에 의존.
 // Next.js 가 정적 prerender 시도하면 useSearchParams Suspense 에러로 빌드 실패하므로
 // 페이지 자체를 강제 동적 렌더로 표기 (Vercel 빌드 통과용).
 export const dynamic = "force-dynamic";
@@ -344,11 +343,7 @@ function CheckoutContent() {
   );
 }
 
-/**
- * [효진] Next.js 15에서 useSearchParams() 는 정적 prerender 시점에 Suspense 경계 필수.
- * force-dynamic 만으로는 부족해서 inner 컴포넌트를 Suspense 로 감싸는 패턴 적용
- * (order-complete, login 페이지와 동일한 구조).
- */
+
 export default function CheckoutPage() {
   return (
     <Suspense

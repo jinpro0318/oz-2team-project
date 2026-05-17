@@ -17,7 +17,6 @@ export default function BottomNav() {
   const isBottomNavVisible = useUIStore((s) => s.isBottomNavVisible);
   const hasNewWishlistItem = useUIStore((s) => s.hasNewWishlistItem);
 
-  // [효진] 장바구니 수량 배지 — TopBar에서 이관, 하이드레이션 회피용 mounted 패턴 사용
   const cartCount = useCartStore((s) => s.getTotalCount());
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -77,7 +76,7 @@ export default function BottomNav() {
         )}
       </button>
 
-      {/* [효진] 장바구니 — TopBar에서 이관 */}
+      
       <Link
         href="/cart"
         className="flex-1 flex items-center justify-center h-full hover:opacity-60 transition-opacity relative"

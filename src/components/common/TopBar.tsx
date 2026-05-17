@@ -28,8 +28,7 @@ export default function TopBar() {
       <div className="flex items-center gap-3.5">
         <AdminLinkButtons variant="mall" />
 
-        {/* [효진] 검색·장바구니·마이페이지 진입은 하단 BottomNav로 통합.
-            상단에는 로그인 안 한 사용자에게만 로그인/회원가입 진입점 노출 (작은 글씨) */}
+        
         {mounted && !user && (
           <div className="flex items-center gap-1.5 text-[11px] font-semibold">
             <button

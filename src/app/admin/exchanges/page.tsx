@@ -7,9 +7,7 @@ import { useAllExchanges, useUpdateExchangeStatus, useUpdateOrderStatus } from "
 import type { Exchange } from "@/types";
 import dayjs from "dayjs";
 
-/**
- * [효진] 어드민 교환/반품 관리 페이지
- */
+
 export default function AdminExchangesPage() {
   return (
     <App>
@@ -154,7 +152,6 @@ function AdminExchanges() {
       ),
     },
   ];
-
 
 
   if (isLoading) {

@@ -3,15 +3,7 @@
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 
-/**
- * [효진] 공통 이미지 업로드 서비스
- * 클라이언트 사이드에서 이미지를 압축하고 서버 API를 통해 업로드함
- */
 
-/**
- * [효진] 이미지 압축 헬퍼
- * 고해상도 이미지를 1024px 너비로 압축하여 전송 및 저장 효율 최적화
- */
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -51,8 +43,7 @@ export async function uploadImage(file: File, path: string): Promise<string> {
   let compressedFile: File | null = null;
   
   try {
-    // [효진] 업로드 전 이미지 압축 진행
-    console.log("[효진] 이미지 압축 중...");
+    console.log("이미지 압축 중...");
     compressedFile = await compressImage(file);
     
     console.log(`[시스템] Firebase Storage 직접 업로드 시도: ${path}/${compressedFile.name}`);
@@ -80,7 +71,6 @@ export async function uploadImage(file: File, path: string): Promise<string> {
   } catch (error: any) {
     console.error("[시스템] Firebase Storage 업로드 상세 에러:", error);
     
-    // [효진] 기존의 업로드 실패 시 로컬 폴백 (Base64) 로직 유지
     console.warn("[시스템] 서버 업로드 실패, 압축된 로컬 폴백 진행");
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

@@ -7,7 +7,7 @@ interface StoryStripProps {
   celebrities: Celebrity[];
   activeCelebId: string;
   onSelect: (id: string) => void;
-  events?: AppEvent[]; // [효진] 진행 중인 이벤트 — 셀럽 스토리 좌측에 노출
+  events?: AppEvent[];
 }
 
 export default function StoryStrip({
@@ -20,8 +20,7 @@ export default function StoryStrip({
   return (
     <div className="bg-surface overflow-x-auto hide-scrollbar px-3 py-3 border-b border-border-light">
       <div className="flex gap-4">
-        {/* [효진] 이벤트 스토리 — 인스타 '내 스토리' 자리에 진행 중 이벤트가 차례로 노출.
-            클릭 시 해당 이벤트 상세 페이지(/event/[id])로 이동 */}
+        
         {events.map((event) => (
           <button
             key={event.id}

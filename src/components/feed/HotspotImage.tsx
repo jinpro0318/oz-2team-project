@@ -51,7 +51,7 @@ export default function HotspotImage({
       </div>
 
       {/* Post Image (Only show if imageUrl is valid) */}
-      {/* [효진] http 시작 여부와 관계없이 imageUrl이 있으면 이미지를 표시하도록 수정 (Base64 대응) */}
+      
       {imageUrl && (
         <img
           src={imageUrl}
