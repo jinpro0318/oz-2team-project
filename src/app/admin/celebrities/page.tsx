@@ -368,7 +368,7 @@ function CelebrityManageDrawer({
       title={<span className="font-bold text-lg">{celeb?.name} 통합 관리</span>}
       open={open}
       onClose={onClose}
-      width={selectedPost ? 800 : 500}
+      styles={{ wrapper: { width: selectedPost ? 800 : 500 } }}
       destroyOnClose
     >
       {selectedPost ? (
