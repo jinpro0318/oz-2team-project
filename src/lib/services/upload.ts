@@ -1,7 +1,8 @@
 "use client";
 
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { storage, db } from "@/lib/firebase";
 
 /**
  * [효진] 공통 이미지 업로드 서비스
@@ -10,9 +11,9 @@ import { storage } from "@/lib/firebase";
 
 /**
  * [효진] 이미지 압축 헬퍼
- * 고해상도 이미지를 1024px 너비로 압축하여 전송 및 저장 효율 최적화
+ * 관리자 설정에 따른 동적 해상도 및 품질로 압축하여 전송 및 저장 효율 최적화
  */
-async function compressImage(file: File): Promise<File> {
+async function compressImage(file: File, maxWidth: number = 1024, quality: number = 0.7): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -21,13 +22,12 @@ async function compressImage(file: File): Promise<File> {
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 1024;
         let width = img.width;
         let height = img.height;
 
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
         }
 
         canvas.width = width;
@@ -41,54 +41,70 @@ async function compressImage(file: File): Promise<File> {
           } else {
             resolve(file);
           }
-        }, "image/jpeg", 0.7); // 70% 품질로 압축
+        }, "image/jpeg", quality);
       };
     };
   });
 }
 
 export async function uploadImage(file: File, path: string): Promise<string> {
-  let compressedFile: File | null = null;
-  
   try {
-    // [효진] 업로드 전 이미지 압축 진행
-    console.log("[효진] 이미지 압축 중...");
-    compressedFile = await compressImage(file);
+    // 1. 관리자 보안/최적화 설정 패치 (오류 시 기본값 폴백)
+    let clientMaxWidth = 1024;
+    let clientQuality = 0.7;
     
-    console.log(`[시스템] Firebase Storage 직접 업로드 시도: ${path}/${compressedFile.name}`);
+    try {
+      const docRef = doc(db, "settings", "security");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.clientMaxWidth) clientMaxWidth = data.clientMaxWidth;
+        if (data.clientCompressionQuality) clientQuality = data.clientCompressionQuality / 100;
+      }
+    } catch (e) {
+      console.warn("[시스템] 설정 패치 실패, 기본 압축 정책 사용");
+    }
+
+    // [효진] 업로드 전 클라이언트 이미지 압축 진행
+    console.log(`[시스템] 이미지 클라이언트 1차 압축 중... (Max Width: ${clientMaxWidth}px, Quality: ${clientQuality * 100}%)`);
+    const compressedFile = await compressImage(file, clientMaxWidth, clientQuality);
     
-    // 파일명 중복 방지를 위한 타임스탬프 추가
-    const fileName = `${Date.now()}_${compressedFile.name}`;
-    const storageRef = ref(storage, `${path}/${fileName}`);
+    console.log(`[시스템] 서버 보안 API(/api/upload)로 업로드 요청: ${path}/${compressedFile.name}`);
 
-    // 클라이언트 SDK를 통해 직접 업로드 (사용자 인증 정보 자동 포함)
-    // CORS나 규칙으로 인해 무한 재시도(hang)에 빠지는 것을 방지하기 위해 5초 타임아웃 적용
-    const uploadTask = async () => {
-      const snapshot = await uploadBytes(storageRef, compressedFile!);
-      return await getDownloadURL(snapshot.ref);
-    };
+    // 서버로 FormData 전송
+    const formData = new FormData();
+    formData.append("file", compressedFile);
+    formData.append("path", path);
 
-    const timeoutTask = new Promise<string>((_, reject) => {
-      setTimeout(() => reject(new Error("Firebase Storage Upload Timeout (CORS/Rules Issue)")), 5000);
+    // [보안] 로컬 스토리지에 저장된 어드민 토큰을 가져와 Authorization 헤더에 동봉
+    const token = typeof window !== 'undefined' ? localStorage.getItem("admin_token") || "" : "";
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      headers: {
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
+      body: formData,
     });
 
-    const downloadURL = await Promise.race([uploadTask(), timeoutTask]);
+    const data = await response.json();
 
-    console.log("[시스템] Firebase Storage 직접 업로드 성공:", downloadURL);
-    return downloadURL;
+    if (!response.ok) {
+      throw new Error(data.error || "서버 통신 오류가 발생했습니다.");
+    }
+
+    console.log("[시스템] 서버 보안 업로드 성공:", data.url);
+    return data.url;
 
   } catch (error: any) {
-    console.error("[시스템] Firebase Storage 업로드 상세 에러:", error);
+    console.error("[시스템] 안전 업로드 차단됨 상세 에러:", error);
     
-    // [효진] 기존의 업로드 실패 시 로컬 폴백 (Base64) 로직 유지
-    console.warn("[시스템] 서버 업로드 실패, 압축된 로컬 폴백 진행");
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(compressedFile || file);
-    });
+    // [보안] 에러 발생 시 악명 높은 Firestore 1MB 초과 유발 로컬 Base64 변환을 영구 차단합니다!
+    // 클라이언트 UI단에서 에러를 잡아 경고창을 띄우도록 Error 객체를 강제로 튕겨냅니다.
+    throw new Error(
+      error.message?.includes("CORS") 
+        ? "서버와의 통신에 실패했습니다. (CORS/네트워크 오류)" 
+        : `보안 필터 차단: ${error.message}`
+    );
   }
 }

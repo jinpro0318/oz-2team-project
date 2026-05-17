@@ -61,7 +61,10 @@ function getAdminApp() {
       console.log("[Firebase Admin] Attempting to initialize with Project ID:", project_id);
       console.log("[Firebase Admin] Client Email:", client_email);
       console.log("[Firebase Admin] Private Key Length:", private_key.length);
-      console.log("[Firebase Admin] Private Key Start:", private_key.substring(0, 50));
+    try {
+      console.log("[Firebase Admin] Attempting to initialize with Project ID:", project_id);
+      
+      const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
       return admin.initializeApp({
         credential: admin.credential.cert({
@@ -69,6 +72,7 @@ function getAdminApp() {
           clientEmail: client_email,
           privateKey: private_key,
         }),
+        storageBucket: storageBucket,
       });
     } catch (error) {
       console.error("[Firebase Admin] Initialization failed:", error);
@@ -91,5 +95,6 @@ const adminApp = getAdminApp();
 // 서비스 내보내기
 export const adminDb = adminApp ? adminApp.firestore() : null;
 export const adminAuth = adminApp ? adminApp.auth() : null;
+export const adminStorage = adminApp ? adminApp.storage() : null;
 
 export default admin;
