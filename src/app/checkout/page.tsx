@@ -66,6 +66,11 @@ function CheckoutContent() {
   const getUnitPrice = (item: (typeof checkoutItems)[number]) =>
     resolveUnitPrice(item.productId, item.product.price, priceMap);
 
+  const getDisplayImage = (item: (typeof checkoutItems)[number]) => {
+    const colorImage = item.product.colors?.find((c) => c.name === item.color)?.imageUrl;
+    return colorImage || item.product.imageUrls?.[0];
+  };
+
   const [mounted, setMounted] = useState(false);
   const [recipient, setRecipient] = useState(user?.nickname || "");
   const [phone, setPhone] = useState(user?.phone || "");
@@ -273,9 +278,9 @@ function CheckoutContent() {
               className="flex items-center gap-3 py-2 border-b border-border-light last:border-b-0"
             >
               <div className="h-14 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
-                {item.product.imageUrls?.[0] ? (
+                {getDisplayImage(item) ? (
                   <img
-                    src={item.product.imageUrls[0]}
+                    src={getDisplayImage(item)}
                     alt={item.product.name}
                     className="h-full w-full object-cover"
                   />

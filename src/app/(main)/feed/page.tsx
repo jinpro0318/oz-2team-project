@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+
+import { useSearchParams } from "next/navigation";
 import { Spin } from "antd";
 import TopBar from "@/components/common/TopBar";
 import StoryStrip from "@/components/feed/StoryStrip";
@@ -10,6 +12,9 @@ import { useCelebrities } from "@/hooks/useCelebrities";
 import { usePosts } from "@/hooks/usePosts";
 import { useEvents } from "@/hooks/useEvents";
 import type { Celebrity } from "@/types";
+
+// [효진] useSearchParams 사용 → 정적 prerender 시 Suspense 에러 방지를 위해 동적 렌더로 강제
+export const dynamic = "force-dynamic";
 
 // [효진] Fisher-Yates 셔플 — 사이트 방문마다 셀럽 노출 순서를 랜덤화하기 위함
 function shuffle<T>(arr: T[]): T[] {
@@ -26,34 +31,29 @@ export default function FeedPage() {
   const { data: posts = [], isLoading: postsLoading } = usePosts();
   // [효진] 진행 중 이벤트 — 스토리 스트립 좌측에 표시
   const { data: events = [] } = useEvents();
+  const searchParams = useSearchParams();
+  // [효진] 공유 링크(/feed?celebrityId=…)로 진입 시 해당 셀럽으로 초기 선택
+  const sharedCelebId = searchParams.get("celebrityId") ?? "";
   const [activeCelebId, setActiveCelebId] = useState("");
 
-  // [효진] 페이지 진입 시점에 한 번만 무작위 순서 결정 → 세션 내 refetch에는 흔들리지 않음
-  const [shuffledIds, setShuffledIds] = useState<string[] | null>(null);
-  useEffect(() => {
-    if (!shuffledIds && celebrities.length > 0) {
-      setShuffledIds(shuffle(celebrities.map((c) => c.id)));
-    }
-  }, [celebrities, shuffledIds]);
+  // [효진] 페이지 진입(마운트)마다 새 시드를 생성 → 매 진입 시 셀럽 순서 재무작위화.
+  // 같은 마운트 안에서는 시드가 고정이라 refetch/재렌더에는 흔들리지 않음.
+  const [mountSeed] = useState(() => Math.random());
 
-  // [효진] 셔플된 ID 순서대로 현재 celebrities를 재배열. 셔플 전(초기 fetch 직후 1프레임)은 원본 사용.
   const sortedCelebrities = useMemo<Celebrity[]>(() => {
-    if (!shuffledIds) return celebrities;
-    const byId = new Map(celebrities.map((c) => [c.id, c]));
-    const ordered = shuffledIds
-      .map((id) => byId.get(id))
-      .filter((c): c is Celebrity => Boolean(c));
-    // 셔플 이후 어드민에서 새 셀럽이 추가됐다면 뒤에 붙임
-    const knownIds = new Set(shuffledIds);
-    const extras = celebrities.filter((c) => !knownIds.has(c.id));
-    return [...ordered, ...extras];
-  }, [shuffledIds, celebrities]);
+    if (celebrities.length === 0) return celebrities;
+    // mountSeed 의존성으로 마운트마다 새로 셔플됨 (값 자체는 사용하지 않음)
+    void mountSeed;
+    return shuffle(celebrities);
+  }, [celebrities, mountSeed]);
 
   useEffect(() => {
     if (sortedCelebrities.length > 0 && !activeCelebId) {
-      setActiveCelebId(sortedCelebrities[0].id);
+      const sharedExists =
+        sharedCelebId && sortedCelebrities.some((c) => c.id === sharedCelebId);
+      setActiveCelebId(sharedExists ? sharedCelebId : sortedCelebrities[0].id);
     }
-  }, [sortedCelebrities, activeCelebId]);
+  }, [sortedCelebrities, activeCelebId, sharedCelebId]);
 
   const filteredPosts = posts.filter((p) => p.celebrityId === activeCelebId);
   const celeb = sortedCelebrities.find((c) => c.id === activeCelebId);

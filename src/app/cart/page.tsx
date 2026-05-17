@@ -33,6 +33,14 @@ export default function CartPage() {
   const getUnitPrice = (item: (typeof items)[number]) =>
     resolveUnitPrice(item.productId, item.product.price, priceMap);
 
+  const getDisplayImage = (item: (typeof items)[number]) => {
+    const liveProduct = products.find((p) => p.id === item.productId);
+    const colors = liveProduct?.colors ?? item.product.colors;
+    const imageUrls = liveProduct?.imageUrls ?? item.product.imageUrls;
+    const colorImage = colors?.find((c) => c.name === item.color)?.imageUrl;
+    return colorImage || imageUrls?.[0];
+  };
+
   const totalAmount = items.reduce(
     (sum, item) => sum + getUnitPrice(item) * item.quantity,
     0
@@ -65,9 +73,9 @@ export default function CartPage() {
                 className="flex gap-3 border-b border-border-light bg-surface px-3 py-3.5"
               >
                 <div className="h-[94px] w-[78px] shrink-0 overflow-hidden rounded bg-gray-100">
-                  {item.product.imageUrls?.[0] ? (
+                  {getDisplayImage(item) ? (
                     <img
-                      src={item.product.imageUrls[0]}
+                      src={getDisplayImage(item)}
                       alt={item.product.name}
                       className="h-full w-full object-cover"
                     />

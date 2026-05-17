@@ -417,6 +417,7 @@ function AdminProducts() {
           <Form.Item name="sizes" label="사이즈 선택 (다중 선택 가능)">
             <Select mode="multiple" placeholder="사이즈를 선택하세요" allowClear>
               <Select.OptGroup label="의류">
+                <Select.Option value="XS">XS</Select.Option>
                 <Select.Option value="S">S</Select.Option>
                 <Select.Option value="M">M</Select.Option>
                 <Select.Option value="L">L</Select.Option>
@@ -427,6 +428,11 @@ function AdminProducts() {
               <Select.OptGroup label="신발">
                 {["220", "225", "230", "235", "240", "245", "250", "255", "260", "265", "270", "275", "280"].map(s => (
                   <Select.Option key={s} value={s}>{s}</Select.Option>
+                ))}
+              </Select.OptGroup>
+              <Select.OptGroup label="바지 (허리 인치)">
+                {["26", "27", "28", "29", "30", "31", "32", "33", "34", "36", "38"].map(s => (
+                  <Select.Option key={`pants-${s}`} value={`${s}인치`}>{s}인치</Select.Option>
                 ))}
               </Select.OptGroup>
             </Select>
