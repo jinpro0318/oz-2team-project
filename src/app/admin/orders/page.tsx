@@ -30,9 +30,9 @@ import {
 import dayjs from "dayjs";
 import {
   useAllOrders,
-  useUpdateOrderStatus,
   useExecuteOrderAction,
 } from "@/hooks/useOrders";
+import { useCelebrities } from "@/hooks/useCelebrities";
 import { useAllProducts } from "@/hooks/useProducts";
 import type { Order, OrderStatus } from "@/types";
 import {
@@ -132,6 +132,9 @@ function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(true);
 
+  const [selectedCelebId, setSelectedCelebId] = useState<string>("");
+  const { data: celebrities = [], isLoading: celebLoading } = useCelebrities();
+
   // [핵심] 주문 목록 전체 실시간 동기화 (onSnapshot)
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
@@ -169,10 +172,20 @@ function AdminOrders() {
         (priceMap.get(item.productId) ?? item.product.price) * item.quantity,
       0,
     );
-  const updateStatus = useUpdateOrderStatus();
   const executeAction = useExecuteOrderAction();
 
-  const filteredOrders = orders.filter((o) => {
+  const celebFilteredOrders = useMemo(() => {
+    if (!selectedCelebId) return orders;
+    return orders.filter((o) => {
+      const matchesCeleb = o.items?.some((item) => {
+        const prod = products.find((p) => p.id === item.productId);
+        return prod?.celebrityId === selectedCelebId || item.product?.celebrityId === selectedCelebId;
+      }) ?? false;
+      return matchesCeleb;
+    });
+  }, [orders, selectedCelebId, products]);
+
+  const filteredOrders = celebFilteredOrders.filter((o) => {
     // [보안/무결성] 결제대기(유령 주문) 상태는 관리자 화면에서 완벽히 숨깁니다.
     if (o.status === "payment_pending") return false;
 
@@ -199,28 +212,28 @@ function AdminOrders() {
     const acc: Record<string, number> = {};
     statusTabs.forEach((tab) => {
       if (tab.key === "all") {
-        acc[tab.key] = orders.filter(o => o.status !== "payment_pending").length;
+        acc[tab.key] = celebFilteredOrders.filter(o => o.status !== "payment_pending").length;
       } else if (tab.key === "exchange" || tab.key === "return") {
-        acc[tab.key] = orders.filter(
+        acc[tab.key] = celebFilteredOrders.filter(
           (o) =>
             getActiveClaimType(o) === tab.key && !isFinishedStatus(o.status),
         ).length;
       } else if (tab.key === "purchase_confirmed") {
-        acc[tab.key] = orders.filter(
+        acc[tab.key] = celebFilteredOrders.filter(
           (o) => o.status === "purchase_confirmed",
         ).length;
       } else if (tab.key === "cancelled") {
-        acc[tab.key] = orders.filter((o) =>
+        acc[tab.key] = celebFilteredOrders.filter((o) =>
           ["cancel_requested", "cancelled"].includes(o.status),
         ).length;
       } else {
-        acc[tab.key] = orders.filter(
+        acc[tab.key] = celebFilteredOrders.filter(
           (o) => o.status === tab.key && !isClaimInProgress(o),
         ).length;
       }
     });
     return acc;
-  }, [orders]);
+  }, [celebFilteredOrders]);
 
   const handlePrepare = async (order: Order) => {
     // [v14.0] 배송 정보 존재 여부 확인 (최소한의 가드)
@@ -1118,6 +1131,82 @@ function AdminOrders() {
           >
             엑셀 다운로드
           </Button>
+        </div>
+      </div>
+
+      {/* 셀럽 아바타 필터 스트립 */}
+      <div className="mb-6 overflow-x-auto pb-4 hide-scrollbar">
+        <div className="flex gap-4 min-w-max px-1">
+          <button
+            onClick={() => setSelectedCelebId("")}
+            className={`flex flex-col items-center gap-2 group outline-none`}
+          >
+            <div
+              className={`w-[60px] h-[60px] rounded-full flex items-center justify-center transition-all duration-300
+                ${
+                  !selectedCelebId
+                    ? "bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-md ring-4 ring-indigo-100"
+                    : "bg-gray-100 group-hover:bg-gray-200 border-2 border-dashed border-gray-300"
+                }
+              `}
+            >
+              <span
+                className={`text-sm font-bold ${!selectedCelebId ? "text-white" : "text-gray-500"}`}
+              >
+                ALL
+              </span>
+            </div>
+            <span className={`text-[11px] font-semibold ${!selectedCelebId ? "text-gray-900" : "text-gray-500"}`}>
+              전체
+            </span>
+          </button>
+          
+          {celebLoading && <Spin size="small" className="mt-5 ml-4" />}
+
+          {celebrities.map((celeb) => {
+            const isSelected = selectedCelebId === celeb.id;
+            return (
+              <button
+                key={celeb.id}
+                onClick={() => setSelectedCelebId(celeb.id)}
+                className={`flex flex-col items-center gap-2 group outline-none transition-transform duration-200 ${
+                  isSelected ? "scale-105" : "hover:scale-105"
+                }`}
+              >
+                <div
+                  className={`w-[60px] h-[60px] rounded-full p-[2.5px] transition-all duration-300 ${
+                    isSelected
+                      ? "bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 shadow-md"
+                      : "bg-gray-200 group-hover:bg-gradient-to-tr group-hover:from-gray-300 group-hover:to-gray-400"
+                  }`}
+                >
+                  <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white flex items-center justify-center">
+                    <img
+                      src={celeb.avatarUrl || "/images/default-avatar.png"}
+                      alt={celeb.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        // 깨진 이미지 엑스박스 방지용 fallback UI (이니셜 출력)
+                        target.style.display = "none";
+                        const fallbackDiv = document.createElement("div");
+                        fallbackDiv.className = "w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 font-bold text-lg";
+                        fallbackDiv.innerText = celeb.name.charAt(0);
+                        target.parentElement?.appendChild(fallbackDiv);
+                      }}
+                    />
+                  </div>
+                </div>
+                <span
+                  className={`text-[11px] font-semibold ${
+                    isSelected ? "text-gray-900" : "text-gray-500"
+                  }`}
+                >
+                  {celeb.name}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
