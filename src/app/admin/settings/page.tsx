@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Switch, Slider, Spin, message, Radio, Checkbox } from "antd";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { Switch, Slider, Spin, message, Radio, Checkbox, Modal, InputNumber } from "antd";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Lock, Shield, Image as ImageIcon, Zap, Key, FileDigit, Cpu, Activity, Settings2, FileType } from "lucide-react";
+import { Lock, Shield, Image as ImageIcon, Zap, Key, FileDigit, Cpu, Activity, Settings2, FileType, MapPin, Database, Truck } from "lucide-react";
+import { useDaumPostcode } from "@/hooks/useDaumPostcode";
+import { getSystemSettings, updateSystemSettings } from "@/lib/services/settings";
 
 interface SecurityConfigs {
   enableAdminJwtVerify: boolean;
@@ -53,6 +55,84 @@ export default function AdminSettingsPage() {
   const [configs, setConfigs] = useState<SecurityConfigs | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // [NEW] 가상 물류 및 배송 API 설정 상태
+  const { embedPostcode } = useDaumPostcode();
+  const [mallAddress, setMallAddress] = useState("설정 중...");
+  const [showSearchLayer, setShowSearchLayer] = useState(false);
+  const [syncInterval, setSyncInterval] = useState(60);
+  const [savingLogistics, setSavingLogistics] = useState(false);
+
+  // 1. 가상 쇼핑몰 주소 로드
+  useEffect(() => {
+    getSystemSettings().then((res) => {
+      if (res && res.mallAddress) setMallAddress(res.mallAddress);
+    });
+  }, []);
+
+  // 2. 주소 검색 레이어 모달 임베드
+  useEffect(() => {
+    if (showSearchLayer) {
+      setTimeout(() => {
+        embedPostcode("admin-settings-postcode-container", async (data) => {
+          setMallAddress(data.address);
+          setShowSearchLayer(false);
+          setSavingLogistics(true);
+          try {
+            await updateSystemSettings({ mallAddress: data.address, mallZipCode: data.zonecode });
+            message.success("가상 쇼핑몰 주소가 업데이트되었습니다.");
+          } catch (e) {
+            console.error("설정 저장 실패:", e);
+            message.error("주소 저장에 실패했습니다.");
+          } finally {
+            setSavingLogistics(false);
+          }
+        });
+      }, 100);
+    }
+  }, [showSearchLayer, embedPostcode]);
+
+  // 3. 스윗트래커 DB 캐싱 주기 실시간 구독
+  useEffect(() => {
+    const settingsRef = doc(db, "settings", "logistics");
+    const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setSyncInterval(data.sweetTrackerCacheInterval || 60);
+      } else {
+        setDoc(settingsRef, { 
+          sweetTrackerCacheInterval: 60,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 4. 스윗트래커 DB 캐싱 주기 저장 (디바운스 적용)
+  const handleSyncIntervalChange = (val: number | null) => {
+    if (!val) return;
+    setSyncInterval(val);
+    setSavingLogistics(true);
+    
+    const timer = setTimeout(async () => {
+      const settingsRef = doc(db, "settings", "logistics");
+      try {
+        await setDoc(settingsRef, { 
+          sweetTrackerCacheInterval: val,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        message.success("동기화 캐시 주기가 저장되었습니다.");
+      } catch (error) {
+        console.error("Failed to update sync interval:", error);
+        message.error("캐시 주기 저장에 실패했습니다.");
+      } finally {
+        setSavingLogistics(false);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  };
 
   useEffect(() => {
     const fetchConfigs = async () => {
@@ -114,11 +194,77 @@ export default function AdminSettingsPage() {
     <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-[#1E1E2D]">시스템 관제 설정 센터</h1>
-        <p className="text-gray-500 mt-2">
-          쇼핑몰의 핵심 보안, API 통제 및 서버/클라이언트 미디어 최적화 옵션을 실시간으로 제어합니다.
+        <p className="text-gray-500 mt-2 leading-relaxed">
+          가상 물류 시뮬레이터 환경 및 외부 배송 API의 동기화 주기를 제어하고, 쇼핑몰의 핵심 보안과 미디어 최적화 정책을 실시간으로 관제합니다.
         </p>
       </div>
 
+      {/* [NEW] 가상 물류 및 배송 API 설정 카드 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-[#1E1E2D] px-6 py-4 flex items-center gap-3">
+          <Truck className="w-5 h-5 text-blue-400" />
+          <h2 className="text-lg font-semibold text-white tracking-wide">가상 물류 및 배송 API 설정</h2>
+          {savingLogistics && <span className="ml-auto text-xs text-blue-300 animate-pulse">저장 중...</span>}
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          
+          {/* 가상 쇼핑몰 주소 (발송지) */}
+          <div className="p-6 hover:bg-gray-50/50 transition-colors flex items-start gap-6">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+              <MapPin className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 text-base">가상 쇼핑몰 주소 (발송지) 설정</h3>
+                <button
+                  onClick={() => setShowSearchLayer(true)}
+                  className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 text-xs font-bold rounded-lg transition-colors border border-blue-100"
+                >
+                  주소 변경
+                </button>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-800 bg-gray-100 px-3 py-1 rounded-md max-w-lg truncate block" title={mallAddress}>
+                  {mallAddress}
+                </span>
+              </div>
+              <p className="text-gray-500 text-sm mt-3 leading-relaxed">
+                배송비 계산 시뮬레이션 및 가상 배송 경로 계산의 기준이 되는 출발지 주소를 설정합니다. (Daum 우편번호 서비스 연동)
+              </p>
+            </div>
+          </div>
+
+          {/* 스윗트래커 DB 캐싱 주기 */}
+          <div className="p-6 hover:bg-gray-50/50 transition-colors flex items-start gap-6">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <Database className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 text-base">스윗트래커 DB 캐싱 주기 제어</h3>
+                <div className="flex items-center gap-2">
+                  <InputNumber
+                    size="middle"
+                    min={1}
+                    max={1440}
+                    value={syncInterval}
+                    onChange={handleSyncIntervalChange}
+                    addonAfter="분"
+                    className="w-32 rounded-lg"
+                  />
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm mt-3 leading-relaxed">
+                스윗트래커 외부 배송 조회 API의 유료 호출 횟수를 획기적으로 절약하고, 효율적으로 배송 데이터를 자사 DB 캐시로 임포트하여 동기화할 최적 시간을 제어합니다.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* 보안 및 통제 서비스 카드 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="bg-[#1E1E2D] px-6 py-4 flex items-center gap-3">
           <Shield className="w-5 h-5 text-blue-400" />
@@ -367,6 +513,25 @@ export default function AdminSettingsPage() {
 
         </div>
       </div>
+
+      {/* 주소 검색 모달 */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-3 font-semibold text-gray-900">
+            <MapPin className="text-blue-500 w-5 h-5" />
+            <span>가상 쇼핑몰 주소 검색</span>
+          </div>
+        }
+        open={showSearchLayer}
+        onCancel={() => setShowSearchLayer(false)}
+        footer={null}
+        destroyOnClose
+        width={500}
+        centered
+        className="rounded-2xl overflow-hidden"
+      >
+        <div id="admin-settings-postcode-container" style={{ width: '100%', height: '400px', marginTop: '10px' }} />
+      </Modal>
     </div>
   );
 }
