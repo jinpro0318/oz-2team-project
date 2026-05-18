@@ -8,6 +8,7 @@ import Link from "next/link";
 import { registerUser } from "@/lib/auth";
 import { useAuthStore } from "@/stores/authStore";
 import PasswordInputGroup from "@/components/auth/PasswordInputGroup";
+import BrandLogo from "@/components/common/BrandLogo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -64,9 +65,9 @@ export default function RegisterPage() {
       <header className="sticky top-0 z-30 flex h-11 items-center border-b border-border-light bg-surface px-3">
         <Link
           href="/feed"
-          className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+          className="no-underline hover:opacity-80 transition-opacity"
         >
-          C.O.D.E.
+          <BrandLogo size={21} tracking={-1.5} weight="bold" />
         </Link>
       </header>
       {/* 뒤로가기 */}
@@ -81,7 +82,10 @@ export default function RegisterPage() {
       {/* 헤더 */}
       <div className="px-4 pt-5 pb-2.5 flex flex-col items-start">
         <div className="text-[22px] font-bold tracking-tight">회원가입</div>
-        <div className="text-[13px] text-text-muted mt-1">C.O.D.E.에 오신 걸 환영해요</div>
+        <div className="text-[13px] text-text-muted mt-1 inline-flex items-center gap-1">
+          <BrandLogo size={13} tracking={-0.5} weight="bold" />
+          <span>에 오신 걸 환영해요</span>
+        </div>
       </div>
 
       {/* 진행바 */}

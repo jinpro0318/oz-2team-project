@@ -12,6 +12,7 @@ import OrderStatusBoard from "@/components/mypage/OrderStatusBoard";
 import EmailProtector from "@/components/mypage/EmailProtector";
 import Avatar from "@/components/common/Avatar";
 import AdminLinkButtons from "@/components/common/AdminLinkButtons";
+import BrandLogo from "@/components/common/BrandLogo";
 
 
 export default function MyPage() {
@@ -56,9 +57,9 @@ export default function MyPage() {
         <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/feed"
-            className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+            className="no-underline hover:opacity-80 transition-opacity shrink-0"
           >
-            C.O.D.E.
+            <BrandLogo size={21} tracking={-1.5} weight="bold" />
           </Link>
           <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
           <div className="truncate text-[13px] font-semibold text-text">{user?.nickname || username}</div>

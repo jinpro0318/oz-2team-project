@@ -7,6 +7,7 @@ import { LeftOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { loginUser } from "@/lib/auth";
 import { useAuthStore } from "@/stores/authStore";
+import BrandLogo from "@/components/common/BrandLogo";
 
 function LoginForm() {
   const router = useRouter();
@@ -53,7 +54,7 @@ function LoginForm() {
 
       <div className="flex flex-col items-center px-10 pt-16 pb-12">
         <Link href="/feed" className="hover:opacity-80 transition-opacity duration-300 no-underline">
-          <h1 className="text-[48px] font-black tracking-[-3px] leading-none" style={{ color: "#000000" }}>C.O.D.E.</h1>
+          <BrandLogo as="h1" size={21} tracking={-1.5} weight="bold" />
         </Link>
         <div className="mt-3 flex items-center gap-2">
           <span className="h-[1px] w-4 bg-border" />
