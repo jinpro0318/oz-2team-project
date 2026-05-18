@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Switch, Slider, Spin, message, Radio, Checkbox, Modal, InputNumber } from "antd";
+import { useState, useEffect, useRef } from "react";
+import { Switch, Slider, Spin, Radio, Checkbox, Modal, InputNumber, App, Space } from "antd";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Lock, Shield, Image as ImageIcon, Zap, Key, FileDigit, Cpu, Activity, Settings2, FileType, MapPin, Database, Truck } from "lucide-react";
@@ -52,6 +52,7 @@ const defaultConfigs: SecurityConfigs = {
 };
 
 export default function AdminSettingsPage() {
+  const { message } = App.useApp();
   const [configs, setConfigs] = useState<SecurityConfigs | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,8 +61,11 @@ export default function AdminSettingsPage() {
   const { embedPostcode } = useDaumPostcode();
   const [mallAddress, setMallAddress] = useState("설정 중...");
   const [showSearchLayer, setShowSearchLayer] = useState(false);
-  const [syncInterval, setSyncInterval] = useState(60);
+  const [currentSyncInterval, setCurrentSyncInterval] = useState(60);
+  const [tempSyncInterval, setTempSyncInterval] = useState(60);
+  const [inputState, setInputState] = useState<"idle" | "editing" | "ready">("idle");
   const [savingLogistics, setSavingLogistics] = useState(false);
+  const logisticsTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 1. 가상 쇼핑몰 주소 로드
   useEffect(() => {
@@ -98,7 +102,9 @@ export default function AdminSettingsPage() {
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setSyncInterval(data.sweetTrackerCacheInterval || 60);
+        const val = data.sweetTrackerCacheInterval || 60;
+        setCurrentSyncInterval(val);
+        setTempSyncInterval(val);
       } else {
         setDoc(settingsRef, { 
           sweetTrackerCacheInterval: 60,
@@ -109,29 +115,58 @@ export default function AdminSettingsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 4. 스윗트래커 DB 캐싱 주기 저장 (디바운스 적용)
-  const handleSyncIntervalChange = (val: number | null) => {
-    if (!val) return;
-    setSyncInterval(val);
-    setSavingLogistics(true);
-    
-    const timer = setTimeout(async () => {
-      const settingsRef = doc(db, "settings", "logistics");
-      try {
-        await setDoc(settingsRef, { 
-          sweetTrackerCacheInterval: val,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-        message.success("동기화 캐시 주기가 저장되었습니다.");
-      } catch (error) {
-        console.error("Failed to update sync interval:", error);
-        message.error("캐시 주기 저장에 실패했습니다.");
-      } finally {
-        setSavingLogistics(false);
-      }
-    }, 800);
+  const inputTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    return () => clearTimeout(timer);
+  // 4. 스윗트래커 DB 캐싱 주기 변경 핸들러
+  const handleSyncIntervalChange = (val: number | null) => {
+    if (val === null) return;
+    setTempSyncInterval(val);
+
+    if (val === currentSyncInterval) {
+      setInputState("idle");
+      if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
+      return;
+    }
+
+    setInputState("editing");
+
+    if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
+
+    inputTimerRef.current = setTimeout(() => {
+      setInputState("ready");
+    }, 1500);
+  };
+
+  const handleInputBlur = () => {
+    if (tempSyncInterval !== currentSyncInterval) {
+      if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
+      setInputState("ready");
+    }
+  };
+
+  const handleApplySettings = async () => {
+    setSavingLogistics(true);
+    const settingsRef = doc(db, "settings", "logistics");
+    try {
+      await setDoc(settingsRef, { 
+        sweetTrackerCacheInterval: tempSyncInterval,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setCurrentSyncInterval(tempSyncInterval);
+      setInputState("idle");
+      message.success("동기화 캐시 주기가 적용되었습니다.");
+    } catch (error) {
+      console.error("Failed to update sync interval:", error);
+      message.error("캐시 주기 저장에 실패했습니다.");
+    } finally {
+      setSavingLogistics(false);
+    }
+  };
+
+  const handleCancelSettings = () => {
+    setTempSyncInterval(currentSyncInterval);
+    setInputState("idle");
+    if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
   };
 
   useEffect(() => {
@@ -165,13 +200,23 @@ export default function AdminSettingsPage() {
 
     try {
       const docRef = doc(db, "settings", "security");
-      await setDoc(docRef, newConfigs, { merge: true });
-      message.success("설정이 저장되었습니다.");
+      
+      // Perform background save without blocking
+      setDoc(docRef, newConfigs, { merge: true }).catch((error) => {
+        console.error("Failed to save setting in background:", error);
+        message.error("설정 저장에 실패했습니다.");
+        setConfigs(configs);
+      });
+
+      // Quick 400ms snappiness feedback
+      setTimeout(() => {
+        setSaving(false);
+        message.success("설정이 저장되었습니다.");
+      }, 400);
+
     } catch (error) {
       console.error("Failed to save setting:", error);
       message.error("설정 저장에 실패했습니다.");
-      setConfigs(configs);
-    } finally {
       setSaving(false);
     }
   };
@@ -243,16 +288,55 @@ export default function AdminSettingsPage() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-gray-900 text-base">스윗트래커 DB 캐싱 주기 제어</h3>
-                <div className="flex items-center gap-2">
-                  <InputNumber
-                    size="middle"
-                    min={1}
-                    max={1440}
-                    value={syncInterval}
-                    onChange={handleSyncIntervalChange}
-                    addonAfter="분"
-                    className="w-32 rounded-lg"
-                  />
+                <div className="flex items-center gap-3">
+                  {/* [취소] / [적용] 버튼 노출 및 활성/비활성 제어 */}
+                  {inputState !== "idle" && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                      <button
+                        onClick={handleCancelSettings}
+                        disabled={inputState === "editing"}
+                        className="px-3.5 py-1.5 border border-gray-200 text-gray-500 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all font-semibold rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleApplySettings}
+                        disabled={inputState === "editing" || savingLogistics}
+                        className="px-3.5 py-1.5 border border-emerald-100 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-semibold rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        {savingLogistics ? "저장 중..." : "적용"}
+                      </button>
+                    </div>
+                  )}
+
+                  <Space.Compact>
+                    <InputNumber
+                      size="middle"
+                      min={1}
+                      max={1440}
+                      value={tempSyncInterval}
+                      onChange={handleSyncIntervalChange}
+                      onBlur={handleInputBlur}
+                      className="w-24 rounded-l-lg!"
+                    />
+                    
+                    {/* 상태별 우측 라벨/아이콘 피드백 */}
+                    {inputState === "idle" && (
+                      <div className="bg-gray-50 border border-l-0 border-gray-200 px-3 flex items-center text-gray-500 rounded-r-lg text-sm select-none transition-all duration-300 w-10 justify-center">
+                        분
+                      </div>
+                    )}
+                    {inputState === "editing" && (
+                      <div className="bg-red-50 border border-l-0 border-red-200 px-3 flex items-center text-red-500 rounded-r-lg text-sm select-none font-bold animate-pulse w-10 justify-center">
+                        ❌
+                      </div>
+                    )}
+                    {inputState === "ready" && (
+                      <div className="bg-emerald-50 border border-l-0 border-emerald-200 px-3 flex items-center text-emerald-500 rounded-r-lg text-sm select-none font-bold animate-bounce w-10 justify-center">
+                        ✔️
+                      </div>
+                    )}
+                  </Space.Compact>
                 </div>
               </div>
               <p className="text-gray-500 text-sm mt-3 leading-relaxed">
@@ -525,7 +609,7 @@ export default function AdminSettingsPage() {
         open={showSearchLayer}
         onCancel={() => setShowSearchLayer(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={500}
         centered
         className="rounded-2xl overflow-hidden"
