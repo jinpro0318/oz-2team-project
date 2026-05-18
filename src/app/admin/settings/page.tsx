@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Switch, Slider, Spin, Radio, Checkbox, Modal, InputNumber, App, Space } from "antd";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Lock, Shield, Image as ImageIcon, Zap, Key, FileDigit, Cpu, Activity, Settings2, FileType, MapPin, Database, Truck } from "lucide-react";
+import { Lock, Shield, Image as ImageIcon, Zap, Key, FileDigit, Cpu, Activity, Settings2, FileType, MapPin, Database, Truck, RotateCcw, AlertCircle } from "lucide-react";
 import { useDaumPostcode } from "@/hooks/useDaumPostcode";
 import { getSystemSettings, updateSystemSettings } from "@/lib/services/settings";
 
@@ -52,7 +52,7 @@ const defaultConfigs: SecurityConfigs = {
 };
 
 export default function AdminSettingsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [configs, setConfigs] = useState<SecurityConfigs | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -169,6 +169,123 @@ export default function AdminSettingsPage() {
     if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
   };
 
+  // 5. 시스템 전체 설정을 공장 초기 기본값으로 복원 (Double-Confirmation 적용)
+  const handleSystemFactoryReset = () => {
+    modal.confirm({
+      title: <span className="font-bold text-red-600">⚠️ 전체 설정을 복원하시겠습니까?</span>,
+      content: (
+        <div className="text-gray-500 text-sm mt-2 leading-relaxed">
+          이 작업을 진행하면 가상 쇼핑몰 주소, API 동기화 주기 및 모든 보안 필터 설정이 **시스템 최초 공장 초기값**으로 일괄 복원됩니다. 정말 초기화하시겠습니까?
+        </div>
+      ),
+      okText: "초기화 진행",
+      okButtonProps: { danger: true },
+      cancelText: "취소",
+      onOk: async () => {
+        setLoading(true);
+        try {
+          const securityRef = doc(db, "settings", "security");
+          const logisticsRef = doc(db, "settings", "logistics");
+          
+          // 1. 데이터베이스 일괄 초기화
+          await Promise.all([
+            setDoc(securityRef, defaultConfigs),
+            setDoc(logisticsRef, {
+              sweetTrackerCacheInterval: 60,
+              mallAddress: "서울 강남구 가로수길 5",
+              mallZipCode: "06035",
+              updatedAt: new Date().toISOString()
+            }, { merge: true })
+          ]);
+          
+          // 2. 로컬 상태 즉시 동기화
+          setConfigs(defaultConfigs);
+          setCurrentSyncInterval(60);
+          setTempSyncInterval(60);
+          setMallAddress("서울 강남구 가로수길 5");
+          setInputState("idle");
+          
+          message.success("모든 시스템 설정이 최초 기본값으로 복원되었습니다.");
+        } catch (error) {
+          console.error("Failed to restore default settings:", error);
+          message.error("설정 초기화에 실패했습니다.");
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  // 6. 가상 물류 및 배송 API 설정만 초기화
+  const handleLogisticsReset = () => {
+    modal.confirm({
+      title: <span className="font-bold text-red-600">⚠️ 물류 설정을 초기화하시겠습니까?</span>,
+      content: (
+        <div className="text-gray-500 text-sm mt-2 leading-relaxed">
+          가상 쇼핑몰 출발지 주소와 DB 캐시 주기 설정만 **최초 공장 초기 기본값**으로 복원합니다. 진행하시겠습니까?
+        </div>
+      ),
+      okText: "초기화 진행",
+      okButtonProps: { danger: true },
+      cancelText: "취소",
+      onOk: async () => {
+        setSavingLogistics(true);
+        try {
+          const logisticsRef = doc(db, "settings", "logistics");
+          await setDoc(logisticsRef, {
+            sweetTrackerCacheInterval: 60,
+            mallAddress: "서울 강남구 가로수길 5",
+            mallZipCode: "06035",
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          
+          setCurrentSyncInterval(60);
+          setTempSyncInterval(60);
+          setMallAddress("서울 강남구 가로수길 5");
+          setInputState("idle");
+          
+          message.success("물류 관련 설정이 성공적으로 초기화되었습니다.");
+        } catch (error) {
+          console.error("Failed to reset logistics settings:", error);
+          message.error("물류 설정 초기화에 실패했습니다.");
+        } finally {
+          setSavingLogistics(false);
+        }
+      }
+    });
+  };
+
+  // 7. 보안 및 통제 서비스 설정만 초기화
+  const handleSecurityReset = () => {
+    modal.confirm({
+      title: <span className="font-bold text-red-600">⚠️ 보안 설정을 초기화하시겠습니까?</span>,
+      content: (
+        <div className="text-gray-500 text-sm mt-2 leading-relaxed">
+          DDoS 차단 스위치, 클라이언트 이미지 압축 해상도 및 업로드 가능 포맷 설정을 **최초 공장 초기 기본값**으로 복원합니다. 진행하시겠습니까?
+        </div>
+      ),
+      okText: "초기화 진행",
+      okButtonProps: { danger: true },
+      cancelText: "취소",
+      onOk: async () => {
+        setSaving(true);
+        try {
+          const securityRef = doc(db, "settings", "security");
+          await setDoc(securityRef, defaultConfigs);
+          
+          setConfigs(defaultConfigs);
+          
+          message.success("보안 관련 설정이 성공적으로 초기화되었습니다.");
+        } catch (error) {
+          console.error("Failed to reset security settings:", error);
+          message.error("보안 설정 초기화에 실패했습니다.");
+        } finally {
+          setSaving(false);
+        }
+      }
+    });
+  };
+
   useEffect(() => {
     const fetchConfigs = async () => {
       try {
@@ -237,19 +354,25 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      <div>
+      <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight text-[#1E1E2D]">시스템 관제 설정 센터</h1>
-        <p className="text-gray-500 mt-2 leading-relaxed">
+        <p className="text-gray-500 leading-relaxed text-sm">
           가상 물류 시뮬레이터 환경 및 외부 배송 API의 동기화 주기를 제어하고, 쇼핑몰의 핵심 보안과 미디어 최적화 정책을 실시간으로 관제합니다.
         </p>
       </div>
 
       {/* [NEW] 가상 물류 및 배송 API 설정 카드 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-[#1E1E2D] px-6 py-4 flex items-center gap-3">
-          <Truck className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white tracking-wide">가상 물류 및 배송 API 설정</h2>
-          {savingLogistics && <span className="ml-auto text-xs text-blue-300 animate-pulse">저장 중...</span>}
+        <div className="bg-[#1E1E2D] px-6 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Truck className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-white tracking-wide">가상 물류 및 배송 API 설정</h2>
+          </div>
+          {savingLogistics && (
+            <span className="text-xs text-blue-300 animate-pulse tracking-wide font-medium">
+              저장 중...
+            </span>
+          )}
         </div>
 
         <div className="divide-y divide-gray-100">
@@ -346,14 +469,35 @@ export default function AdminSettingsPage() {
           </div>
 
         </div>
+
+        {/* [NEW] Danger Zone Footer */}
+        <div className="bg-gray-50/60 px-6 py-4 flex items-center justify-between border-t border-gray-100 rounded-b-2xl">
+          <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+            <AlertCircle className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span>주의: 이 카드의 모든 설정을 시스템 공장 초기값으로 되돌립니다.</span>
+          </div>
+          <button
+            onClick={handleLogisticsReset}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-500 hover:text-white bg-white hover:border-red-500 transition-all font-semibold rounded-xl text-xs shadow-sm shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            물류 설정 초기화
+          </button>
+        </div>
       </div>
 
       {/* 보안 및 통제 서비스 카드 */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-[#1E1E2D] px-6 py-4 flex items-center gap-3">
-          <Shield className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white tracking-wide">보안 및 통제 서비스</h2>
-          {saving && <span className="ml-auto text-xs text-blue-300 animate-pulse">저장 중...</span>}
+        <div className="bg-[#1E1E2D] px-6 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-white tracking-wide">보안 및 통제 서비스</h2>
+          </div>
+          {saving && (
+            <span className="text-xs text-blue-300 animate-pulse tracking-wide font-medium">
+              저장 중...
+            </span>
+          )}
         </div>
 
         <div className="divide-y divide-gray-100">
@@ -595,6 +739,44 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* [NEW] Danger Zone Footer */}
+        <div className="bg-gray-50/60 px-6 py-4 flex items-center justify-between border-t border-gray-100 rounded-b-2xl">
+          <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold">
+            <AlertCircle className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span>주의: 이 카드의 모든 보안 필터 및 이미지 해상도 정책을 원복합니다.</span>
+          </div>
+          <button
+            onClick={handleSecurityReset}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-500 hover:text-white bg-white hover:border-red-500 transition-all font-semibold rounded-xl text-xs shadow-sm shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            보안 설정 초기화
+          </button>
+        </div>
+      </div>
+
+      {/* [NEW] 위험 구역 (Danger Zone) */}
+      <div className="bg-red-50/20 rounded-2xl border border-red-100 overflow-hidden mt-8">
+        <div className="bg-red-50/50 px-6 py-3 border-b border-red-100/50 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+          <span className="text-sm font-bold text-red-700 tracking-wide">위험 구역 (Danger Zone)</span>
+        </div>
+        <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white">
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-gray-900">시스템 전체 설정 공장 초기화</h4>
+            <p className="text-xs text-gray-400 leading-relaxed font-semibold">
+              물류 시뮬레이터와 보안 환경 설정을 포함한 모든 관제 시스템 데이터를 최초 설치 상태로 되돌립니다. 이 동작은 되돌릴 수 없습니다.
+            </p>
+          </div>
+          <button
+            onClick={handleSystemFactoryReset}
+            className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-white bg-red-600 hover:bg-red-700 transition-all font-bold rounded-xl text-xs shadow-sm shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            전체 기본값 복원
+          </button>
         </div>
       </div>
 
