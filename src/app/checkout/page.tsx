@@ -343,6 +343,24 @@ function CheckoutContent() {
               신용/체크카드
             </Radio>
           </Radio.Group>
+
+          {/* [v14.12] Toss Sandbox 간편결제 Envoy 게이트웨이 크래시 방지 UX 가이드 */}
+          <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/60 p-3.5 backdrop-blur-sm">
+            <div className="flex gap-2">
+              <span className="text-base leading-none">⚠️</span>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-bold text-amber-800 tracking-tight leading-none">
+                  테스트(샌드박스) 환경 결제 가이드
+                </span>
+                <p className="text-[10px] text-amber-700/80 leading-normal mt-1.5 font-medium tracking-tight">
+                  토스페이먼츠 테스트 서버의 자체 간편결제 게이트웨이 장애로 인해 **Npay(네이버페이) 등 간편결제** 진행 시 <code className="bg-amber-100/50 px-1 py-0.5 rounded font-mono font-bold">no healthy upstream</code> 오류가 발생합니다.
+                </p>
+                <p className="text-[10px] text-amber-800 font-bold leading-normal mt-1.5 tracking-tight">
+                  👉 결제창에서 <strong>[신용/체크카드]</strong> 탭을 선택하고 아무 가상 카드를 선택해 진행해 주시면 정상적으로 결제가 완료됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
