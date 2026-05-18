@@ -26,11 +26,14 @@ export default function MyPage() {
   const lastCheckedOrders = user?.lastCheckedOrders || "0";
   const lastCheckedWishlist = user?.lastCheckedWishlist || "0";
 
+  // [v16.0] 결제 완료된 유효 주문들만 필터링하여 결제대기(payment_pending)는 카운트에서 배제
+  const activeOrders = orders?.filter((o) => o.status !== "payment_pending") ?? [];
+
   const wishlistCount = wishlistItems.length;
-  const ordersCount = orders?.length ?? 0;
+  const ordersCount = activeOrders.length;
 
   const newWishlistCount = wishlistItems.filter((i) => i.addedAt > lastCheckedWishlist).length;
-  const newOrdersCount = orders?.filter((o) => o.createdAt > lastCheckedOrders).length ?? 0;
+  const newOrdersCount = activeOrders.filter((o) => o.createdAt > lastCheckedOrders).length;
 
   useEffect(() => {
     setMounted(true);
