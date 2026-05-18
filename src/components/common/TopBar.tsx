@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { useState, useEffect } from "react";
 import AdminLinkButtons from "./AdminLinkButtons";
+import BrandLogo from "./BrandLogo";
 
 export default function TopBar() {
   const router = useRouter();
@@ -19,10 +20,9 @@ export default function TopBar() {
     <header className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border-light bg-surface px-3">
       <Link
         href="/feed"
-        className="text-[21px] font-bold tracking-[-1.5px] no-underline hover:opacity-80 transition-opacity duration-300"
-        style={{ color: "#000000" }}
+        className="no-underline hover:opacity-80 transition-opacity duration-300"
       >
-        C.O.D.E.
+        <BrandLogo size={21} tracking={-1.5} weight="bold" />
       </Link>
 
       <div className="flex items-center gap-3.5">

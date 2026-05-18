@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "antd";
 import { useAllOrders } from "@/hooks/useOrders";
+import BrandLogo from "@/components/common/BrandLogo";
 
 // showBadge: true인 항목(주문 관리)에만 미처리 건수 배지 표시
 const menuItems = [
@@ -105,7 +106,7 @@ export default function AdminSidebar() {
     <aside className="fixed left-0 top-0 z-40 flex h-dvh w-[220px] flex-col bg-[#1E1E2D] text-white">
       {/* 로고 */}
       <div className="border-b border-white/[0.08] px-4 pb-3.5 pt-[18px]">
-        <div className="text-[18px] font-bold tracking-[-1px] text-white">C.O.D.E.</div>
+        <BrandLogo size={21} tracking={-1.5} weight="bold" />
         <div className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-white/40">Admin Panel</div>
       </div>
 

@@ -7,6 +7,7 @@ import { Input, Spin } from "antd";
 import { SearchOutlined, CloseCircleFilled, RightOutlined } from "@ant-design/icons";
 import BottomNav from "@/components/common/BottomNav";
 import AdminLinkButtons from "@/components/common/AdminLinkButtons";
+import BrandLogo from "@/components/common/BrandLogo";
 import { useCelebrities } from "@/hooks/useCelebrities";
 import { useProducts } from "@/hooks/useProducts";
 
@@ -72,9 +73,9 @@ export default function SearchPage() {
       <header className="sticky top-0 z-50 flex h-11 items-center justify-between border-b border-border-light bg-surface px-3">
         <Link
           href="/feed"
-          className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+          className="no-underline hover:opacity-80 transition-opacity"
         >
-          C.O.D.E.
+          <BrandLogo size={21} tracking={-1.5} weight="bold" />
         </Link>
         <AdminLinkButtons variant="mall" />
       </header>

@@ -7,15 +7,16 @@ import { CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
 import { Suspense, useEffect, useState } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { getOrderByNumber, updateOrderStatus } from "@/lib/services/order";
+import BrandLogo from "@/components/common/BrandLogo";
 
 function OrderCompleteHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-11 items-center border-b border-border-light bg-surface px-3">
       <Link
         href="/feed"
-        className="text-[21px] font-bold tracking-[-1.5px] text-text no-underline hover:opacity-80 transition-opacity"
+        className="no-underline hover:opacity-80 transition-opacity"
       >
-        C.O.D.E.
+        <BrandLogo size={21} tracking={-1.5} weight="bold" />
       </Link>
     </header>
   );

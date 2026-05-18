@@ -11,6 +11,7 @@ import EmailProtector from "@/components/mypage/EmailProtector";
 import EmailProtectionToggle from "@/components/mypage/EmailProtectionToggle";
 import AddressAddSheet from "@/components/mypage/AddressAddSheet";
 import Avatar from "@/components/common/Avatar";
+import BrandLogo from "@/components/common/BrandLogo";
 import { useUIStore } from "@/stores/uiStore";
 import { uploadImage } from "@/lib/services/upload";
 import { useOrders } from "@/hooks/useOrders";
@@ -213,9 +214,9 @@ export default function ProfileEditPage() {
         </div>
         <Link
           href="/feed"
-          className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+          className="no-underline hover:opacity-80 transition-opacity shrink-0"
         >
-          C.O.D.E.
+          <BrandLogo size={21} tracking={-1.5} weight="bold" />
         </Link>
         <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
         <h1 className="flex-1 truncate text-[13px] font-semibold text-text">프로필 편집</h1>

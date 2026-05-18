@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LeftOutlined } from "@ant-design/icons";
 import AdminLinkButtons from "./AdminLinkButtons";
+import BrandLogo from "./BrandLogo";
 
 
 interface BackTopBarProps {
@@ -28,9 +29,9 @@ export default function BackTopBar({ title, rightAction, backUrl }: BackTopBarPr
       <LeftOutlined className="cursor-pointer text-base shrink-0" onClick={handleBack} />
       <Link
         href="/feed"
-        className="text-[16px] font-bold tracking-[-1px] text-text no-underline hover:opacity-80 transition-opacity shrink-0"
+        className="no-underline hover:opacity-80 transition-opacity shrink-0"
       >
-        C.O.D.E.
+        <BrandLogo size={21} tracking={-1.5} weight="bold" />
       </Link>
       <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden="true" />
       <h2 className="flex-1 truncate text-[13px] font-semibold text-text">{title}</h2>
