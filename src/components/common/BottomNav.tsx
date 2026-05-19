@@ -86,7 +86,7 @@ export default function BottomNav() {
           className="w-[23px] h-[23px] text-text"
           strokeWidth={isActive("/cart") ? 2.5 : 1.8}
         />
-        {mounted && cartCount > 0 && (
+        {mounted && authUser && cartCount > 0 && (
           <span className="absolute top-1.5 right-[calc(50%-16px)] min-w-[16px] h-[16px] rounded-full bg-red px-1 text-[10px] font-bold text-white flex items-center justify-center border-[1.5px] border-white">
             {cartCount > 99 ? "99+" : cartCount}
           </span>
